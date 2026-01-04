@@ -1,25 +1,48 @@
-import { useState } from "react";
-import { auth } from "../api/Firebase.jsx";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { auth, db } from "../api/Firebase";
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
-export const useAuth = () => {
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+const AuthContext = createContext();
 
-  const login = async (email, password) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (err) {
-      setError("Falha no login. Verifique suas credenciais.");
-      console.error(err.message);
-    } finally {
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setLoading(true);
+      if (currentUser) {
+        setUser(currentUser);
+        // BUSCA O ROLE NO FIRESTORE
+        const docRef = doc(db, "usuarios", currentUser.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setUserData(docSnap.data());
+        }
+      } else {
+        setUser(null);
+        setUserData(null);
+      }
       setLoading(false);
-    }
-  };
+    });
+    return () => unsubscribe();
+  }, []);
 
+  const login = (email, password) =>
+    signInWithEmailAndPassword(auth, email, password);
   const logout = () => signOut(auth);
 
-  return { login, logout, error, loading };
+  return (
+    <AuthContext.Provider value={{ user, userData, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
+
+export const useAuth = () => useContext(AuthContext);

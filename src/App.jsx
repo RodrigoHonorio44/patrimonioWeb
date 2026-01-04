@@ -4,9 +4,15 @@ import { auth, db } from "./api/Firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
+// Importação das Páginas
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import PainelAnalista from "./pages/PainelAnalista";
 import Home from "./pages/Home";
+import CadastroEquipamento from "./pages/CadastroEquipamento";
+
+// Importando da pasta 'components'
+import CadastroChamado from "./components/CadastroChamado";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -15,23 +21,16 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      // Iniciamos o loading sempre que houver mudança de estado
       setLoading(true);
-
       if (currentUser) {
         try {
-          // Busca o cargo na coleção correta "usuarios"
           const docRef = doc(db, "usuarios", currentUser.uid);
           const docSnap = await getDoc(docRef);
 
           if (docSnap.exists()) {
             const userRole = docSnap.data().role?.toLowerCase().trim();
             setRole(userRole);
-            console.log("Sistema: Role identificado como:", userRole);
           } else {
-            console.warn(
-              "Sistema: Documento não encontrado, definindo como 'user'"
-            );
             setRole("user");
           }
         } catch (error) {
@@ -43,8 +42,6 @@ function App() {
         setUser(null);
         setRole(null);
       }
-
-      // SÓ DESLIGA O LOADING AQUI, após todas as consultas terminarem
       setLoading(false);
     });
 
@@ -61,13 +58,12 @@ function App() {
       </div>
     );
 
-  // Verificação de equipe técnica (Staff)
-  const isStaff = role === "admin" || role === "analista" || role === "ti";
+  const isStaff =
+    role === "admin" || role === "analista" || role === "ti" || role === "adm";
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Se já estiver logado e for Staff, não deixa voltar pro login, manda pro Dash */}
         <Route
           path="/login"
           element={
@@ -79,7 +75,6 @@ function App() {
           }
         />
 
-        {/* ROTA RAIZ (Decisor Automático) */}
         <Route
           path="/"
           element={
@@ -93,7 +88,7 @@ function App() {
           }
         />
 
-        {/* Dashboard Protegido */}
+        {/* --- ROTAS STAFF --- */}
         <Route
           path="/dashboard"
           element={
@@ -101,7 +96,53 @@ function App() {
           }
         />
 
-        {/* Home do Usuário */}
+        <Route
+          path="/operacional"
+          element={
+            user && isStaff ? <PainelAnalista /> : <Navigate to="/" replace />
+          }
+        />
+
+        {/* --- ROTA ATUALIZADA: PASSANDO PROPS PARA O COMPONENTE --- */}
+        <Route
+          path="/cadastrar-chamado"
+          element={
+            user && isStaff ? (
+              <CadastroChamado
+                isOpen={true}
+                onClose={() => window.history.back()}
+              />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/cadastrar-patrimonio"
+          element={
+            user && isStaff ? (
+              <CadastroEquipamento />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+
+        {/* --- ROTAS ADICIONAIS --- */}
+        <Route
+          path="/indicadores"
+          element={user && isStaff ? <Dashboard /> : <Navigate to="/" />}
+        />
+        <Route
+          path="/transferencia"
+          element={user && isStaff ? <Dashboard /> : <Navigate to="/" />}
+        />
+        <Route
+          path="/inventario"
+          element={user && isStaff ? <Dashboard /> : <Navigate to="/" />}
+        />
+
         <Route
           path="/home"
           element={user ? <Home /> : <Navigate to="/login" replace />}
