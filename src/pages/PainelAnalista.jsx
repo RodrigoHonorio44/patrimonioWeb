@@ -25,7 +25,7 @@ import {
   FiX,
   FiPrinter,
   FiSearch,
-  FiDownload, // Ícone da setinha
+  FiDownload,
   FiAlertCircle,
 } from "react-icons/fi";
 
@@ -76,16 +76,13 @@ const PainelAnalista = () => {
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    const q = query(collection(db, "chamados"), orderBy("criadoEm", "asc"));
+    // Buscamos os chamados ordenados por data
+    const q = query(collection(db, "chamados"), orderBy("criadoEm", "desc"));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const lista = [];
       querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const status = data.status?.toLowerCase().trim();
-        if (status !== "arquivado") {
-          lista.push({ id: doc.id, ...data });
-        }
+        lista.push({ id: doc.id, ...doc.data() });
       });
 
       const prioridadeOrdem = { urgente: 1, alta: 2, normal: 3, baixa: 4 };
@@ -93,7 +90,7 @@ const PainelAnalista = () => {
         const pA = prioridadeOrdem[a.prioridade?.toLowerCase()] || 3;
         const pB = prioridadeOrdem[b.prioridade?.toLowerCase()] || 3;
         if (pA !== pB) return pA - pB;
-        return a.criadoEm - b.criadoEm;
+        return 0;
       });
 
       setChamados(listaOrdenada);
@@ -235,15 +232,28 @@ const PainelAnalista = () => {
 
   const handleImprimir = (item) => {
     setChamadoSelecionado(item);
-    setTimeout(() => window.print(), 300);
+    setTimeout(() => {
+      window.print();
+    }, 500);
   };
 
+  // Lógica de Filtro que busca no banco carregado
   const chamadosExibidos = useMemo(() => {
-    return chamados.filter(
-      (c) =>
-        c.numeroOs?.toString().includes(filtroOs) ||
-        c.nome?.toLowerCase().includes(filtroOs.toLowerCase())
-    );
+    const busca = filtroOs.toLowerCase().trim();
+
+    return chamados.filter((c) => {
+      const correspondeBusca =
+        c.numeroOs?.toString().includes(busca) ||
+        c.nome?.toLowerCase().includes(busca) ||
+        c.unidade?.toLowerCase().includes(busca);
+
+      // Se não tem busca, esconde os arquivados. Se tem busca, mostra tudo que condiz.
+      if (!busca) {
+        return c.status?.toLowerCase() !== "arquivado";
+      }
+
+      return correspondeBusca;
+    });
   }, [chamados, filtroOs]);
 
   if (loading) {
@@ -282,7 +292,7 @@ const PainelAnalista = () => {
             <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Buscar por OS ou Solicitante..."
+              placeholder="Buscar por OS, Solicitante ou Unidade..."
               value={filtroOs}
               onChange={(e) => setFiltroOs(e.target.value)}
               className="pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 w-full bg-white shadow-sm"
@@ -342,13 +352,7 @@ const PainelAnalista = () => {
                           #{item.numeroOs}
                         </span>
                         <span className="text-[10px] text-slate-400 font-semibold">
-                          {item.criadoEm?.toDate().toLocaleString("pt-BR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {item.criadoEm?.toDate().toLocaleString("pt-BR")}
                         </span>
                       </div>
                     </td>
@@ -385,6 +389,8 @@ const PainelAnalista = () => {
                             ? "bg-orange-100 text-orange-700"
                             : statusNorm === "fechado"
                             ? "bg-emerald-100 text-emerald-700"
+                            : statusNorm === "arquivado"
+                            ? "bg-slate-200 text-slate-600"
                             : "bg-blue-100 text-blue-700"
                         }`}
                       >
@@ -421,6 +427,8 @@ const PainelAnalista = () => {
                             <button
                               onClick={() => {
                                 setChamadoSelecionado(item);
+                                setPatrimonio(item.patrimonio || "");
+                                setParecerTecnico(item.feedbackAnalista || "");
                                 setMostrarModalFinalizar(true);
                               }}
                               className="bg-emerald-500 text-white p-2 rounded-lg"
@@ -539,7 +547,7 @@ const PainelAnalista = () => {
       {/* MODAL VISUALIZAÇÃO */}
       {mostrarModalVer && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full">
+          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full overflow-y-auto max-h-[90vh]">
             <div className="flex justify-between mb-6">
               <h2 className="text-2xl font-black text-blue-600">
                 OS #{chamadoSelecionado?.numeroOs}
