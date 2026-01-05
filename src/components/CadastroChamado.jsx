@@ -9,6 +9,7 @@ import {
   Hash,
   MapPin,
   FileText,
+  BarChart, // Ícone novo para prioridade
 } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
@@ -20,6 +21,7 @@ export default function CadastroChamado({ isOpen, onClose }) {
   const [patrimonio, setPatrimonio] = useState("");
   const [setor, setSetor] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [prioridade, setPrioridade] = useState("média"); // NOVO ESTADO
   const [naoSeiPatrimonio, setNaoSeiPatrimonio] = useState(false);
 
   if (!isOpen) return null;
@@ -43,6 +45,7 @@ export default function CadastroChamado({ isOpen, onClose }) {
         setor,
         descricao,
         unidade,
+        prioridade, // AGORA ENVIA O ESTADO SELECIONADO
         criadoEm: serverTimestamp(),
         emailSolicitante: auth.currentUser.email,
         nome:
@@ -50,7 +53,6 @@ export default function CadastroChamado({ isOpen, onClose }) {
         numeroOs: novaOs,
         status: "aberto",
         userId: auth.currentUser.uid,
-        prioridade: "média",
         feedbackAnalista: "",
         tecnicoResponsavel: "",
       });
@@ -61,6 +63,7 @@ export default function CadastroChamado({ isOpen, onClose }) {
       setSetor("");
       setDescricao("");
       setUnidade("");
+      setPrioridade("média");
       setNaoSeiPatrimonio(false);
       onClose();
       alert(`Chamado ${novaOs} registrado com sucesso!`);
@@ -178,23 +181,48 @@ export default function CadastroChamado({ isOpen, onClose }) {
               </div>
             </div>
 
-            {/* SETOR */}
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 block mb-1">
-                Setor (Local exato)
-              </label>
-              <div className="relative">
-                <MapPin
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={18}
-                />
-                <input
-                  required
-                  value={setor}
-                  onChange={(e) => setSetor(e.target.value)}
-                  placeholder="Ex: Sala de Raio-X"
-                  className="w-full p-4 pl-12 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 text-sm font-medium border-none"
-                />
+            {/* SETOR E PRIORIDADE */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 block mb-1">
+                  Setor
+                </label>
+                <div className="relative">
+                  <MapPin
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={18}
+                  />
+                  <input
+                    required
+                    value={setor}
+                    onChange={(e) => setSetor(e.target.value)}
+                    placeholder="Ex: Sala 01"
+                    className="w-full p-4 pl-12 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 text-sm font-medium border-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 block mb-1">
+                  Prioridade
+                </label>
+                <div className="relative">
+                  <BarChart
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={18}
+                  />
+                  <select
+                    required
+                    value={prioridade}
+                    onChange={(e) => setPrioridade(e.target.value)}
+                    className="w-full p-4 pl-12 bg-slate-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-600 appearance-none text-sm font-bold text-slate-700 transition-all"
+                  >
+                    <option value="baixa">Baixa</option>
+                    <option value="média">Média</option>
+                    <option value="alta">Alta</option>
+                    <option value="urgente">Urgente</option>
+                  </select>
+                </div>
               </div>
             </div>
 

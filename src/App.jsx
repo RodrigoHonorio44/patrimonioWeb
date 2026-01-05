@@ -6,10 +6,15 @@ import { doc, getDoc } from "firebase/firestore";
 
 // Importação das Páginas
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "./pages/Dashboard"; // Dashboard de Gestão (Cards)
+import DashboardBI from "./pages/DashboardBI"; // Dashboard de Gráficos (Power BI Style)
 import PainelAnalista from "./pages/PainelAnalista";
 import Home from "./pages/Home";
 import CadastroEquipamento from "./pages/CadastroEquipamento";
+import Transferencia from "./pages/Transferencia";
+import Inventario from "./pages/Inventario";
+import Estoque from "./pages/Estoque";
+import Usuarios from "./pages/Usuarios";
 
 // Importando da pasta 'components'
 import CadastroChamado from "./components/CadastroChamado";
@@ -48,33 +53,31 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  // Tela de Carregamento Estilizada
   if (loading)
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-600 border-r-4"></div>
-        <p className="text-blue-600 font-bold animate-pulse">
-          Autenticando acesso...
-        </p>
+      <div className="h-screen flex flex-col items-center justify-center bg-[#f8fafc] gap-6">
+        <div className="relative flex items-center justify-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-[6px] border-slate-200 border-t-blue-600"></div>
+          <div className="absolute h-8 w-8 bg-blue-600 rounded-lg animate-pulse"></div>
+        </div>
+        <div className="text-center">
+          <p className="text-slate-900 font-black text-xl tracking-tight uppercase">
+            PatriHosp
+          </p>
+          <p className="text-slate-400 font-bold text-xs tracking-widest uppercase">
+            Validando Credenciais
+          </p>
+        </div>
       </div>
     );
 
-  const isStaff =
-    role === "admin" || role === "analista" || role === "ti" || role === "adm";
+  const isStaff = ["admin", "analista", "ti", "adm"].includes(role);
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route
-          path="/login"
-          element={
-            !user ? (
-              <Login />
-            ) : (
-              <Navigate to={isStaff ? "/dashboard" : "/home"} replace />
-            )
-          }
-        />
-
+        {/* --- LÓGICA DE REDIRECIONAMENTO INICIAL --- */}
         <Route
           path="/"
           element={
@@ -88,66 +91,55 @@ function App() {
           }
         />
 
-        {/* --- ROTAS STAFF --- */}
+        {/* --- ROTA PÚBLICA --- */}
         <Route
-          path="/dashboard"
+          path="/login"
           element={
-            user && isStaff ? <Dashboard /> : <Navigate to="/" replace />
-          }
-        />
-
-        <Route
-          path="/operacional"
-          element={
-            user && isStaff ? <PainelAnalista /> : <Navigate to="/" replace />
-          }
-        />
-
-        {/* --- ROTA ATUALIZADA: PASSANDO PROPS PARA O COMPONENTE --- */}
-        <Route
-          path="/cadastrar-chamado"
-          element={
-            user && isStaff ? (
-              <CadastroChamado
-                isOpen={true}
-                onClose={() => window.history.back()}
-              />
+            !user ? (
+              <Login />
             ) : (
-              <Navigate to="/" replace />
+              <Navigate to={isStaff ? "/dashboard" : "/home"} replace />
             )
           }
         />
 
-        <Route
-          path="/cadastrar-patrimonio"
-          element={
-            user && isStaff ? (
-              <CadastroEquipamento />
-            ) : (
-              <Navigate to="/dashboard" replace />
-            )
-          }
-        />
+        {/* --- ROTAS ADMINISTRATIVAS / STAFF --- */}
+        {user && isStaff ? (
+          <>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/indicadores" element={<DashboardBI />} />{" "}
+            {/* <-- ATUALIZADO PARA O BI */}
+            <Route path="/operacional" element={<PainelAnalista />} />
+            <Route
+              path="/cadastrar-patrimonio"
+              element={<CadastroEquipamento />}
+            />
+            <Route path="/transferencia" element={<Transferencia />} />
+            <Route path="/inventario" element={<Inventario />} />
+            <Route path="/estoque" element={<Estoque />} />
+            <Route path="/usuarios" element={<Usuarios />} />
+            <Route
+              path="/cadastrar-chamado"
+              element={
+                <CadastroChamado
+                  isOpen={true}
+                  onClose={() => window.history.back()}
+                />
+              }
+            />
+          </>
+        ) : (
+          // Se tentar acessar rota staff sem permissão, joga para home ou login
+          <Route path="/staff/*" element={<Navigate to="/" replace />} />
+        )}
 
-        {/* --- ROTAS ADICIONAIS --- */}
-        <Route
-          path="/indicadores"
-          element={user && isStaff ? <Dashboard /> : <Navigate to="/" />}
-        />
-        <Route
-          path="/transferencia"
-          element={user && isStaff ? <Dashboard /> : <Navigate to="/" />}
-        />
-        <Route
-          path="/inventario"
-          element={user && isStaff ? <Dashboard /> : <Navigate to="/" />}
-        />
-
+        {/* --- ROTAS DO USUÁRIO COMUM --- */}
         <Route
           path="/home"
           element={user ? <Home /> : <Navigate to="/login" replace />}
         />
 
+        {/* --- FALLBACK --- */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
