@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { db, auth } from "../api/Firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { FiEye, FiX, FiCheckCircle, FiClock, FiPlus } from "react-icons/fi";
+import {
+  FiEye,
+  FiX,
+  FiCheckCircle,
+  FiClock,
+  FiPlus,
+  FiTool,
+  FiAlertCircle,
+} from "react-icons/fi";
 
 const MeusChamados = ({ abrirFormulario }) => {
   const [chamados, setChamados] = useState([]);
@@ -9,6 +17,19 @@ const MeusChamados = ({ abrirFormulario }) => {
   const [chamadoSelecionado, setChamadoSelecionado] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
   const user = auth.currentUser;
+
+  // Função para calcular o tempo de SLA (parado ou correndo)
+  const calcularSLA = (criadoEm, finalizadoEm) => {
+    if (!criadoEm) return "---";
+    const inicio = criadoEm.toDate();
+    const fim = finalizadoEm ? finalizadoEm.toDate() : new Date();
+
+    const diffInMs = Math.abs(fim - inicio);
+    const horas = Math.floor(diffInMs / (1000 * 60 * 60));
+    const minutos = Math.floor((diffInMs / (1000 * 60)) % 60);
+
+    return `${horas}h ${minutos}m`;
+  };
 
   useEffect(() => {
     if (!user) {
@@ -107,8 +128,6 @@ const MeusChamados = ({ abrirFormulario }) => {
                       </span>
                     </div>
                   </td>
-
-                  {/* UNIDADE E SETOR */}
                   <td className="px-8 py-6">
                     <div className="flex flex-col">
                       <span className="text-sm font-semibold text-slate-600 whitespace-nowrap">
@@ -119,20 +138,19 @@ const MeusChamados = ({ abrirFormulario }) => {
                       </span>
                     </div>
                   </td>
-
                   <td className="px-8 py-6 text-center">
                     <span
                       className={`text-[10px] font-black px-4 py-2 rounded-xl border uppercase tracking-tighter ${
                         item.status?.toLowerCase() === "aberto"
                           ? "bg-green-50 text-green-700 border-green-100"
+                          : item.status?.toLowerCase() === "pendente"
+                          ? "bg-amber-50 text-amber-700 border-amber-100"
                           : "bg-slate-50 text-slate-400 border-slate-100"
                       }`}
                     >
                       {item.status}
                     </span>
                   </td>
-
-                  {/* DATA E HORA DE ABERTURA */}
                   <td className="px-8 py-6 text-center whitespace-nowrap">
                     <div className="flex flex-col items-center">
                       <span className="text-sm font-bold text-slate-500">
@@ -147,7 +165,6 @@ const MeusChamados = ({ abrirFormulario }) => {
                       </span>
                     </div>
                   </td>
-
                   <td className="px-8 py-6 text-center">
                     <button
                       onClick={() => {
@@ -173,7 +190,7 @@ const MeusChamados = ({ abrirFormulario }) => {
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             onClick={() => setModalAberto(false)}
           ></div>
-          <div className="bg-white w-full max-w-[500px] rounded-[3rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-[550px] rounded-[3rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in duration-300">
             <div className="p-8 md:p-10">
               <div className="flex justify-between items-center mb-8">
                 <h2 className="text-2xl font-black text-slate-800 italic">
@@ -188,21 +205,38 @@ const MeusChamados = ({ abrirFormulario }) => {
               </div>
 
               <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+                {/* STATUS FINALIZADO */}
                 {chamadoSelecionado.status?.toLowerCase() === "fechado" && (
                   <div className="bg-green-50 border-l-[6px] border-green-500 p-6 rounded-r-2xl shadow-sm">
                     <div className="flex items-center gap-2 text-green-700 font-black text-[11px] uppercase tracking-widest mb-3">
-                      <FiCheckCircle size={20} /> FINALIZADO
+                      <FiCheckCircle size={20} /> SLA FINALIZADO
                     </div>
                     <p className="text-green-800 text-[15px] font-bold leading-tight mb-4 italic">
                       {chamadoSelecionado.feedbackAnalista ||
                         "Incidente resolvido com sucesso."}
                     </p>
                     <div className="text-green-700 text-[10px] font-black border-t border-green-200 pt-3 uppercase">
-                      FECHADO EM:{" "}
-                      {chamadoSelecionado.finalizadoEm
-                        ?.toDate()
-                        .toLocaleString("pt-BR")}
+                      TEMPO TOTAL DE ATENDIMENTO:{" "}
+                      {calcularSLA(
+                        chamadoSelecionado.criadoEm,
+                        chamadoSelecionado.finalizadoEm
+                      )}
                     </div>
+                  </div>
+                )}
+
+                {/* MOTIVO DA PAUSA (APARECE SE STATUS FOR PENDENTE) */}
+                {(chamadoSelecionado.status?.toLowerCase() === "pendente" ||
+                  chamadoSelecionado.status?.toLowerCase() === "pausado") && (
+                  <div className="bg-amber-50 border-l-[6px] border-amber-500 p-6 rounded-r-2xl shadow-sm animate-pulse">
+                    <div className="flex items-center gap-2 text-amber-700 font-black text-[11px] uppercase tracking-widest mb-2">
+                      <FiAlertCircle size={18} /> SLA PAUSADO
+                    </div>
+                    <p className="text-amber-900 text-[14px] font-bold italic leading-tight">
+                      Motivo:{" "}
+                      {chamadoSelecionado.motivoPausa ||
+                        "Aguardando informações ou peça técnica."}
+                    </p>
                   </div>
                 )}
 
@@ -212,27 +246,41 @@ const MeusChamados = ({ abrirFormulario }) => {
                     value={chamadoSelecionado.status?.toUpperCase()}
                   />
                   <Detail
-                    label="SETOR"
-                    value={chamadoSelecionado.setor?.toUpperCase()}
+                    label="TEMPO DE SLA"
+                    value={calcularSLA(
+                      chamadoSelecionado.criadoEm,
+                      chamadoSelecionado.finalizadoEm
+                    )}
                   />
                   <Detail
-                    label="UNIDADE"
-                    value={chamadoSelecionado.unidade}
-                    className="col-span-2"
+                    label="SETOR"
+                    value={chamadoSelecionado.setor?.toUpperCase()}
                   />
                   <Detail
                     label="EQUIPAMENTO"
                     value={chamadoSelecionado.equipamento}
                   />
                   <Detail
-                    label="PATRIMÔNIO"
-                    value={chamadoSelecionado.patrimonio}
+                    label="UNIDADE"
+                    value={chamadoSelecionado.unidade}
+                    className="col-span-2"
                   />
+                </div>
+
+                {/* SEÇÃO: AÇÕES DO TÉCNICO */}
+                <div className="bg-blue-50/50 p-6 rounded-[2.5rem] border border-blue-100">
+                  <p className="text-blue-500 font-black text-[10px] uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <FiTool size={14} /> Diagnóstico / Ações Técnicas:
+                  </p>
+                  <p className="text-slate-700 text-sm font-semibold italic leading-relaxed">
+                    {chamadoSelecionado.acoesTecnico ||
+                      "Aguardando o técnico descrever as ações realizadas..."}
+                  </p>
                 </div>
 
                 <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
                   <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-2">
-                    Descrição:
+                    Descrição do Usuário:
                   </p>
                   <p className="text-slate-600 text-sm font-semibold italic leading-relaxed">
                     "{chamadoSelecionado.descricao}"
