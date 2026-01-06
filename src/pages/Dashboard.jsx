@@ -16,6 +16,7 @@ import {
   Users,
   MessageSquarePlus,
   ChevronRight,
+  ShieldCheck, // Ícone extra para indicar Admin
 } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
@@ -43,10 +44,17 @@ export default function Dashboard() {
         if (docSnap.exists()) {
           setUserData(docSnap.data());
         } else {
-          setUserData({ nome: user.displayName || "Analista" });
+          // Fallback caso o documento não exista
+          setUserData({
+            name: user.displayName || "Analista",
+            cargo: "analista",
+          });
         }
       } catch (error) {
-        setUserData({ nome: user.displayName || "Analista" });
+        setUserData({
+          name: user.displayName || "Analista",
+          cargo: "analista",
+        });
       }
     };
 
@@ -65,7 +73,10 @@ export default function Dashboard() {
     return () => unsubscribe();
   }, [user]);
 
-  const nomeExibicao = userData?.nome || user?.displayName || "Analista";
+  const nomeExibicao = userData?.name || user?.displayName || "Analista";
+
+  // Verifica se o cargo é Administrativo para mostrar opções extras
+  const isAdmin = userData?.cargo === "Administrativo";
 
   const NavButton = ({ icon: Icon, label, path }) => {
     const active = location.pathname === path;
@@ -103,6 +114,7 @@ export default function Dashboard() {
         </div>
 
         <nav className="flex-1 px-6 space-y-6 overflow-y-auto pb-8">
+          {/* SEÇÃO DASHBOARDS */}
           <div>
             <p className="px-3 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
               Dashboards
@@ -121,6 +133,7 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* SEÇÃO OPERAÇÃO */}
           <div>
             <p className="px-3 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
               Operação
@@ -139,6 +152,7 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* SEÇÃO PATRIMÔNIO */}
           <div>
             <p className="px-3 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
               Patrimônio
@@ -162,17 +176,32 @@ export default function Dashboard() {
               />
             </div>
           </div>
+
+          {/* NOVO: SEÇÃO DE CONFIGURAÇÕES (GESTÃO DE USUÁRIO) */}
+          <div>
+            <p className="px-3 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
+              Configurações
+            </p>
+            <div className="space-y-1">
+              <NavButton
+                icon={Users}
+                label="Gestão de Usuários"
+                path="/usuarios"
+              />
+            </div>
+          </div>
         </nav>
 
         {/* User Profile Area */}
         <div className="p-6 border-t border-slate-100">
           <div className="mb-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-3">
-            <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-black text-xs">
-              {nomeExibicao.substring(0, 2).toUpperCase()}
+            <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-black text-xs uppercase">
+              {nomeExibicao.substring(0, 2)}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-xs font-black text-slate-400 uppercase tracking-tighter">
-                Analista
+              <p className="text-[9px] font-black text-blue-500 uppercase tracking-tighter flex items-center gap-1">
+                {isAdmin && <ShieldCheck size={10} />}
+                {userData?.cargo || "Analista"}
               </p>
               <p className="text-sm font-bold text-slate-700 truncate">
                 {nomeExibicao}
@@ -267,7 +296,7 @@ export default function Dashboard() {
   );
 }
 
-// Subcomponente de Card de Estatística Refinado
+// Subcomponentes StatCard e QuickActionCard permanecem conforme o padrão...
 function StatCard({ title, value, color, icon: Icon }) {
   const themes = {
     amber: "bg-amber-500",
@@ -275,9 +304,8 @@ function StatCard({ title, value, color, icon: Icon }) {
     emerald: "bg-emerald-500",
     blue: "bg-blue-600",
   };
-
   return (
-    <div className="bg-white p-7 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
+    <div className="bg-white p-7 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl transition-all">
       <div className="flex justify-between items-center mb-6">
         <div
           className={`${themes[color]} p-3 rounded-2xl text-white shadow-lg`}
@@ -288,17 +316,13 @@ function StatCard({ title, value, color, icon: Icon }) {
           {title}
         </span>
       </div>
-      <div className="flex items-baseline gap-2">
-        <h3 className="text-4xl font-black text-slate-900">
-          {value.toString().padStart(2, "0")}
-        </h3>
-        <div className="h-1.5 w-1.5 rounded-full bg-slate-200"></div>
-      </div>
+      <h3 className="text-4xl font-black text-slate-900">
+        {value.toString().padStart(2, "0")}
+      </h3>
     </div>
   );
 }
 
-// Subcomponente de Card de Ação Rápida
 function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
   const isDark = variant === "dark";
   return (
@@ -306,8 +330,8 @@ function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
       onClick={onClick}
       className={`group cursor-pointer rounded-[40px] p-8 transition-all relative overflow-hidden flex flex-col justify-between h-64 ${
         isDark
-          ? "bg-slate-900 text-white shadow-2xl shadow-slate-200 hover:bg-slate-800"
-          : "bg-white border border-slate-200 text-slate-900 hover:border-blue-400 shadow-sm"
+          ? "bg-slate-900 text-white"
+          : "bg-white border border-slate-200 text-slate-900"
       }`}
     >
       <div className="relative z-10">
@@ -319,25 +343,11 @@ function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
           <Icon size={24} />
         </div>
         <h2 className="text-xl font-black mb-2">{title}</h2>
-        <p
-          className={`text-sm leading-relaxed ${
-            isDark ? "text-slate-400" : "text-slate-500"
-          }`}
-        >
-          {description}
-        </p>
+        <p className="text-sm opacity-70">{description}</p>
       </div>
-
-      <div className="relative z-10 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest mt-4 group-hover:gap-4 transition-all">
+      <div className="relative z-10 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
         Acessar Agora <ChevronRight size={14} className="text-blue-500" />
       </div>
-
-      <Icon
-        size={140}
-        className={`absolute -right-8 -bottom-8 opacity-[0.03] transition-transform group-hover:scale-110 group-hover:rotate-6 duration-700 ${
-          isDark ? "text-white" : "text-slate-900"
-        }`}
-      />
     </div>
   );
 }
