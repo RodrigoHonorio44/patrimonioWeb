@@ -32,7 +32,6 @@ export default function Login() {
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
 
-        // LOGICA DE TRAVA: Se precisar trocar, vai para a tela de troca
         if (userData.requiresPasswordChange === true) {
           toast.info("Primeiro acesso. Por favor, altere sua senha.");
           navigate("/trocar-senha");
@@ -65,9 +64,8 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-white flex font-sans">
-      {/* LADO ESQUERDO: Visual Hospitalar */}
+      {/* LADO ESQUERDO: Visual Hospitalar (Mantido Intacto) */}
       <div className="hidden lg:flex w-1/2 bg-blue-600 items-center justify-center p-12 relative overflow-hidden">
-        {/* Círculos de fundo para o efeito moderno */}
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-blue-500 rounded-full opacity-50 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-indigo-500 rounded-full opacity-50 blur-3xl"></div>
 
@@ -81,7 +79,7 @@ export default function Login() {
                 Conde Modesto Leal
               </h2>
               <span className="text-blue-200 text-xs font-bold uppercase tracking-[0.2em]">
-                Unidade de TI
+                HMCML Unidade de TI
               </span>
             </div>
           </div>
@@ -98,76 +96,89 @@ export default function Login() {
         </div>
       </div>
 
-      {/* LADO DIREITO: Formulário Limpo */}
+      {/* LADO DIREITO: Formulário com Nome do Sistema */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-slate-50">
-        <div className="w-full max-w-md bg-white p-10 rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100">
-          <div className="mb-10 text-center lg:text-left">
-            <h3 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter uppercase">
-              Login
+        <div className="w-full max-w-md">
+          {/* APENAS O NOME ESTILIZADO AQUI */}
+          <div className="flex flex-col items-center mb-10">
+            <h3 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">
+              RODHON<span className="text-blue-600">SYSTEM</span>
             </h3>
-            <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">
-              Área Restrita
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] mt-3">
+              Technology Solutions
             </p>
           </div>
 
-          {error && (
-            <div className="mb-8 p-4 bg-red-50 border-l-4 border-red-500 text-red-600 rounded-r-xl flex items-center gap-3 text-sm font-bold animate-pulse">
-              <AlertCircle size={20} />
-              {error}
+          <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100">
+            <div className="mb-8 text-center">
+              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
+                Identificação de Usuário
+              </p>
             </div>
-          )}
 
-          <form className="space-y-6" onSubmit={handleLogin}>
-            <div className="space-y-2">
-              <label className="text-xs font-black uppercase text-slate-500 ml-1 tracking-widest">
-                E-mail Corporativo
-              </label>
-              <div className="relative group">
-                <span className="absolute inset-y-0 left-0 pl-5 flex items-center text-slate-400 group-focus-within:text-blue-600 transition-colors">
-                  <User size={20} />
-                </span>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all font-semibold text-slate-700"
-                  placeholder="nome@hospital.com"
-                />
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-600 rounded-r-xl flex items-center gap-3 text-sm font-bold">
+                <AlertCircle size={20} />
+                {error}
               </div>
-            </div>
+            )}
 
-            <div className="space-y-2">
-              <label className="text-xs font-black uppercase text-slate-500 ml-1 tracking-widest">
-                Senha
-              </label>
-              <div className="relative group">
-                <span className="absolute inset-y-0 left-0 pl-5 flex items-center text-slate-400 group-focus-within:text-blue-600 transition-colors">
-                  <Lock size={20} />
-                </span>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all font-semibold text-slate-700"
-                  placeholder="••••••••"
-                />
+            <form className="space-y-5" onSubmit={handleLogin}>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase text-slate-500 ml-1 tracking-widest">
+                  E-mail Corporativo
+                </label>
+                <div className="relative group">
+                  <span className="absolute inset-y-0 left-0 pl-5 flex items-center text-slate-400 group-focus-within:text-blue-600 transition-colors">
+                    <User size={20} />
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all font-semibold text-slate-700"
+                    placeholder="nome@hospital.com"
+                  />
+                </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-sm"
-            >
-              {loading ? (
-                <Loader2 className="animate-spin" size={24} />
-              ) : (
-                "Acessar Sistema"
-              )}
-            </button>
-          </form>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase text-slate-500 ml-1 tracking-widest">
+                  Senha
+                </label>
+                <div className="relative group">
+                  <span className="absolute inset-y-0 left-0 pl-5 flex items-center text-slate-400 group-focus-within:text-blue-600 transition-colors">
+                    <Lock size={20} />
+                  </span>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-14 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition-all font-semibold text-slate-700"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-sm mt-4"
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin" size={24} />
+                ) : (
+                  "Acessar Sistema"
+                )}
+              </button>
+            </form>
+          </div>
+
+          <p className="text-center mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+            &copy; 2024 Rodhon System | Unidade Hospitalar
+          </p>
         </div>
       </div>
     </div>
