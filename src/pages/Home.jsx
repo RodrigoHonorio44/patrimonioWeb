@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import CadastroChamado from "../components/CadastroChamado";
 import MeusChamados from "../components/MeusChamados";
-import { LogOut, LayoutGrid, ShieldCheck } from "lucide-react";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
+import { LayoutGrid } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -14,13 +16,11 @@ export default function Home() {
       const user = auth.currentUser;
       if (user) {
         try {
-          // Busca no Firestore na coleção "usuarios" pelo UID do logado
           const docRef = doc(db, "usuarios", user.uid);
           const docSnap = await getDoc(docRef);
 
           if (docSnap.exists()) {
             const data = docSnap.data();
-            // Tenta pegar o campo 'nome' ou 'name' do seu documento
             setNomeUsuario(
               data.nome || data.name || user.displayName || "Usuário"
             );
@@ -38,45 +38,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
-      {/* HEADER SUPERIOR */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          {/* LADO ESQUERDO: NOME DO SISTEMA */}
-          <div className="flex flex-col">
-            <div className="text-slate-900 font-black text-xl tracking-tighter italic leading-none uppercase">
-              RODHON<span className="text-blue-600">SYSTEM</span>
-            </div>
-            <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.4em] mt-1">
-              Technology Solutions
-            </p>
-          </div>
-
-          {/* LADO DIREITO: INFO DO USUÁRIO E SAIR */}
-          <div className="flex items-center gap-6">
-            <div className="hidden sm:flex items-center gap-3 pr-6 border-r border-slate-100">
-              <div className="h-9 w-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-black text-xs shadow-md shadow-blue-100">
-                {nomeUsuario.substring(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest leading-none">
-                  Rede Maricá
-                </p>
-                <p className="text-sm font-bold text-slate-700">
-                  {nomeUsuario}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => auth.signOut()}
-              className="flex items-center gap-2 text-rose-500 font-black text-xs uppercase tracking-widest hover:bg-rose-50 px-4 py-2 rounded-xl transition-all border border-transparent hover:border-rose-100"
-            >
-              <LogOut size={16} />{" "}
-              <span className="hidden sm:inline">Sair</span>
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* HEADER COMPONENTE REUTILIZÁVEL */}
+      <Header />
 
       {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
@@ -100,17 +63,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* RODAPÉ */}
-        <footer className="mt-12 mb-6 flex flex-col items-center justify-center gap-2">
-          <div className="flex items-center gap-2 text-slate-300">
-            <div className="h-px w-12 bg-slate-200"></div>
-            <ShieldCheck size={16} />
-            <div className="h-px w-12 bg-slate-200"></div>
-          </div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">
-            &copy; 2024 Rodhon System | Unidade Maricá
-          </p>
-        </footer>
+        {/* FOOTER COMPONENTE REUTILIZÁVEL */}
+        <Footer />
 
         {/* Modal de cadastro de chamado */}
         <CadastroChamado

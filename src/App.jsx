@@ -4,7 +4,7 @@ import { auth, db } from "./api/Firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
-// IMPORTANTE: Suporte para notificações (Toasts)
+// Suporte para notificações (Toasts)
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -42,8 +42,6 @@ function App() {
             const userData = docSnap.data();
             const userRole = userData.role?.toLowerCase().trim();
             setRole(userRole);
-
-            // VERIFICAÇÃO CRÍTICA: Se a flag existir e for true, bloqueia o App
             setMustChangePassword(userData.requiresPasswordChange === true);
           } else {
             setRole("user");
@@ -65,20 +63,26 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  // TELA DE CARREGAMENTO ATUALIZADA (ADEUS PATRIHOSP)
   if (loading)
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-[#f8fafc] gap-6">
+      <div className="h-screen flex flex-col items-center justify-center bg-white gap-8">
         <div className="relative flex items-center justify-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-[6px] border-slate-200 border-t-blue-600"></div>
-          <div className="absolute h-8 w-8 bg-blue-600 rounded-lg animate-pulse"></div>
+          {/* Spinner Azul Principal */}
+          <div className="animate-spin rounded-full h-20 w-20 border-[3px] border-slate-100 border-t-blue-600"></div>
+          {/* Núcleo do Spinner */}
+          <div className="absolute h-8 w-8 bg-blue-600 rounded-xl animate-bounce shadow-lg shadow-blue-200"></div>
         </div>
         <div className="text-center">
-          <p className="text-slate-900 font-black text-xl tracking-tight uppercase">
-            PatriHosp
-          </p>
-          <p className="text-slate-400 font-bold text-xs tracking-widest uppercase">
-            Validando Credenciais
-          </p>
+          <div className="text-slate-900 font-black text-3xl tracking-tighter italic leading-none uppercase">
+            RODHON<span className="text-blue-600">SYSTEM</span>
+          </div>
+          <div className="flex flex-col items-center gap-2 mt-4">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] animate-pulse">
+              Validando Credenciais
+            </p>
+            <div className="w-12 h-1 bg-gradient-to-r from-transparent via-blue-600 to-transparent rounded-full"></div>
+          </div>
         </div>
       </div>
     );
@@ -91,7 +95,7 @@ function App() {
 
       <BrowserRouter>
         <Routes>
-          {/* --- CASO 1: USUÁRIO PRECISA TROCAR SENHA (BLOQUEIO TOTAL) --- */}
+          {/* --- CASO 1: USUÁRIO PRECISA TROCAR SENHA --- */}
           {user && mustChangePassword ? (
             <>
               <Route path="/trocar-senha" element={<TrocarSenha />} />
