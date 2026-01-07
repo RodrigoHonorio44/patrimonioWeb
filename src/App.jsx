@@ -13,7 +13,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import DashboardBI from "./pages/DashboardBI";
 import PainelAnalista from "./pages/PainelAnalista";
-import Home from "./pages/Home";
+import Home from "./pages/Home"; // Onde os novos formulários serão usados
 import CadastroEquipamento from "./pages/CadastroEquipamento";
 import Transferencia from "./pages/Transferencia";
 import Inventario from "./pages/Inventario";
@@ -63,14 +63,12 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // TELA DE CARREGAMENTO ATUALIZADA (ADEUS PATRIHOSP)
+  // TELA DE CARREGAMENTO RODHON SYSTEM
   if (loading)
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-white gap-8">
         <div className="relative flex items-center justify-center">
-          {/* Spinner Azul Principal */}
           <div className="animate-spin rounded-full h-20 w-20 border-[3px] border-slate-100 border-t-blue-600"></div>
-          {/* Núcleo do Spinner */}
           <div className="absolute h-8 w-8 bg-blue-600 rounded-xl animate-bounce shadow-lg shadow-blue-200"></div>
         </div>
         <div className="text-center">
@@ -95,7 +93,7 @@ function App() {
 
       <BrowserRouter>
         <Routes>
-          {/* --- CASO 1: USUÁRIO PRECISA TROCAR SENHA --- */}
+          {/* CASO 1: TROCA DE SENHA OBRIGATÓRIA */}
           {user && mustChangePassword ? (
             <>
               <Route path="/trocar-senha" element={<TrocarSenha />} />
@@ -106,7 +104,7 @@ function App() {
             </>
           ) : (
             <>
-              {/* --- CASO 2: FLUXO NORMAL DO SISTEMA --- */}
+              {/* CASO 2: FLUXO NORMAL */}
               <Route
                 path="/"
                 element={
@@ -157,7 +155,7 @@ function App() {
                 </>
               )}
 
-              {/* ROTAS USUÁRIO COMUM & GERAL */}
+              {/* ROTAS USUÁRIO COMUM & HOME */}
               <Route
                 path="/home"
                 element={user ? <Home /> : <Navigate to="/login" replace />}

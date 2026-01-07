@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import CadastroChamado from "../components/CadastroChamado";
 import MeusChamados from "../components/MeusChamados";
+import FormRemanejamento from "../components/FormRemanejamento"; // Importando o novo form
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { LayoutGrid } from "lucide-react";
@@ -9,6 +10,7 @@ import { doc, getDoc } from "firebase/firestore";
 
 export default function Home() {
   const [modalOpen, setModalOpen] = useState(false);
+  const [remanejamentoOpen, setRemanejamentoOpen] = useState(false); // Novo estado
   const [nomeUsuario, setNomeUsuario] = useState("Usuário");
 
   useEffect(() => {
@@ -59,18 +61,29 @@ export default function Home() {
         {/* CONTAINER DOS CHAMADOS */}
         <div className="bg-white rounded-[32px] border border-slate-200 shadow-xl shadow-slate-100/50 overflow-hidden">
           <div className="p-1">
-            <MeusChamados abrirFormulario={() => setModalOpen(true)} />
+            {/* AGORA PASSAMOS AS DUAS PROPS: abrirFormulario e abrirRemanejamento */}
+            <MeusChamados
+              abrirFormulario={() => setModalOpen(true)}
+              abrirRemanejamento={() => setRemanejamentoOpen(true)}
+            />
           </div>
         </div>
 
         {/* FOOTER COMPONENTE REUTILIZÁVEL */}
         <Footer />
 
-        {/* Modal de cadastro de chamado */}
+        {/* Modal de cadastro de chamado (Manutenção) */}
         <CadastroChamado
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
         />
+
+        {/* Modal de Remanejamento - Só renderiza se estiver aberto */}
+        {remanejamentoOpen && (
+          <FormRemanejamento
+            fecharFormulario={() => setRemanejamentoOpen(false)}
+          />
+        )}
       </main>
     </div>
   );
