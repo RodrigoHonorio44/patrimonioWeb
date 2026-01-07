@@ -5,7 +5,9 @@ import {
   FiTool,
   FiPauseCircle,
   FiClock,
+  FiInfo,
   FiCalendar,
+  FiArrowRight,
 } from "react-icons/fi";
 
 const ModalDetalhes = ({ chamado, aoFechar, calcularSLA }) => {
@@ -17,9 +19,11 @@ const ModalDetalhes = ({ chamado, aoFechar, calcularSLA }) => {
   const isPendente = statusLower === "pendente";
   const isPausado = statusLower === "pausado";
   const isFechado = statusLower === "fechado" || statusLower === "arquivado";
-  const isRemanejamento = chamado.tipo === "Remanejamento";
 
-  // Função para formatar o timestamp do Firebase
+  // Lógica para detectar remanejamento
+  const isRemanejamento = chamado.tipo?.toLowerCase().includes("remanejamento");
+
+  // Função para formatar o timestamp do Firebase (Data e Hora)
   const formatarDataModal = (timestamp) => {
     if (!timestamp) return "---";
     const data = timestamp.toDate();
@@ -37,7 +41,7 @@ const ModalDetalhes = ({ chamado, aoFechar, calcularSLA }) => {
       ></div>
 
       <div className="bg-white w-full max-w-[550px] rounded-[3rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in duration-300">
-        <div className="p-8 md:p-10">
+        <div className="p-8 md:p-10 text-left">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-black text-slate-800 italic">
               Chamado{" "}
@@ -55,17 +59,23 @@ const ModalDetalhes = ({ chamado, aoFechar, calcularSLA }) => {
             </button>
           </div>
 
-          <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar text-left">
-            {/* BANNER DINÂMICO DE STATUS */}
+          <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+            {/* BANNER DE STATUS COM DATA DE FECHAMENTO SE ESTIVER CONCLUÍDO */}
             {isFechado ? (
               <div className="bg-green-50 border-l-[6px] border-green-500 p-6 rounded-r-2xl shadow-sm">
-                <div className="flex items-center gap-2 text-green-700 font-black text-[11px] uppercase tracking-widest mb-3">
-                  <FiCheckCircle size={20} /> SLA FINALIZADO
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-green-700 font-black text-[11px] uppercase tracking-widest">
+                    <FiCheckCircle size={20} /> ATENDIMENTO FINALIZADO
+                  </div>
                 </div>
-                <p className="text-green-800 text-[15px] font-bold leading-tight italic">
+                <p className="text-green-800 text-[14px] font-bold italic mb-2">
                   {chamado.feedbackAnalista ||
-                    "Atendimento concluído com sucesso."}
+                    "O chamado foi encerrado com sucesso."}
                 </p>
+                <div className="flex items-center gap-2 text-green-600/70 text-[10px] font-black uppercase">
+                  <FiCalendar size={12} /> Concluído em:{" "}
+                  {formatarDataModal(chamado.finalizadoEm)}
+                </div>
               </div>
             ) : isPausado || isPendente ? (
               <div className="bg-orange-50 border-l-[6px] border-orange-500 p-6 rounded-r-2xl shadow-sm">
@@ -73,83 +83,94 @@ const ModalDetalhes = ({ chamado, aoFechar, calcularSLA }) => {
                   <FiPauseCircle size={20} /> STATUS:{" "}
                   {statusLower.toUpperCase()}
                 </div>
-                <p className="text-orange-800 text-[15px] font-bold leading-tight italic">
+                <p className="text-orange-800 text-[14px] font-bold italic">
                   {chamado.motivoPausa ||
                     chamado.motivoPendente ||
-                    "Aguardando retorno ou material para prosseguir."}
+                    "Aguardando materiais ou retorno técnico."}
                 </p>
               </div>
             ) : (
               <div className="bg-blue-50 border-l-[6px] border-blue-500 p-6 rounded-r-2xl shadow-sm">
                 <div className="flex items-center gap-2 text-blue-700 font-black text-[11px] uppercase tracking-widest mb-3">
-                  <FiTool size={20} /> CHAMADO EM ANDAMENTO
+                  <FiTool size={20} /> EM ATENDIMENTO
                 </div>
-                <p className="text-blue-800 text-[15px] font-bold leading-tight italic">
-                  O técnico iniciou a análise deste chamado.
+                <p className="text-blue-800 text-[14px] font-bold italic">
+                  O analista está trabalhando na sua solicitação.
                 </p>
               </div>
             )}
 
-            {/* GRID DE INFORMAÇÕES */}
-            <div className="grid grid-cols-2 gap-4 border-b border-slate-100 pb-4">
-              <Detail
-                label="STATUS ATUAL"
-                value={chamado.status}
-                color={
-                  isFechado
-                    ? "text-green-600"
-                    : isPendente || isPausado
-                    ? "text-orange-500"
-                    : "text-blue-600"
-                }
-              />
-              <Detail
-                label="TÉCNICO RESPONSÁVEL"
-                value={chamado.tecnicoResponsavel || "Não atribuído"}
-                color="text-slate-900"
-              />
+            {/* SEÇÃO: DESCRIÇÃO / TIPO */}
+            <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100">
+              <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1 flex items-center gap-2">
+                <FiInfo size={14} />{" "}
+                {isRemanejamento
+                  ? "Tipo de Solicitação"
+                  : "Descrição do Problema"}
+              </p>
+              <p className="text-slate-700 text-sm font-bold italic">
+                {isRemanejamento
+                  ? chamado.tipo
+                  : chamado.descricao || "Não informada."}
+              </p>
+            </div>
 
-              {/* DATAS ADICIONADAS AQUI */}
+            {/* GRID DE INFORMAÇÕES DETALHADAS */}
+            <div className="grid grid-cols-2 gap-y-6 gap-x-4 px-2">
               <Detail
-                label="ABERTURA DO CHAMADO"
+                label="DATA DE ABERTURA"
                 value={formatarDataModal(chamado.criadoEm)}
               />
               <Detail
-                label="FECHAMENTO / ATUALIZAÇÃO"
+                label="DATA DE FECHAMENTO"
                 value={formatarDataModal(chamado.finalizadoEm)}
+                color={isFechado ? "text-green-600" : "text-slate-400"}
               />
-
               <Detail
-                label="TEMPO DE SLA"
+                label="TÉCNICO RESPONSÁVEL"
+                value={chamado.tecnicoResponsavel || "Aguardando Analista"}
+              />
+              <Detail
+                label="TEMPO TOTAL (SLA)"
                 value={calcularSLA(chamado.criadoEm, chamado.finalizadoEm)}
               />
-              <Detail label="EQUIPAMENTO" value={chamado.equipamento} />
 
               <Detail
-                label={isRemanejamento ? "ORIGEM ➔ DESTINO" : "SETOR / UNIDADE"}
-                value={
+                label={
                   isRemanejamento
-                    ? `${chamado.setorOrigem} ➔ ${chamado.setorDestino}`
-                    : `${chamado.setor} (${chamado.unidade})`
+                    ? "TRAJETO DO REMANEJAMENTO"
+                    : "UNIDADE / SETOR"
                 }
-                className="col-span-2"
+                className="col-span-2 border-t border-slate-50 pt-4"
+                value={
+                  isRemanejamento ? (
+                    <div className="flex items-center gap-3">
+                      <span className="px-3 py-1 bg-red-50 text-red-500 rounded-lg text-xs font-black uppercase">
+                        {chamado.setorOrigem || chamado.localOrigem}
+                      </span>
+                      <FiArrowRight size={14} className="text-slate-300" />
+                      <span className="px-3 py-1 bg-green-50 text-green-500 rounded-lg text-xs font-black uppercase">
+                        {chamado.setorDestino || chamado.localDestino}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-slate-700 font-bold">
+                      {chamado.unidade}{" "}
+                      <span className="text-slate-400 mx-1">|</span>{" "}
+                      {chamado.local || chamado.setor}
+                    </span>
+                  )
+                }
               />
-            </div>
-
-            {/* SEÇÃO: DIAGNÓSTICO */}
-            <div className="bg-blue-50/30 p-6 rounded-[2.5rem] border border-blue-100">
-              <p className="text-blue-600 font-black text-[10px] uppercase tracking-widest mb-2 flex items-center gap-2">
-                <FiTool size={14} /> Diagnóstico / Ações Técnicas:
-              </p>
-              <p className="text-slate-700 text-sm font-semibold italic leading-relaxed">
-                {chamado.feedbackAnalista ||
-                  "Aguardando o técnico descrever as ações realizadas..."}
-              </p>
             </div>
 
             <button
               onClick={aoFechar}
-              className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-orange-500 transition-all text-xs uppercase tracking-widest"
+              className={`w-full text-white font-black py-4 rounded-2xl transition-all text-xs uppercase tracking-widest shadow-lg ${
+                isRemanejamento
+                  ? "bg-amber-500 hover:bg-amber-600 shadow-amber-100"
+                  : "bg-slate-900 hover:bg-blue-600 shadow-slate-200"
+              }`}
             >
               Fechar Visualização
             </button>
@@ -161,11 +182,11 @@ const ModalDetalhes = ({ chamado, aoFechar, calcularSLA }) => {
 };
 
 const Detail = ({ label, value, className = "", color = "text-slate-700" }) => (
-  <div className={`flex flex-col pb-2 ${className}`}>
-    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+  <div className={`flex flex-col ${className}`}>
+    <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-1">
       {label}
     </span>
-    <span className={`text-[13px] font-bold ${color}`}>{value || "---"}</span>
+    <div className={`text-[12px] font-bold ${color}`}>{value || "---"}</div>
   </div>
 );
 
