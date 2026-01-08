@@ -14,7 +14,6 @@ import {
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 
-// Importação dos seus componentes externos
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ModalDetalhesAnalista from "../components/ModalDetalhesAnalista";
@@ -43,12 +42,15 @@ const PainelAnalista = () => {
   const [chamados, setChamados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
+
+  // ESTADOS DE BUSCA (Ajustado para manual)
+  const [inputValue, setInputValue] = useState("");
   const [termoBusca, setTermoBusca] = useState("");
+
   const [enviandoPlanilha, setEnviandoPlanilha] = useState(null);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const itensPorPagina = 12;
 
-  // Estados dos Modais
   const [mostrarModalFinalizar, setMostrarModalFinalizar] = useState(false);
   const [mostrarModalPausar, setMostrarModalPausar] = useState(false);
   const [mostrarModalVer, setMostrarModalVer] = useState(false);
@@ -61,7 +63,6 @@ const PainelAnalista = () => {
 
   const user = auth.currentUser;
 
-  // Lógica de identificação de OS ou Remanejamento
   const isRemaneja = (item) =>
     item?.tipo?.toLowerCase().includes("remanejamento") || !!item?.setorDestino;
 
@@ -80,7 +81,22 @@ const PainelAnalista = () => {
     return date.toLocaleString("pt-BR");
   };
 
-  // Efeitos de dados
+  // Funções de Busca
+  const executarBusca = () => {
+    setTermoBusca(inputValue);
+    setPaginaAtual(1);
+  };
+
+  const limparBusca = () => {
+    setInputValue("");
+    setTermoBusca("");
+    setPaginaAtual(1);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") executarBusca();
+  };
+
   useEffect(() => {
     if (!user) return;
     const fetchUserData = async () => {
@@ -239,14 +255,14 @@ const PainelAnalista = () => {
     }, 500);
   };
 
-  // Filtros e Paginação
   const chamadosFiltrados = useMemo(() => {
     const busca = termoBusca.toLowerCase().trim();
     return chamados.filter((c) => {
       const matches =
         c.numeroOs?.toString().includes(busca) ||
         c.nome?.toLowerCase().includes(busca) ||
-        c.unidade?.toLowerCase().includes(busca);
+        c.unidade?.toLowerCase().includes(busca) ||
+        c.patrimonio?.toLowerCase().includes(busca);
       return busca ? matches : c.status?.toLowerCase() !== "arquivado";
     });
   }, [chamados, termoBusca]);
@@ -265,9 +281,7 @@ const PainelAnalista = () => {
           0%, 100% { background-color: rgba(254, 226, 226, 0.8); color: #dc2626; border-color: #fecaca; }
           50% { background-color: rgba(239, 68, 68, 0.2); color: #b91c1c; border-color: #ef4444; }
         }
-        .animate-blink-priority {
-          animation: blink-soft-red 1.5s infinite ease-in-out;
-        }
+        .animate-blink-priority { animation: blink-soft-red 1.5s infinite ease-in-out; }
         @media print { 
           body * { visibility: hidden; } 
           #area-impressao, #area-impressao * { visibility: visible; } 
@@ -286,19 +300,34 @@ const PainelAnalista = () => {
             Fila Técnica
           </h1>
           <div className="flex gap-2 w-full md:w-auto">
+            {/* BUSCA MANUAL */}
             <div className="relative flex-1 md:w-80">
               <input
                 type="text"
-                value={termoBusca}
-                onChange={(e) => setTermoBusca(e.target.value)}
-                placeholder="Buscar OS, Nome ou Unidade..."
-                className="w-full pl-4 pr-12 py-3 rounded-2xl border border-slate-200 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Pesquisar e dar Enter..."
+                className="w-full pl-4 pr-20 py-3 rounded-2xl border border-slate-200 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all"
               />
-              <FiSearch
-                size={18}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
-              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {inputValue && (
+                  <button
+                    onClick={limparBusca}
+                    className="p-2 text-slate-400 hover:text-red-500"
+                  >
+                    <FiX size={18} />
+                  </button>
+                )}
+                <button
+                  onClick={executarBusca}
+                  className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
+                >
+                  <FiSearch size={18} />
+                </button>
+              </div>
             </div>
+
             <Link
               to="/dashboard"
               className="bg-white border border-slate-200 p-3 rounded-2xl text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
@@ -419,22 +448,20 @@ const PainelAnalista = () => {
                             <button
                               onClick={() => handleImprimir(item)}
                               className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-orange-600"
-                              title="Imprimir"
                             >
                               <FiPrinter size={18} />
                             </button>
-
                             <button
                               onClick={() => {
                                 setChamadoSelecionado(item);
                                 setMostrarModalVer(true);
                               }}
                               className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-blue-600"
-                              title="Ver Detalhes"
                             >
                               <FiEye size={18} />
                             </button>
 
+                            {/* BOTÃO ATENDER - RESPEITANDO CORES ORIGINAIS */}
                             {status === "aberto" && (
                               <button
                                 onClick={() => handleAssumirChamado(item)}
@@ -445,6 +472,7 @@ const PainelAnalista = () => {
                                 Atender
                               </button>
                             )}
+
                             {status === "pendente" && (
                               <button
                                 onClick={() => handleRetomarChamado(item)}
@@ -453,6 +481,7 @@ const PainelAnalista = () => {
                                 <FiPlayCircle size={20} />
                               </button>
                             )}
+
                             {status === "em atendimento" && (
                               <div className="flex gap-1">
                                 <button
@@ -473,6 +502,7 @@ const PainelAnalista = () => {
                                 >
                                   <FiPauseCircle size={18} />
                                 </button>
+                                {/* BOTÃO DE VOLTAR PARA A FILA */}
                                 <button
                                   onClick={() => handleDevolverChamado(item)}
                                   className="bg-slate-200 text-slate-500 p-2.5 rounded-xl"
@@ -481,6 +511,7 @@ const PainelAnalista = () => {
                                 </button>
                               </div>
                             )}
+
                             {status === "fechado" && (
                               <button
                                 onClick={() => handleEnviarParaPlanilha(item)}
@@ -506,7 +537,6 @@ const PainelAnalista = () => {
               </tbody>
             </table>
           </div>
-
           <div className="p-6 border-t border-slate-50 flex justify-between items-center">
             <button
               disabled={paginaAtual === 1}
@@ -529,21 +559,20 @@ const PainelAnalista = () => {
         </div>
       </main>
 
-      {/* COMPONENTES EXTERNOS INTEGRADOS */}
+      {/* MODAIS (FINAIS DO CÓDIGO) */}
       <ModalDetalhesAnalista
         isOpen={mostrarModalVer}
         chamado={chamadoSelecionado}
         onClose={() => setMostrarModalVer(false)}
         isRemaneja={isRemaneja}
       />
-
       <ImprimirAnalista
         chamado={chamadoSelecionado}
         isRemaneja={isRemaneja}
         formatarDataHora={formatarDataHora}
       />
 
-      {/* MODAL FINALIZAR */}
+      {/* RESTANTE DOS MODAIS... (FINALIZAR E PAUSAR) */}
       {mostrarModalFinalizar && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl">
@@ -584,7 +613,7 @@ const PainelAnalista = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-emerald-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg shadow-emerald-200"
+                  className="flex-1 bg-emerald-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg"
                 >
                   Concluir OS
                 </button>
@@ -594,7 +623,6 @@ const PainelAnalista = () => {
         </div>
       )}
 
-      {/* MODAL PAUSAR */}
       {mostrarModalPausar && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl">
