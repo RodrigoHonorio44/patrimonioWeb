@@ -7,6 +7,8 @@ import {
   FiClock,
   FiRefreshCw,
   FiArrowRight,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 import ModalDetalhes from "./ModalDetalhes";
 
@@ -15,7 +17,21 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
   const [loading, setLoading] = useState(true);
   const [chamadoSelecionado, setChamadoSelecionado] = useState(null);
   const [modalAberto, setModalAberto] = useState(false);
+
+  // Estados para Paginação
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const itensPorPagina = 8; // Altere aqui a quantidade de itens por tela
+
   const user = auth.currentUser;
+
+  // Lógica de Paginação
+  const indiceUltimoItem = paginaAtual * itensPorPagina;
+  const indicePrimeiroItem = indiceUltimoItem - itensPorPagina;
+  const chamadosPaginados = chamados.slice(
+    indicePrimeiroItem,
+    indiceUltimoItem
+  );
+  const totalPaginas = Math.ceil(chamados.length / itensPorPagina);
 
   const calcularSLA = (criadoEm, finalizadoEm) => {
     if (!criadoEm) return "---";
@@ -91,13 +107,13 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
         <div className="flex flex-wrap gap-3">
           <button
             onClick={abrirRemanejamento}
-            className="px-6 py-3.5 bg-amber-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-amber-100 hover:scale-105 transition-all flex items-center gap-2"
+            className="px-6 py-3.5 bg-amber-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-amber-100 hover:scale-105 transition-all flex items-center gap-2 cursor-pointer"
           >
             <FiRefreshCw size={16} /> Remanejamento
           </button>
           <button
             onClick={abrirFormulario}
-            className="px-6 py-3.5 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-blue-100 hover:scale-105 transition-all flex items-center gap-2"
+            className="px-6 py-3.5 bg-blue-600 text-white font-bold text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-blue-100 hover:scale-105 transition-all flex items-center gap-2 cursor-pointer"
           >
             <FiPlus size={18} /> Nova Manutenção
           </button>
@@ -130,7 +146,7 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {chamados.map((item) => {
+              {chamadosPaginados.map((item) => {
                 const statusClean = item.status?.toLowerCase().trim();
                 const isRemanejamento = item.tipo
                   ?.toLowerCase()
@@ -149,7 +165,7 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
                 return (
                   <tr
                     key={item.id}
-                    className="hover:bg-slate-50/50 transition-all group"
+                    className="hover:bg-slate-50/50 transition-all group cursor-default"
                   >
                     <td className="px-8 py-6">
                       <div className="flex flex-col">
@@ -196,7 +212,6 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
                       </div>
                     </td>
 
-                    {/* COLUNA PROBLEMA / SOLICITAÇÃO (DADOS DO FIREBASE) */}
                     <td className="px-8 py-6 max-w-[280px]">
                       <p className="text-xs text-slate-500 truncate italic font-medium">
                         {isRemanejamento
@@ -223,7 +238,7 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
                           setChamadoSelecionado(item);
                           setModalAberto(true);
                         }}
-                        className="p-3 text-slate-400 bg-slate-50 rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                        className="p-3 text-slate-400 bg-slate-50 rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm cursor-pointer"
                       >
                         <FiEye size={20} />
                       </button>
@@ -233,6 +248,64 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* CONTROLES DE PAGINAÇÃO */}
+        <div className="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+          <p className="text-xs font-bold text-slate-500 uppercase">
+            Mostrando {indicePrimeiroItem + 1} a{" "}
+            {Math.min(indiceUltimoItem, chamados.length)} de {chamados.length}{" "}
+            chamados
+          </p>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPaginaAtual((prev) => Math.max(prev - 1, 1))}
+              disabled={paginaAtual === 1}
+              className={`p-2 rounded-xl border transition-all ${
+                paginaAtual === 1
+                  ? "bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-blue-600 hover:text-white cursor-pointer"
+              }`}
+            >
+              <FiChevronLeft size={20} />
+            </button>
+
+            <div className="flex gap-1">
+              {[...Array(totalPaginas)]
+                .map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPaginaAtual(i + 1)}
+                    className={`w-10 h-10 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                      paginaAtual === i + 1
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-100"
+                        : "bg-white text-slate-400 border border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))
+                .slice(
+                  Math.max(0, paginaAtual - 3),
+                  Math.min(totalPaginas, paginaAtual + 2)
+                )}
+            </div>
+
+            <button
+              onClick={() =>
+                setPaginaAtual((prev) => Math.min(prev + 1, totalPaginas))
+              }
+              disabled={paginaAtual === totalPaginas}
+              className={`p-2 rounded-xl border transition-all ${
+                paginaAtual === totalPaginas
+                  ? "bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-blue-600 hover:text-white cursor-pointer"
+              }`}
+            >
+              <FiChevronRight size={20} />
+            </button>
+          </div>
         </div>
       </div>
 

@@ -638,6 +638,7 @@ const PainelAnalista = () => {
               >
                 <option value="">Selecione o motivo...</option>
                 <option value="Aguardando Peça">Aguardando Peça</option>
+                <option value="Aguardando Peça">Recolhido para Oficina</option>
                 <option value="Aguardando Retorno Usuário">
                   Aguardando Retorno Usuário
                 </option>

@@ -4,6 +4,7 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  signOut,
 } from "firebase/auth";
 import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import CryptoJS from "crypto-js";
@@ -40,7 +41,7 @@ const TrocarSenha = () => {
 
   useEffect(() => {
     setValidacoes({
-      minimo: novaSenha.length >= 6,
+      minimo: novaSenha.length >= 8,
       maiuscula: /[A-Z]/.test(novaSenha),
       minuscula: /[a-z]/.test(novaSenha),
       especial: /[!@#$%^&*(),.?":{}|<>]/.test(novaSenha),
@@ -68,11 +69,8 @@ const TrocarSenha = () => {
 
       const userRef = doc(db, "usuarios", user.uid);
       const credential = EmailAuthProvider.credential(user.email, senhaAtual);
-
-      // 1. Reautentica
       await reauthenticateWithCredential(user, credential);
 
-      // 2. Busca dados
       const userSnap = await getDoc(userRef);
       if (!userSnap.exists()) throw new Error("Usuário não encontrado.");
 
@@ -82,37 +80,34 @@ const TrocarSenha = () => {
 
       if (historico.includes(novoHash)) {
         setLoading(false);
-        return toast.error("Você já utilizou esta senha anteriormente!");
+        return toast.error("Esta senha já foi usada anteriormente!");
       }
 
-      // 3. Atualiza no Auth
       await updatePassword(user, novaSenha);
 
-      // 4. Atualiza no Firestore (MUITO IMPORTANTE: requiresPasswordChange: false)
       const novoHistorico = [...historico, novoHash].slice(-5);
       await updateDoc(userRef, {
+        requiresPasswordChange: false,
         ultimaTrocaSenha: serverTimestamp(),
         historicoSenhas: novoHistorico,
-        requiresPasswordChange: false, // Isso libera o usuário das travas de rota
       });
 
-      toast.success("Senha atualizada com sucesso!");
+      toast.success("Senha pessoal definida com sucesso!");
 
-      // 5. REDIRECIONAMENTO COM DELAY (Para o Firebase processar a mudança)
-      setTimeout(() => {
-        const role = userData.role?.toLowerCase();
-        if (role === "admin" || role === "adm" || role === "analista") {
-          navigate("/dashboard");
-        } else {
-          navigate("/home");
+      setTimeout(async () => {
+        try {
+          await signOut(auth);
+          navigate("/login");
+        } catch (err) {
+          navigate("/login");
         }
-      }, 1000); // 1 segundo de espera antes de mudar de tela
+      }, 2000);
     } catch (error) {
       console.error(error);
       if (error.code === "auth/wrong-password") {
-        toast.error("Senha atual incorreta!");
+        toast.error("Senha atual (provisória) incorreta!");
       } else {
-        toast.error("Erro ao processar alteração.");
+        toast.error("Erro ao processar a troca de senha.");
       }
     } finally {
       setLoading(false);
@@ -121,33 +116,48 @@ const TrocarSenha = () => {
 
   const RegraItem = ({ condicao, texto }) => (
     <div
-      className={`flex items-center gap-2 text-[11px] font-bold ${
+      className={`flex items-center gap-2 text-[10px] sm:text-[11px] font-bold transition-all ${
         condicao ? "text-emerald-500" : "text-slate-400"
       }`}
     >
-      {condicao ? <FiCheck size={14} /> : <FiX size={14} />}
-      <span>{texto}</span>
+      {condicao ? (
+        <FiCheck className="shrink-0" size={14} />
+      ) : (
+        <FiX className="shrink-0" size={14} />
+      )}
+      <span className="truncate">{texto}</span>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-8 md:p-12">
-        <header className="text-center mb-10">
-          <div className="inline-flex p-4 bg-blue-50 rounded-2xl text-blue-600 mb-4">
-            <FiShield size={32} />
+    // AJUSTE RESPONSIVO: min-h-screen com py-10 permite scroll em telas pequenas
+    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans overflow-y-auto py-10">
+      {/* CARD: Ajustado max-w e padding para mobile */}
+      <div className="w-full max-w-[450px] bg-white rounded-[2rem] sm:rounded-[3rem] shadow-2xl border border-slate-100 p-6 sm:p-10 relative overflow-hidden flex flex-col">
+        {/* Barra de destaque superior */}
+        <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
+
+        {/* HEADER RESPONSIVO */}
+        <header className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex p-3 sm:p-4 bg-blue-50 rounded-2xl text-blue-600 mb-4 shadow-inner">
+            <FiShield size={28} className="sm:w-8 sm:h-8" />
           </div>
-          <h1 className="text-2xl font-black text-slate-800">Segurança</h1>
-          <p className="text-slate-500 text-sm">
-            Atualize seu acesso para continuar
+          <h1 className="text-xl sm:text-2xl font-black text-slate-800 uppercase italic leading-none">
+            Rodhon<span className="text-blue-600">Secure</span>
+          </h1>
+          <p className="text-slate-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mt-2">
+            Segurança de Primeiro Acesso
           </p>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* SENHA ATUAL */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-              Senha Atual
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 sm:space-y-6 flex-grow"
+        >
+          {/* CAMPO SENHA ATUAL */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+              Senha Provisória Atual
             </label>
             <div className="relative">
               <input
@@ -155,23 +165,23 @@ const TrocarSenha = () => {
                 required
                 value={senhaAtual}
                 onChange={(e) => setSenhaAtual(e.target.value)}
-                className="w-full p-4 bg-slate-50 border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all pr-12"
-                placeholder="Senha de login atual"
+                className="w-full p-4 bg-slate-50 border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all pr-12 text-sm font-bold"
+                placeholder="Senha atual"
               />
               <button
                 type="button"
                 onClick={() => setVerSenhaAtual(!verSenhaAtual)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500"
               >
-                {verSenhaAtual ? <FiEyeOff size={20} /> : <FiEye size={20} />}
+                {verSenhaAtual ? <FiEyeOff size={18} /> : <FiEye size={18} />}
               </button>
             </div>
           </div>
 
-          {/* NOVA SENHA */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-              Nova Senha
+          {/* NOVA SENHA COM REGRAS */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+              Nova Senha Pessoal
             </label>
             <div className="relative">
               <input
@@ -179,28 +189,30 @@ const TrocarSenha = () => {
                 required
                 value={novaSenha}
                 onChange={(e) => setNovaSenha(e.target.value)}
-                className="w-full p-4 bg-slate-50 border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all pr-12"
-                placeholder="Crie uma nova senha"
+                className="w-full p-4 bg-slate-50 border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all pr-12 text-sm font-bold"
+                placeholder="Mínimo 8 caracteres"
               />
               <button
                 type="button"
                 onClick={() => setVerNovaSenha(!verNovaSenha)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500"
               >
-                {verNovaSenha ? <FiEyeOff size={20} /> : <FiEye size={20} />}
+                {verNovaSenha ? <FiEyeOff size={18} /> : <FiEye size={18} />}
               </button>
             </div>
-            <div className="mt-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 grid grid-cols-2 gap-y-2">
-              <RegraItem condicao={validacoes.minimo} texto="6+ Caracteres" />
-              <RegraItem condicao={validacoes.maiuscula} texto="1 Maiúscula" />
-              <RegraItem condicao={validacoes.minuscula} texto="1 Minúscula" />
-              <RegraItem condicao={validacoes.especial} texto="1 Especial" />
+
+            {/* GRID DE REGRAS RESPONSIVO */}
+            <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 grid grid-cols-2 gap-y-2 gap-x-1 sm:gap-2">
+              <RegraItem condicao={validacoes.minimo} texto="8+ Letras" />
+              <RegraItem condicao={validacoes.maiuscula} texto="Maiúscula" />
+              <RegraItem condicao={validacoes.minuscula} texto="Minúscula" />
+              <RegraItem condicao={validacoes.especial} texto="Símbolo" />
             </div>
           </div>
 
-          {/* CONFIRMAR NOVA SENHA */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+          {/* CONFIRMAÇÃO */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
               Confirmar Nova Senha
             </label>
             <div className="relative">
@@ -209,18 +221,18 @@ const TrocarSenha = () => {
                 required
                 value={confirmarSenha}
                 onChange={(e) => setConfirmarSenha(e.target.value)}
-                className="w-full p-4 bg-slate-50 border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all pr-12"
-                placeholder="Repita a nova senha"
+                className="w-full p-4 bg-slate-50 border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all pr-12 text-sm font-bold"
+                placeholder="Repita a senha"
               />
               <button
                 type="button"
                 onClick={() => setVerConfirmarSenha(!verConfirmarSenha)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500"
               >
                 {verConfirmarSenha ? (
-                  <FiEyeOff size={20} />
+                  <FiEyeOff size={18} />
                 ) : (
-                  <FiEye size={20} />
+                  <FiEye size={18} />
                 )}
               </button>
             </div>
@@ -229,12 +241,19 @@ const TrocarSenha = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full bg-slate-900 hover:bg-blue-600 text-white font-black py-4 sm:py-5 rounded-2xl shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-3 cursor-pointer active:scale-95 text-[11px] sm:text-xs tracking-widest uppercase"
           >
             {loading ? <FiRefreshCw className="animate-spin" /> : <FiLock />}
-            {loading ? "SALVANDO..." : "ATUALIZAR ACESSO"}
+            {loading ? "Processando..." : "Atualizar e Ir para Login"}
           </button>
         </form>
+
+        {/* FOOTER RESPONSIVO */}
+        <footer className="mt-8 pt-6 border-t border-slate-50 text-center">
+          <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] sm:tracking-[0.3em]">
+            SISTEMA DE SEGURANÇA RODHON
+          </p>
+        </footer>
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ import {
   MessageSquarePlus,
   ChevronRight,
   ShieldCheck,
+  Key, // Importado para representar a licença
 } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
@@ -34,7 +35,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Monitoramento de Autenticação e Dados do Usuário
     const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
       if (!user) {
         navigate("/login");
@@ -47,7 +47,6 @@ export default function Dashboard() {
 
         if (docSnap.exists()) {
           const data = docSnap.data();
-          // Bloqueio de acesso para usuários comuns ao Dashboard
           if (data.role === "usuario" || data.cargo === "usuario") {
             navigate("/home");
             return;
@@ -61,7 +60,6 @@ export default function Dashboard() {
       }
     });
 
-    // Monitoramento de Chamados em Tempo Real
     const unsubscribeChamados = onSnapshot(
       collection(db, "chamados"),
       (snapshot) => {
@@ -81,7 +79,6 @@ export default function Dashboard() {
     };
   }, [navigate]);
 
-  // Lógica de exibição de nome e permissões
   const nomeExibicao =
     userData?.nome ||
     userData?.name ||
@@ -111,7 +108,7 @@ export default function Dashboard() {
     return (
       <button
         onClick={() => navigate(path)}
-        className={`flex items-center gap-3 w-full p-3 rounded-xl font-bold transition-all group ${
+        className={`flex items-center gap-3 w-full p-3 rounded-xl font-bold transition-all group cursor-pointer ${
           active
             ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
             : "text-slate-500 hover:bg-slate-50 hover:text-blue-600"
@@ -130,9 +127,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex font-sans">
-      {/* Sidebar Lateral */}
       <aside className="w-72 bg-white border-r border-slate-200 hidden md:flex flex-col h-screen sticky top-0">
-        {/* HEADER DA SIDEBAR PADRONIZADO COM O LOGIN */}
         <div className="pt-12 pb-8 px-6 flex flex-col items-center text-center">
           <div className="text-slate-900 font-black text-3xl tracking-tighter italic leading-none uppercase">
             RODHON<span className="text-blue-600">SYSTEM</span>
@@ -143,8 +138,23 @@ export default function Dashboard() {
           <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-100 to-transparent mt-8"></div>
         </div>
 
-        {/* Navegação */}
         <nav className="flex-1 px-6 space-y-6 overflow-y-auto pb-8 custom-scrollbar">
+          {/* Módulo Master (Apenas Admin) */}
+          {isAdmin && (
+            <div>
+              <p className="px-3 text-[10px] font-black text-blue-600 uppercase mb-3 tracking-widest">
+                Master Control
+              </p>
+              <div className="space-y-1">
+                <NavButton
+                  icon={Key}
+                  label="Licenças e SaaS"
+                  path="/admin/licencas"
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <p className="px-3 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">
               Dashboards
@@ -221,7 +231,6 @@ export default function Dashboard() {
           )}
         </nav>
 
-        {/* Perfil do Usuário */}
         <div className="p-6 border-t border-slate-100 bg-slate-50/50">
           <div className="mb-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
             <div className="h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-black text-xs uppercase shadow-md shadow-blue-100">
@@ -239,14 +248,13 @@ export default function Dashboard() {
           </div>
           <button
             onClick={() => auth.signOut()}
-            className="flex items-center justify-center gap-2 p-3 text-rose-500 hover:bg-rose-50 w-full rounded-xl transition-all font-black text-xs uppercase tracking-widest border border-transparent hover:border-rose-100"
+            className="flex items-center justify-center gap-2 p-3 text-rose-500 hover:bg-rose-50 w-full rounded-xl transition-all font-black text-xs uppercase tracking-widest border border-transparent hover:border-rose-100 cursor-pointer"
           >
             <LogOut size={16} /> Encerrar Sessão
           </button>
         </div>
       </aside>
 
-      {/* Área Principal */}
       <main className="flex-1 p-6 md:p-12 overflow-y-auto">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-12">
           <div>
@@ -259,13 +267,12 @@ export default function Dashboard() {
           </div>
           <button
             onClick={() => navigate("/cadastrar-chamado")}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[20px] shadow-xl shadow-blue-100 flex items-center gap-3 font-black transition-all transform hover:-translate-y-1"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[20px] shadow-xl shadow-blue-100 flex items-center gap-3 font-black transition-all transform hover:-translate-y-1 cursor-pointer"
           >
             <Plus size={20} strokeWidth={3} /> NOVO CHAMADO
           </button>
         </header>
 
-        {/* Grid de Estatísticas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <StatCard
             title="Em Aberto"
@@ -293,7 +300,6 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Atalhos Rápidos */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <QuickActionCard
             title="Sala do Patrimônio"
@@ -322,7 +328,7 @@ export default function Dashboard() {
   );
 }
 
-// Subcomponentes
+// Subcomponentes mantidos iguais...
 function StatCard({ title, value, color, icon: Icon }) {
   const themes = {
     amber: "bg-amber-500",
