@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Stethoscope, Lock, User, Loader2, AlertCircle } from "lucide-react";
 import { auth, db } from "../api/Firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { toast } from "react-toastify";
@@ -31,7 +31,39 @@ export default function Login() {
 
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
+        const agora = new Date();
+        const dataValidade = userData.validadeLicenca?.toDate();
 
+        // --- 1. TRAVA DE BLOQUEIO ADMINISTRATIVO ---
+        if (
+          userData.status === "Bloqueado" ||
+          userData.statusLicenca === "bloqueada"
+        ) {
+          // GATILHO INSTANTÂNEO: Avisa o App.js antes de qualquer outra ação
+          sessionStorage.setItem("user_blocked", "true");
+          window.dispatchEvent(new Event("force_block_event"));
+
+          toast.error("Acesso suspenso pelo administrador.");
+
+          await signOut(auth);
+          navigate("/bloqueado", { replace: true });
+          setLoading(false);
+          return;
+        }
+
+        // --- 2. TRAVA DE EXPIRAÇÃO DE TEMPO ---
+        if (dataValidade && agora > dataValidade) {
+          toast.warning("Sua licença de uso expirou.");
+          await signOut(auth);
+          navigate("/expirado", { replace: true });
+          setLoading(false);
+          return;
+        }
+
+        // LOGIN VÁLIDO: Limpa qualquer trava residual
+        sessionStorage.removeItem("user_blocked");
+
+        // --- 3. FLUXO NORMAL DE ACESSO ---
         if (userData.requiresPasswordChange === true) {
           toast.info("Primeiro acesso. Por favor, altere sua senha.");
           navigate("/trocar-senha");
@@ -39,15 +71,23 @@ export default function Login() {
         }
 
         const userRole = userData.role?.toLowerCase().trim();
-        if (userRole === "analista" || userRole === "admin") {
+        const userCargo = userData.cargo?.toLowerCase().trim();
+
+        if (
+          ["analista", "admin", "root"].includes(userRole) ||
+          userCargo === "admin" ||
+          userCargo === "administrador"
+        ) {
           navigate("/dashboard");
         } else {
           navigate("/home");
         }
       } else {
-        navigate("/home");
+        setError("Perfil não encontrado no banco de dados.");
+        await signOut(auth);
       }
     } catch (err) {
+      console.error("Erro de login:", err);
       if (
         err.code === "auth/user-not-found" ||
         err.code === "auth/wrong-password" ||
@@ -64,11 +104,9 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-white flex font-sans">
-      {/* LADO ESQUERDO: Visual Hospitalar (Mantido Intacto) */}
       <div className="hidden lg:flex w-1/2 bg-blue-600 items-center justify-center p-12 relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-blue-500 rounded-full opacity-50 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-indigo-500 rounded-full opacity-50 blur-3xl"></div>
-
         <div className="relative z-10 text-white max-w-lg">
           <div className="flex items-center gap-3 mb-10">
             <div className="p-4 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-2xl">
@@ -83,12 +121,10 @@ export default function Login() {
               </span>
             </div>
           </div>
-
           <h1 className="text-6xl font-black mb-6 leading-tight uppercase tracking-tighter">
             Patrimônio <br />
             <span className="text-blue-300">& Chamados</span>
           </h1>
-
           <p className="text-blue-100 text-xl leading-relaxed font-medium opacity-90">
             Plataforma inteligente para gestão de ativos e suporte técnico
             hospitalar.
@@ -96,10 +132,8 @@ export default function Login() {
         </div>
       </div>
 
-      {/* LADO DIREITO: Formulário com Nome do Sistema */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-slate-50">
         <div className="w-full max-w-md">
-          {/* APENAS O NOME ESTILIZADO AQUI */}
           <div className="flex flex-col items-center mb-10">
             <h3 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">
               RODHON<span className="text-blue-600">SYSTEM</span>
@@ -108,21 +142,18 @@ export default function Login() {
               Technology Solutions
             </p>
           </div>
-
           <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100">
             <div className="mb-8 text-center">
               <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
                 Identificação de Usuário
               </p>
             </div>
-
             {error && (
               <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-600 rounded-r-xl flex items-center gap-3 text-sm font-bold">
                 <AlertCircle size={20} />
                 {error}
               </div>
             )}
-
             <form className="space-y-5" onSubmit={handleLogin}>
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase text-slate-500 ml-1 tracking-widest">
@@ -142,7 +173,6 @@ export default function Login() {
                   />
                 </div>
               </div>
-
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase text-slate-500 ml-1 tracking-widest">
                   Senha
@@ -161,7 +191,6 @@ export default function Login() {
                   />
                 </div>
               </div>
-
               <button
                 type="submit"
                 disabled={loading}
@@ -175,9 +204,8 @@ export default function Login() {
               </button>
             </form>
           </div>
-
           <p className="text-center mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            &copy; 2024 Rodhon System | Unidade Hospitalar
+            &copy; 2026 Rodhon System | Unidade Hospitalar
           </p>
         </div>
       </div>

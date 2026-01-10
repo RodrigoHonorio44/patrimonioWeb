@@ -7,7 +7,7 @@ import {
   updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { useNavigate } from "react-router-dom"; // Importado para navegação
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import {
@@ -16,11 +16,10 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
-  Trash2,
   Database,
   AlertCircle,
   FilterX,
-  ArrowLeft, // Ícone de voltar
+  ArrowLeft,
 } from "lucide-react";
 
 const Inventario = () => {
@@ -28,8 +27,9 @@ const Inventario = () => {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // Estados dos Filtros
   const [unidadeFiltro, setUnidadeFiltro] = useState("Todas");
-  const [statusFiltro, setStatusFiltro] = useState("Ativo");
+  const [statusFiltro, setStatusFiltro] = useState("Todos"); // Começa em 'Todos' para garantir visualização
   const [buscaPatrimonio, setBuscaPatrimonio] = useState("");
 
   const [paginaAtual, setPaginaAtual] = useState(1);
@@ -39,11 +39,12 @@ const Inventario = () => {
     nome: "",
   });
 
-  const navigate = useNavigate(); // Hook para voltar
+  const navigate = useNavigate();
   const itensPorPagina = 15;
   const WEBAPP_URL_SHEETS =
     "https://script.google.com/macros/s/AKfycbwHsFnuMc_onDTG9vloDYNW6o_eIrTTfXt6O4WuhGxEP86rl1ZH4WY6o_JsSSljZqck3g/exec";
 
+  // Função de normalização para busca e filtros
   const normalizarParaComparacao = (texto) => {
     if (!texto) return "";
     return texto
@@ -67,9 +68,16 @@ const Inventario = () => {
         id: doc.id,
         ...doc.data(),
       }));
+
       setItens(todosOsDados);
-      toast.success(`${todosOsDados.length} itens encontrados.`);
+
+      if (todosOsDados.length > 0) {
+        toast.success(`${todosOsDados.length} itens encontrados.`);
+      } else {
+        toast.info("Nenhum item encontrado no banco.");
+      }
     } catch (error) {
+      console.error("Erro ao carregar:", error);
       toast.error("Erro ao consultar dados.");
     } finally {
       setLoading(false);
@@ -79,31 +87,38 @@ const Inventario = () => {
   const limparFiltros = () => {
     setBuscaPatrimonio("");
     setUnidadeFiltro("Todas");
-    setStatusFiltro("Ativo");
+    setStatusFiltro("Todos");
     setItens([]);
     setHasSearched(false);
   };
 
+  // Lógica de Filtragem (Processada em tempo real)
   const itensFiltrados = itens.filter((item) => {
-    const unidadeItemNorm = normalizarParaComparacao(item.unidade);
+    // 1. Match Unidade
+    const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
     const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeFiltro);
     const matchUnidade =
       unidadeFiltro === "Todas" ||
       unidadeItemNorm.includes(unidadeSelecionadaNorm);
-    const matchStatus =
-      statusFiltro === "Todos" || item.status === statusFiltro;
 
+    // 2. Match Status
+    const statusItem = item.status || "Ativo";
+    const matchStatus = statusFiltro === "Todos" || statusItem === statusFiltro;
+
+    // 3. Match Busca (Patrimônio ou Nome)
     let matchBusca = true;
     if (buscaPatrimonio.trim() !== "") {
       const termoNorm = normalizarParaComparacao(buscaPatrimonio);
-      const patItemNorm = normalizarParaComparacao(item.patrimonio);
-      const nomeItemNorm = normalizarParaComparacao(item.nome);
+      const patItemNorm = normalizarParaComparacao(item.patrimonio || "");
+      const nomeItemNorm = normalizarParaComparacao(item.nome || "");
       matchBusca =
         patItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
     }
+
     return matchUnidade && matchStatus && matchBusca;
   });
 
+  // Paginação
   const totalPaginas = Math.ceil(itensFiltrados.length / itensPorPagina);
   const itensExibidos = itensFiltrados.slice(
     (paginaAtual - 1) * itensPorPagina,
@@ -112,20 +127,24 @@ const Inventario = () => {
 
   const formatarDataBR = (timestamp) => {
     if (!timestamp) return "---";
-    const data = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return data.toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    try {
+      const data = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      return data.toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      return "Data inválida";
+    }
   };
 
   const exportarExcelCompleto = async () => {
     if (itensFiltrados.length === 0)
       return toast.error("Não há dados para exportar.");
-    toast.info("Sincronizando com Google Sheets...");
+    toast.info("Sincronizando...");
     try {
       const dadosParaEnviar = itensFiltrados.map((i) => ({
         patrimonio: i.patrimonio?.toString() || "S/P",
@@ -136,13 +155,6 @@ const Inventario = () => {
         status: i.status,
         dataBaixa: i.dataBaixa ? formatarDataBR(i.dataBaixa) : "",
       }));
-
-      await fetch(WEBAPP_URL_SHEETS, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dadosParaEnviar),
-      });
 
       const ws = XLSX.utils.json_to_sheet(dadosParaEnviar);
       const wb = XLSX.utils.book_new();
@@ -170,7 +182,6 @@ const Inventario = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
-      {/* HEADER COM BOTÃO VOLTAR */}
       <header className="max-w-7xl mx-auto mb-8">
         <button
           onClick={() => navigate("/dashboard")}
@@ -190,7 +201,7 @@ const Inventario = () => {
               Administrativo
             </h1>
             <p className="text-slate-500 text-sm font-medium">
-              Gestão centralizada e consulta de ativos.
+              Gestão centralizada de ativos.
             </p>
           </div>
           <div className="flex gap-2">
@@ -204,7 +215,7 @@ const Inventario = () => {
               onClick={exportarExcelCompleto}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-lg shadow-emerald-100"
             >
-              <Database size={18} /> Sincronizar Sheets
+              <Database size={18} /> Exportar Excel
             </button>
           </div>
         </div>
@@ -239,9 +250,9 @@ const Inventario = () => {
             value={statusFiltro}
             onChange={(e) => setStatusFiltro(e.target.value)}
           >
+            <option value="Todos">Todos</option>
             <option value="Ativo">Ativos</option>
             <option value="Baixado">Inutilizados</option>
-            <option value="Todos">Todos</option>
           </select>
         </div>
         <div>
@@ -250,7 +261,7 @@ const Inventario = () => {
           </label>
           <input
             type="text"
-            placeholder="Ex: 105 ou S/P"
+            placeholder="Ex: 105 ou Monitor"
             className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
             value={buscaPatrimonio}
             onChange={(e) => setBuscaPatrimonio(e.target.value)}
@@ -270,14 +281,24 @@ const Inventario = () => {
         </button>
       </div>
 
-      {/* TABELA */}
+      {/* TABELA / RESULTADOS */}
       <div className="max-w-7xl mx-auto bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[400px]">
         {!hasSearched ? (
           <div className="h-[400px] flex flex-col items-center justify-center text-slate-300">
             <Search size={64} className="mb-4 opacity-10" />
             <p className="font-bold text-lg">Pronto para buscar</p>
             <p className="text-sm">
-              Preencha os filtros e clique em Consultar.
+              Clique em Consultar para carregar os dados.
+            </p>
+          </div>
+        ) : itensFiltrados.length === 0 ? (
+          <div className="h-[400px] flex flex-col items-center justify-center text-slate-400 text-center p-4">
+            <FilterX size={48} className="mb-2 opacity-20" />
+            <p className="font-bold">
+              Nenhum item corresponde aos filtros selecionados.
+            </p>
+            <p className="text-xs italic">
+              Verifique se o Status ou a Unidade estão corretos.
             </p>
           </div>
         ) : (
@@ -300,7 +321,7 @@ const Inventario = () => {
                       className="hover:bg-blue-50/50 transition-colors"
                     >
                       <td className="p-4 font-black text-blue-600">
-                        #{item.patrimonio}
+                        #{item.patrimonio || "S/P"}
                       </td>
                       <td className="p-4 font-bold text-slate-700">
                         {item.nome}
@@ -349,6 +370,8 @@ const Inventario = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* PAGINAÇÃO */}
             <div className="p-4 bg-slate-50 flex items-center justify-between border-t border-slate-100 font-bold text-slate-400 text-xs uppercase">
               <span>
                 Página {paginaAtual} de {totalPaginas || 1}
@@ -374,7 +397,7 @@ const Inventario = () => {
         )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL DE CONFIRMAÇÃO */}
       {modalBaixa.aberto && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">

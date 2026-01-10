@@ -46,20 +46,34 @@ const CadastroEquipamento = () => {
 
           if (docSnap.exists()) {
             const data = docSnap.data();
-            const role = data.role?.toLowerCase().trim();
+            // Padroniza o role para evitar erros de digitação (ex: Admin vs admin)
+            const role = data.role?.toLowerCase().trim() || "";
 
-            if (["adm", "admin", "analista", "ti"].includes(role)) {
+            // ATUALIZAÇÃO: Incluído 'root' na lista de permissões permitidas
+            const cargosAutorizados = [
+              "root",
+              "adm",
+              "admin",
+              "analista",
+              "ti",
+            ];
+
+            if (cargosAutorizados.includes(role)) {
               setNomeUsuario(data.nome || "Usuário");
               setVerificandoAcesso(false);
             } else {
-              toast.error("Acesso negado.");
+              toast.error(
+                "Acesso negado: Você não tem permissão de nível técnico."
+              );
               navigate("/dashboard");
             }
           } else {
+            toast.error("Perfil de usuário não encontrado.");
             navigate("/login");
           }
         } catch (error) {
-          console.error("Erro:", error);
+          console.error("Erro ao validar acesso:", error);
+          toast.error("Erro na verificação de segurança.");
           navigate("/dashboard");
         }
       } else {
@@ -94,15 +108,18 @@ const CadastroEquipamento = () => {
       });
 
       toast.update(idToast, {
-        render: "Patrimônio registrado!",
+        render: "Patrimônio registrado com sucesso!",
         type: "success",
         isLoading: false,
         autoClose: 3000,
       });
+
+      // Limpa apenas os campos variáveis após sucesso
       setFormData({ ...formData, patrimonio: "", nome: "", observacoes: "" });
     } catch (error) {
+      console.error("Erro ao salvar:", error);
       toast.update(idToast, {
-        render: "Erro ao salvar",
+        render: "Erro ao salvar no banco de dados",
         type: "error",
         isLoading: false,
         autoClose: 3000,
@@ -116,13 +133,15 @@ const CadastroEquipamento = () => {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-600 border-r-4"></div>
-        <p className="mt-4 text-blue-600 font-bold">Validando permissões...</p>
+        <p className="mt-4 text-blue-600 font-bold uppercase tracking-widest text-xs">
+          Validando permissões...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
       <div className="max-w-4xl mx-auto mb-8 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200">
@@ -133,7 +152,7 @@ const CadastroEquipamento = () => {
               Novo Patrimônio
             </h1>
             <p className="text-slate-500 text-sm">
-              Cadastro de entrada de ativos
+              Cadastro de entrada de ativos no sistema
             </p>
           </div>
         </div>
@@ -147,7 +166,6 @@ const CadastroEquipamento = () => {
 
       <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
         <form onSubmit={handleSubmit} className="p-6 md:p-10 space-y-8">
-          {/* Linha 1: TAG e Unidade */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
@@ -170,7 +188,7 @@ const CadastroEquipamento = () => {
               </label>
               <select
                 required
-                className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all"
+                className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
                 value={formData.unidade}
                 onChange={(e) =>
                   setFormData({ ...formData, unidade: e.target.value })
@@ -186,14 +204,13 @@ const CadastroEquipamento = () => {
             </div>
           </div>
 
-          {/* Linha 2: Tipo e Setor */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
                 <FiInfo className="text-blue-500" /> Tipo de Item
               </label>
               <select
-                className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all"
+                className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
                 value={formData.tipo}
                 onChange={(e) =>
                   setFormData({ ...formData, tipo: e.target.value })
@@ -223,7 +240,6 @@ const CadastroEquipamento = () => {
             </div>
           </div>
 
-          {/* Nome do Equipamento */}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
               <FiPackage className="text-blue-500" /> Descrição do Equipamento
@@ -240,7 +256,6 @@ const CadastroEquipamento = () => {
             />
           </div>
 
-          {/* Linha 3: Quantidade e Estado */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700 ml-1">
@@ -262,7 +277,7 @@ const CadastroEquipamento = () => {
                 <FiActivity className="text-blue-500" /> Estado de Conservação
               </label>
               <select
-                className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all"
+                className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
                 value={formData.estado}
                 onChange={(e) =>
                   setFormData({ ...formData, estado: e.target.value })
@@ -276,7 +291,6 @@ const CadastroEquipamento = () => {
             </div>
           </div>
 
-          {/* Observações */}
           <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700 ml-1">
               Observações Adicionais
@@ -295,10 +309,10 @@ const CadastroEquipamento = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-3 disabled:opacity-70"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {loading ? (
-              <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <>
                 <FiSave className="text-xl" /> Finalizar Registro de Patrimônio

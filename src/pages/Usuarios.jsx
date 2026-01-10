@@ -27,6 +27,7 @@ import {
   FiArrowRight,
   FiArrowDown,
   FiChevronLeft,
+  FiAlertTriangle,
 } from "react-icons/fi";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
@@ -40,6 +41,13 @@ export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [formAberto, setFormAberto] = useState(null);
+
+  // ESTADO PARA O MODAL DE EXCLUSÃO
+  const [modalExcluir, setModalExcluir] = useState({
+    aberto: false,
+    id: null,
+    nome: "",
+  });
 
   const [novoUser, setNovoUser] = useState({
     nome: "",
@@ -65,11 +73,10 @@ export default function Usuarios() {
     return () => unsubscribe();
   }, []);
 
-  // --- FUNÇÃO DE PROMOÇÃO ATUALIZADA (SETA PRETA = ADMIN) ---
   const alterarNivel = async (id, novoRole) => {
     try {
       const mapeamento = {
-        admin: "ADMINISTRADOR", // Alterado de ADMIN ROOT para ADMINISTRADOR
+        admin: "ADMINISTRADOR",
         analista: "ANALISTA",
         chefia: "CHEFIA",
         coordenador: "COORDENADOR",
@@ -77,32 +84,27 @@ export default function Usuarios() {
       };
 
       const cargoNome = mapeamento[novoRole];
-
-      if (!cargoNome) {
-        toast.error("Nível de acesso inválido.");
-        return;
-      }
+      if (!cargoNome) return toast.error("Nível de acesso inválido.");
 
       await updateDoc(doc(db, "usuarios", id), {
-        role: novoRole, // aqui gravará 'admin' no banco
+        role: novoRole,
         cargo: cargoNome,
       });
 
       toast.success(`Usuário promovido para ${cargoNome}`);
     } catch (err) {
-      console.error(err);
-      toast.error("Erro ao atualizar nível. Verifique suas permissões.");
+      toast.error("Erro ao atualizar nível.");
     }
   };
 
-  const removerAcesso = async (id, nome) => {
-    if (window.confirm(`Excluir dados de ${nome} do Banco?`)) {
-      try {
-        await deleteDoc(doc(db, "usuarios", id));
-        toast.success("Registro removido.");
-      } catch (err) {
-        toast.error("Erro ao remover registro.");
-      }
+  // FUNÇÃO QUE EXECUTA A EXCLUSÃO DE FATO
+  const confirmarRemocao = async () => {
+    try {
+      await deleteDoc(doc(db, "usuarios", modalExcluir.id));
+      toast.success("Registro removido com sucesso.");
+      setModalExcluir({ aberto: false, id: null, nome: "" });
+    } catch (err) {
+      toast.error("Erro ao remover registro.");
     }
   };
 
@@ -158,8 +160,9 @@ export default function Usuarios() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans antialiased text-slate-900">
+    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans antialiased text-slate-900 relative">
       <div className="max-w-7xl mx-auto">
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
           <div>
             <button
@@ -212,6 +215,7 @@ export default function Usuarios() {
           </div>
         </div>
 
+        {/* FORMS */}
         {formAberto && (
           <div className="mb-10 bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
             {formAberto === "analista" ? (
@@ -234,6 +238,7 @@ export default function Usuarios() {
           </div>
         )}
 
+        {/* TABELA */}
         <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -319,7 +324,11 @@ export default function Usuarios() {
                           <div className="h-8 w-[1px] bg-slate-100 mx-2"></div>
                           <button
                             onClick={() =>
-                              removerAcesso(u.id, u.nome || u.email)
+                              setModalExcluir({
+                                aberto: true,
+                                id: u.id,
+                                nome: u.nome || u.email,
+                              })
                             }
                             className="p-3 text-slate-300 hover:text-red-600 transition-all cursor-pointer"
                           >
@@ -335,6 +344,41 @@ export default function Usuarios() {
           </div>
         </div>
       </div>
+
+      {/* MODAL DE CONFIRMAÇÃO CUSTOMIZADO */}
+      {modalExcluir.aberto && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+              <FiAlertTriangle size={32} />
+            </div>
+            <h3 className="text-xl font-black text-center text-slate-900 mb-2 uppercase italic">
+              Excluir Registro?
+            </h3>
+            <p className="text-slate-500 text-center text-sm mb-8">
+              Você está prestes a remover <strong>{modalExcluir.nome}</strong>{" "}
+              permanentemente do banco de dados. Esta ação não pode ser
+              desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() =>
+                  setModalExcluir({ aberto: false, id: null, nome: "" })
+                }
+                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarRemocao}
+                className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-700 transition-all cursor-pointer"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

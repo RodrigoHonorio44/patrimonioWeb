@@ -17,7 +17,6 @@ import {
   ChevronRight,
   ChevronLeft,
   Key,
-  User,
 } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
@@ -38,31 +37,26 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribeAuth = auth.onAuthStateChanged(async (user) => {
-      if (!user) {
-        navigate("/login");
-        return;
-      }
-      try {
-        const docRef = doc(db, "usuarios", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-
-          // Se for apenas usuário comum, não entra no dashboard
-          if (data.role === "usuario" && data.cargo !== "ADMINISTRADOR") {
-            navigate("/home");
-            return;
+    // 1. CARREGA DADOS DO USUÁRIO SEM REDIRECIONAR (O App.js já cuida da segurança)
+    const loadUserData = async () => {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        try {
+          const docRef = doc(db, "usuarios", currentUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
           }
-          setUserData(data);
+        } catch (error) {
+          console.error("Erro ao carregar perfil no dashboard:", error);
         }
-      } catch (error) {
-        console.error("Erro ao carregar dados do usuário:", error);
-      } finally {
-        setLoading(false);
       }
-    });
+      setLoading(false);
+    };
 
+    loadUserData();
+
+    // 2. MONITORAMENTO DOS CHAMADOS EM TEMPO REAL
     const unsubscribeChamados = onSnapshot(
       collection(db, "chamados"),
       (snapshot) => {
@@ -76,21 +70,20 @@ export default function Dashboard() {
       }
     );
 
-    return () => {
-      unsubscribeAuth();
-      unsubscribeChamados();
-    };
-  }, [navigate]);
+    return () => unsubscribeChamados();
+  }, []);
 
-  // --- LÓGICA DE PERMISSÕES ATUALIZADA ---
-  const isRoot = useMemo(() => userData?.role === "root", [userData]);
-
-  const isAdmin = useMemo(
-    () => userData?.cargo === "ADMINISTRADOR" && userData?.role === "admin",
+  // --- LÓGICA DE PERMISSÕES PARA INTERFACE ---
+  const isRoot = useMemo(
+    () => userData?.role?.toLowerCase() === "root",
     [userData]
   );
-
-  // Quem pode ver o bloco de Gestão de Usuários
+  const isAdmin = useMemo(
+    () =>
+      userData?.cargo?.toUpperCase() === "ADMINISTRADOR" ||
+      userData?.role?.toLowerCase() === "admin",
+    [userData]
+  );
   const canManageUsers = isRoot || isAdmin;
 
   const nomeExibicao = userData?.nome || userData?.name || "Analista";
@@ -101,13 +94,14 @@ export default function Dashboard() {
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest italic">
-            Rodhon System: Validando Privilégios
+            Sincronizando Módulos...
           </p>
         </div>
       </div>
     );
   }
 
+  // Componente interno de botão para manter o padrão visual
   const NavButton = ({ icon: Icon, label, path }) => {
     const active = location.pathname === path;
     return (
@@ -132,47 +126,43 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans antialiased text-slate-900">
+      {/* SIDEBAR */}
       <aside
         className={`relative ${
           sidebarOpen ? "w-72" : "w-24"
-        } bg-[#F1F5F9] border-r border-slate-200/60 hidden md:flex flex-col z-50 transition-all duration-500 ease-in-out`}
+        } bg-[#F1F5F9] border-r border-slate-200/60 hidden md:flex flex-col z-50 transition-all duration-500`}
       >
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute -right-3 top-12 bg-white border border-slate-200 text-slate-400 p-1.5 rounded-full shadow-sm hover:text-blue-600 z-[60] transition-all hover:scale-110"
+          className="absolute -right-3 top-12 bg-white border border-slate-200 text-slate-400 p-1.5 rounded-full shadow-sm z-[60]"
         >
           {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
         </button>
 
-        <div className="h-28 flex items-center px-8 mb-4 bg-white/40 backdrop-blur-sm border-b border-slate-200/40 overflow-hidden">
+        <div className="h-28 flex items-center px-8 mb-4 border-b border-slate-200/40">
           {sidebarOpen ? (
-            <div className="flex flex-col min-w-[180px]">
+            <div className="flex flex-col">
               <div className="flex items-center text-2xl font-black italic tracking-tighter">
                 <span className="text-[#0F172A]">RODHON</span>
                 <span className="text-[#2563EB]">SYSTEM</span>
               </div>
-              <span className="text-[9px] font-bold text-slate-400 tracking-[0.4em] uppercase leading-none mt-1.5">
-                Technology Solutions
-              </span>
             </div>
           ) : (
-            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black italic shadow-lg shadow-blue-100 mx-auto shrink-0">
+            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black italic mx-auto">
               R
             </div>
           )}
         </div>
 
-        <nav className="flex-1 px-4 space-y-6 overflow-y-auto py-4 custom-scrollbar">
-          {/* Módulo Master - VISIBILIDADE FILTRADA */}
-          {(isRoot || canManageUsers) && (
+        <nav className="flex-1 px-4 space-y-6 overflow-y-auto py-4">
+          {canManageUsers && (
             <div>
               {sidebarOpen && (
-                <p className="px-4 text-[10px] font-black text-blue-600 uppercase mb-3 tracking-[0.2em]">
+                <p className="px-4 text-[10px] font-black text-blue-600 uppercase mb-3 tracking-widest">
                   Master Control
                 </p>
               )}
               <div className="space-y-1.5">
-                {/* APENAS ROOT ACESSA LICENÇAS */}
                 {isRoot && (
                   <NavButton
                     icon={Key}
@@ -180,8 +170,6 @@ export default function Dashboard() {
                     path="/admin/licencas"
                   />
                 )}
-
-                {/* ROOT E ADMINISTRADOR GERENCIAM USUÁRIOS */}
                 <NavButton
                   icon={Users}
                   label="Gestão de Usuários"
@@ -193,7 +181,7 @@ export default function Dashboard() {
 
           <div>
             {sidebarOpen && (
-              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em]">
+              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
                 Dashboards
               </p>
             )}
@@ -206,14 +194,14 @@ export default function Dashboard() {
               <NavButton
                 icon={BarChart3}
                 label="Indicadores BI"
-                path="/indicadores"
+                path="/dashboard-bi"
               />
             </div>
           </div>
 
           <div>
             {sidebarOpen && (
-              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em]">
+              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
                 Operação
               </p>
             )}
@@ -221,19 +209,19 @@ export default function Dashboard() {
               <NavButton
                 icon={MessageSquarePlus}
                 label="Abrir Chamado"
-                path="/cadastrar-chamado"
+                path="/cadastro-chamado"
               />
               <NavButton
                 icon={ClipboardList}
                 label="Fila de Trabalho"
-                path="/operacional"
+                path="/painel-analista"
               />
             </div>
           </div>
 
           <div>
             {sidebarOpen && (
-              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em]">
+              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
                 Patrimônio
               </p>
             )}
@@ -241,7 +229,7 @@ export default function Dashboard() {
               <NavButton
                 icon={PlusCircle}
                 label="Novo Ativo"
-                path="/cadastrar-patrimonio"
+                path="/cadastro-equipamento"
               />
               <NavButton
                 icon={Repeat}
@@ -258,10 +246,10 @@ export default function Dashboard() {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-slate-200/60 bg-white/20">
+        <div className="p-4 border-t border-slate-200/60">
           <button
             onClick={() => auth.signOut()}
-            className="w-full flex items-center gap-4 px-4 py-4 text-slate-500 rounded-2xl transition-all duration-300 font-black text-[11px] uppercase tracking-widest group hover:bg-red-50 hover:text-red-600 cursor-pointer"
+            className="w-full flex items-center gap-4 px-4 py-4 text-slate-500 rounded-2xl hover:bg-red-50 hover:text-red-600 transition-all font-black text-[11px] uppercase tracking-widest"
           >
             <LogOut size={22} className={!sidebarOpen && "mx-auto"} />
             {sidebarOpen && <span>Encerrar Sessão</span>}
@@ -269,53 +257,33 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden relative">
+      {/* CONTEÚDO PRINCIPAL */}
+      <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-24 bg-white/70 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-10 z-40">
           <div className="flex flex-col">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-              <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em]">
-                {isRoot
-                  ? "Root Access"
-                  : isAdmin
-                  ? "Administrador"
-                  : "Analista Operacional"}
-              </h2>
-            </div>
+            <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
+              {isRoot ? "Root Access" : isAdmin ? "Administrador" : "Analista"}
+            </h2>
             <h1 className="text-xl font-black text-slate-800 tracking-tight italic">
-              Dashboard{" "}
-              <span className="text-slate-400 font-medium">de Controle</span>
+              Dashboard
             </h1>
           </div>
-          {/* ... User Profile ... */}
         </header>
 
         <section className="flex-1 overflow-y-auto p-10 bg-[#F8FAFC]">
           <div className="max-w-[1600px] mx-auto">
             <div className="flex justify-between items-end mb-12">
-              <div>
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-                  Olá, {nomeExibicao.split(" ")[0]}!
-                </h1>
-                <p className="text-slate-400 mt-2 font-medium italic">
-                  Privilégios de{" "}
-                  {isRoot
-                    ? "Super Usuário"
-                    : isAdmin
-                    ? "Administrador"
-                    : "Técnico"}{" "}
-                  ativos.
-                </p>
-              </div>
+              <h1 className="text-4xl font-black text-slate-900">
+                Olá, {nomeExibicao.split(" ")[0]}!
+              </h1>
               <button
-                onClick={() => navigate("/cadastrar-chamado")}
+                onClick={() => navigate("/cadastro-chamado")}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-widest transition-all"
               >
                 <Plus size={18} strokeWidth={3} /> Novo Chamado
               </button>
             </div>
 
-            {/* Grid de Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
               <StatCard
                 title="Em Aberto"
@@ -343,7 +311,6 @@ export default function Dashboard() {
               />
             </div>
 
-            {/* Quick Actions dinâmicas */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <QuickActionCard
                 title="Sala do Patrimônio"
@@ -359,8 +326,6 @@ export default function Dashboard() {
                 onClick={() => navigate("/inventario")}
                 variant="light"
               />
-
-              {/* O Card de Gestão de Usuários só aparece para quem tem permissão */}
               {canManageUsers && (
                 <QuickActionCard
                   title="Equipe e Usuários"
@@ -378,7 +343,7 @@ export default function Dashboard() {
   );
 }
 
-// Subcomponentes (StatCard e QuickActionCard mantêm o estilo original...)
+// Subcomponentes (StatCard e QuickActionCard)
 function StatCard({ title, value, color, icon: Icon }) {
   const themes = {
     amber: "bg-amber-500 shadow-amber-100",
@@ -412,8 +377,8 @@ function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
       onClick={onClick}
       className={`group cursor-pointer rounded-[32px] p-8 transition-all relative overflow-hidden flex flex-col justify-between h-72 ${
         isDark
-          ? "bg-slate-900 text-white hover:bg-slate-800 shadow-2xl shadow-slate-200"
-          : "bg-white border border-slate-200 text-slate-900 hover:border-blue-200 shadow-sm hover:shadow-md"
+          ? "bg-slate-900 text-white hover:bg-slate-800"
+          : "bg-white border border-slate-200 text-slate-900 hover:border-blue-200 shadow-sm"
       }`}
     >
       <div className="relative z-10">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { LogOut, User, MapPin } from "lucide-react";
+import { LogOut, User } from "lucide-react"; // Removi os não usados MapPin
 import { auth, db } from "../api/Firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
@@ -8,7 +8,7 @@ export default function Header() {
   const navigate = useNavigate();
   const [userData, setUserData] = useState({
     nome: "Usuário",
-    cargo: "Analista",
+    cargo: "Carregando...",
     unidade: "Carregando...",
   });
 
@@ -23,7 +23,8 @@ export default function Header() {
             const data = docSnap.data();
             setUserData({
               nome: data.nome || data.name || "Usuário do Sistema",
-              cargo: data.cargo || data.role || "Analista",
+              // Prioriza o campo 'cargo', se não houver, usa o 'role'
+              cargo: data.cargo || data.role || "Usuário",
               unidade: data.unidade || "Unidade Central",
             });
           }
@@ -37,14 +38,13 @@ export default function Header() {
 
   // Lógica para pegar Nome e Sobrenome
   const formatarNome = (nomeCompleto) => {
+    if (!nomeCompleto) return "Usuário";
     const nomes = nomeCompleto.split(" ");
     if (nomes.length > 1) {
-      return `${nomes[0]} ${nomes[1]}`; // Retorna Nome e Segundo Nome
+      return `${nomes[0]} ${nomes[1]}`;
     }
     return nomes[0];
   };
-
-  const isAdmin = ["admin", "root", "Administrativo"].includes(userData.cargo);
 
   return (
     <header className="h-24 bg-white/70 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-10 sticky top-0 z-50">
@@ -67,7 +67,6 @@ export default function Header() {
 
       {/* LADO DIREITO: PERFIL E UNIDADE */}
       <div className="flex items-center gap-8">
-        {/* INFO DO USUÁRIO */}
         <div className="flex items-center gap-4 group">
           <div className="text-right hidden md:block">
             {/* Cargo e Unidade */}
@@ -77,8 +76,9 @@ export default function Header() {
                   {userData.unidade}
                 </p>
               </div>
+              {/* EXIBIÇÃO DO CARGO DINÂMICO AQUI */}
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                {isAdmin ? "Admin" : "Analista"}
+                {userData.cargo}
               </p>
             </div>
 
@@ -88,13 +88,12 @@ export default function Header() {
             </p>
           </div>
 
-          {/* AVATAR COM GRADIENTE */}
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-700 to-blue-400 flex items-center justify-center text-white border-2 border-white shadow-lg shadow-blue-100 transition-all group-hover:scale-105 group-hover:rotate-3">
             <User size={22} />
           </div>
         </div>
-        {/* LOGOUT */}
-        <div className="h-10 w-[1px] bg-slate-100"></div> {/* Divisor */}
+
+        <div className="h-10 w-[1px] bg-slate-100"></div>
         <button
           onClick={() => auth.signOut()}
           className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all group"

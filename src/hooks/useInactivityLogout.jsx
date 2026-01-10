@@ -1,65 +1,84 @@
 import { useEffect, useRef, useCallback } from "react";
 import { auth } from "../api/Firebase";
-import { signOut } from "firebase/auth";
+import { signOut, onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-toastify";
 
-export const useInactivityLogout = (timeoutMinutes = 10) => {
+export const useInactivityLogout = (timeoutMinutes = 40) => {
   const timerRef = useRef(null);
+  const lastActivityRef = useRef(Date.now());
   const ms = timeoutMinutes * 60 * 1000;
 
-  // Função que executa o logout real
-  const handleLogout = useCallback(() => {
+  // Função de Logout
+  const handleLogout = useCallback(async () => {
     if (auth.currentUser) {
-      signOut(auth)
-        .then(() => {
-          // Toast único para não encher a tela se houver várias abas
-          toast.warning("Sessão encerrada por inatividade.", {
-            toastId: "logout-toast",
-            autoClose: 5000,
-          });
-        })
-        .catch((err) =>
-          console.error("Erro ao deslogar por inatividade:", err)
-        );
+      try {
+        await signOut(auth);
+        toast.warning("Sessão encerrada por inatividade.", {
+          toastId: "logout-toast",
+          autoClose: 5000,
+        });
+      } catch (err) {
+        console.error("Erro ao deslogar:", err);
+      }
     }
   }, []);
 
-  // Função que reinicia o contador
+  // Função para resetar o timer
   const resetTimer = useCallback(() => {
-    // Limpa o timer anterior
+    // Limpeza rigorosa do timer anterior
     if (timerRef.current) clearTimeout(timerRef.current);
 
-    // Só agenda o próximo logout se o usuário estiver de fato logado
-    if (auth.currentUser) {
-      timerRef.current = setTimeout(handleLogout, ms);
-    }
+    // Agenda o próximo logout
+    timerRef.current = setTimeout(() => {
+      handleLogout();
+    }, ms);
   }, [handleLogout, ms]);
 
   useEffect(() => {
-    const events = [
-      "mousedown",
-      "mousemove",
-      "keypress",
-      "scroll",
-      "touchstart",
-      "click",
-    ];
+    // Escutamos a mudança de estado do Firebase
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const events = [
+          "mousedown",
+          "mousemove",
+          "keypress",
+          "scroll",
+          "touchstart",
+          "click",
+        ];
 
-    // Handler para os eventos da janela
-    const handleUserActivity = () => resetTimer();
+        // Handler com verificação de tempo para não sobrecarregar o processador
+        const handleUserActivity = () => {
+          const now = Date.now();
+          // Só reseta se houver passado pelo menos 1 segundo desde a última atividade (throttle)
+          if (now - lastActivityRef.current > 1000) {
+            lastActivityRef.current = now;
+            resetTimer();
+          }
+        };
 
-    // Adiciona ouvintes em todos os eventos de interação
-    events.forEach((e) => window.addEventListener(e, handleUserActivity));
+        // Adiciona ouvintes
+        events.forEach((e) => window.addEventListener(e, handleUserActivity));
 
-    // Inicia o timer imediatamente se já houver usuário
-    if (auth.currentUser) {
-      resetTimer();
-    }
+        // Inicia o contador inicial
+        resetTimer();
+
+        // Cleanup dos eventos quando o usuário deslogar ou o componente desmontar
+        return () => {
+          events.forEach((e) =>
+            window.removeEventListener(e, handleUserActivity)
+          );
+          if (timerRef.current) clearTimeout(timerRef.current);
+        };
+      } else {
+        // Se não há usuário, garante que nenhum timer está rodando
+        if (timerRef.current) clearTimeout(timerRef.current);
+      }
+    });
 
     return () => {
-      // Remove os ouvintes ao desmontar para evitar vazamento de memória
-      events.forEach((e) => window.removeEventListener(e, handleUserActivity));
+      unsubscribeAuth();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [resetTimer]); // Removido auth.currentUser daqui para evitar loops, o resetTimer já lida com isso
+  }, [resetTimer]);
 };

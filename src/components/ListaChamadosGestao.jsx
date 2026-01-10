@@ -14,6 +14,7 @@ import {
   FiClock,
   FiX,
   FiArrowRight,
+  FiUser, // <-- ADICIONADO AQUI PARA CORRIGIR O ERRO
 } from "react-icons/fi";
 
 const ListaChamadosGestao = () => {
@@ -27,7 +28,7 @@ const ListaChamadosGestao = () => {
     if (user) {
       const q = query(
         collection(db, "chamados"),
-        where("userId", "==", user.uid), // Se for gestor master, remova este 'where' para ver todos
+        where("userId", "==", user.uid),
         orderBy("criadoEm", "desc")
       );
 
@@ -73,7 +74,6 @@ const ListaChamadosGestao = () => {
                   className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                   onClick={() => setChamadoSelecionado(item)}
                 >
-                  {/* COLUNA 1: OS E ANALISTA */}
                   <td className="px-6 py-4">
                     <div
                       className={`text-sm font-black italic tracking-tight ${
@@ -87,7 +87,6 @@ const ListaChamadosGestao = () => {
                     </div>
                   </td>
 
-                  {/* COLUNA 2: UNIDADE E LOCAL (COM SETA PARA REMANEJAMENTO) */}
                   <td className="px-6 py-4">
                     <div className="text-sm font-black text-slate-800">
                       {item.unidade}
@@ -111,14 +110,12 @@ const ListaChamadosGestao = () => {
                     </div>
                   </td>
 
-                  {/* COLUNA 3: PROBLEMA */}
                   <td className="px-6 py-4">
                     <div className="text-xs text-slate-500 font-bold italic truncate max-w-[200px]">
                       {item.descricao}
                     </div>
                   </td>
 
-                  {/* COLUNA 4: STATUS (PÍLULA) */}
                   <td className="px-6 py-4 text-center">
                     <span
                       className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase border tracking-widest ${
@@ -131,7 +128,6 @@ const ListaChamadosGestao = () => {
                     </span>
                   </td>
 
-                  {/* COLUNA 5: ABERTURA (DATA E HORA) */}
                   <td className="px-6 py-4">
                     <div className="text-xs font-black text-slate-700">
                       {data?.toLocaleDateString("pt-BR")}
@@ -145,7 +141,6 @@ const ListaChamadosGestao = () => {
                     </div>
                   </td>
 
-                  {/* COLUNA 6: AÇÃO (OLHO COLORIDO) */}
                   <td className="px-6 py-4 text-center">
                     <button
                       onClick={(e) => {
@@ -191,13 +186,13 @@ const ListaChamadosGestao = () => {
         </div>
       </div>
 
-      {/* MODAL DE DETALHES (TEXTO ALINHADO À ESQUERDA) */}
+      {/* MODAL DE DETALHES */}
       {chamadoSelecionado && (
         <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-200">
             <div className="p-8 text-left">
-              <div className="flex justify-between items-start mb-6 text-left">
-                <div className="text-left">
+              <div className="flex justify-between items-start mb-6">
+                <div>
                   <span
                     className={`text-[10px] font-black px-3 py-1 rounded-full uppercase ${
                       chamadoSelecionado.numeroOs?.includes("REM")
@@ -222,7 +217,7 @@ const ListaChamadosGestao = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <p className="text-[10px] uppercase font-black text-slate-400 mb-1 flex items-center gap-1">
                     <FiClock /> Abertura
                   </p>
@@ -232,7 +227,7 @@ const ListaChamadosGestao = () => {
                       .toLocaleString("pt-BR")}
                   </p>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <p className="text-[10px] uppercase font-black text-slate-400 mb-1 flex items-center gap-1">
                     <FiUser /> Analista
                   </p>
@@ -242,11 +237,11 @@ const ListaChamadosGestao = () => {
                 </div>
               </div>
 
-              <div className="space-y-4 text-left">
+              <div className="space-y-4">
                 <label className="text-[10px] uppercase font-black text-slate-400">
                   Descrição do Chamado
                 </label>
-                <div className="bg-slate-50 p-5 rounded-2xl text-sm text-slate-600 font-medium min-h-[100px] whitespace-pre-wrap text-left">
+                <div className="bg-slate-50 p-5 rounded-2xl text-sm text-slate-600 font-medium min-h-[100px] whitespace-pre-wrap">
                   {chamadoSelecionado.descricao}
                 </div>
               </div>
