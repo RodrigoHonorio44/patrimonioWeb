@@ -20,7 +20,7 @@ import {
   FiAlertCircle,
 } from "react-icons/fi";
 
-const FormRemanejamento = ({ fecharFormulario }) => {
+const FormRemanejamento = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [sucesso, setSucesso] = useState(false);
   const [osGerada, setOsGerada] = useState("");
@@ -35,7 +35,7 @@ const FormRemanejamento = ({ fecharFormulario }) => {
     setorOrigem: "",
     setorDestino: "",
     descricao: "",
-    prioridade: "baixa", // Valor padrão
+    prioridade: "baixa",
   });
 
   const unidades = [
@@ -47,7 +47,6 @@ const FormRemanejamento = ({ fecharFormulario }) => {
     "Samu Ponta Negra",
   ];
 
-  // 1. BUSCAR NOME DO USUÁRIO NO BANCO
   useEffect(() => {
     const fetchUserName = async () => {
       const user = auth.currentUser;
@@ -104,7 +103,7 @@ const FormRemanejamento = ({ fecharFormulario }) => {
           ? "Remanejamento de Setor"
           : "Remanejamento de Equipamento",
         status: "aberto",
-        nome: userName, // Agora usa o nome buscado no banco
+        nome: userName,
         userId: user.uid,
         userEmail: user.email,
         ...formData,
@@ -121,7 +120,6 @@ const FormRemanejamento = ({ fecharFormulario }) => {
     }
   };
 
-  // Helper para cor da prioridade no Select
   const getPrioridadeColor = () => {
     if (formData.prioridade === "urgente")
       return "text-red-500 border-red-200 bg-red-50";
@@ -147,7 +145,8 @@ const FormRemanejamento = ({ fecharFormulario }) => {
               </span>
             </div>
             <button
-              onClick={fecharFormulario}
+              type="button"
+              onClick={onClose} // Fecha o modal no PainelGestao
               className="w-full bg-slate-800 text-white py-5 rounded-2xl font-black text-xs uppercase hover:bg-slate-900 transition-all"
             >
               Concluir e Sair
@@ -155,17 +154,21 @@ const FormRemanejamento = ({ fecharFormulario }) => {
           </div>
         ) : (
           <>
+            {/* Botão de Fechar X com type="button" para não validar campos */}
             <button
-              onClick={fecharFormulario}
+              type="button"
+              onClick={onClose}
               className="absolute top-6 right-6 p-2 text-slate-300 hover:text-red-400 transition-all"
             >
               <FiX size={20} />
             </button>
+
             <div className="mb-8 text-left">
               <h2 className="text-xl sm:text-2xl font-black text-slate-700 uppercase italic flex flex-col">
                 Remanejamento{" "}
                 <span className="h-1.5 w-12 bg-orange-400 mt-1 rounded-full"></span>
               </h2>
+
               <div className="flex gap-2 mt-6 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
                 <button
                   type="button"
@@ -215,7 +218,7 @@ const FormRemanejamento = ({ fecharFormulario }) => {
                 </div>
               </div>
 
-              {/* Unidade */}
+              {/* Unidade Destino */}
               <div className="flex flex-col gap-1.5 text-left">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
                   Unidade Destino
@@ -239,7 +242,7 @@ const FormRemanejamento = ({ fecharFormulario }) => {
                 </div>
               </div>
 
-              {/* Equipamento/Patrimônio */}
+              {/* Equipamento / Patrimônio */}
               <div
                 className={`grid gap-4 text-left ${
                   modoSetor ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"
@@ -267,6 +270,7 @@ const FormRemanejamento = ({ fecharFormulario }) => {
                     />
                   </div>
                 </div>
+
                 {!modoSetor && (
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center px-1">
@@ -312,7 +316,7 @@ const FormRemanejamento = ({ fecharFormulario }) => {
                 )}
               </div>
 
-              {/* Origem/Destino */}
+              {/* Origem e Destino */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-black text-red-400 uppercase ml-1">
@@ -348,6 +352,7 @@ const FormRemanejamento = ({ fecharFormulario }) => {
                 </div>
               </div>
 
+              {/* Motivo */}
               <div className="flex flex-col gap-1.5 text-left">
                 <label className="text-[10px] font-black text-slate-400 uppercase ml-1">
                   Motivo

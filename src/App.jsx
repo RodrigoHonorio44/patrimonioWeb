@@ -1,19 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { auth, db } from "./api/Firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
-// Suporte para notificações (Toasts)
+// Notificações e Segurança
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-
-// SISTEMA DE SEGURANÇA E LICENÇA
 import GuardiaoSessao from "./components/GuardiaoSessao";
-import { useLicenseGuard } from "./hooks/useLicenseGuard"; // Hook que criamos
-import LicencaExpirada from "./pages/LicencaExpirada"; // Página de bloqueio
+import { useLicenseGuard } from "./hooks/useLicenseGuard";
+import LicencaExpirada from "./pages/LicencaExpirada";
 
-// Importação das Páginas
+// Páginas
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import DashboardBI from "./pages/DashboardBI";
@@ -25,18 +23,20 @@ import Inventario from "./pages/Inventario";
 import Estoque from "./pages/Estoque";
 import Usuarios from "./pages/Usuarios";
 import TrocarSenha from "./pages/TrocarSenha";
-import AdminLicencas from "./pages/AdminLicencas"; // Sua nova tela de gestão
-
-// Importando componentes
+import AdminLicencas from "./pages/AdminLicencas";
 import CadastroChamado from "./components/CadastroChamado";
+
+// NOVAS PÁGINAS DE GESTÃO
+import GestaoChefia from "./pages/GestaoeChefia";
+import PainelGestao from "./pages/PainelGestao";
 
 function App() {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
+  const [cargo, setCargo] = useState(null); // Estado para o campo 'cargo' do Firestore
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Hook de verificação de licença
   const { isLicenseValid, loadingLicense } = useLicenseGuard();
 
   useEffect(() => {
@@ -49,20 +49,26 @@ function App() {
 
           if (docSnap.exists()) {
             const userData = docSnap.data();
-            const userRole = userData.role?.toLowerCase().trim();
+
+            // Padronizando para evitar erros de case-sensitive (Maiúsculas/Minúsculas)
+            const userRole = userData.role?.toLowerCase().trim() || "usuario";
+            const userCargo = userData.cargo?.toLowerCase().trim() || "";
+
             setRole(userRole);
+            setCargo(userCargo);
             setMustChangePassword(userData.requiresPasswordChange === true);
           } else {
-            setRole("user");
+            setRole("usuario");
           }
         } catch (error) {
           console.error("Erro ao buscar dados:", error);
-          setRole("user");
+          setRole("usuario");
         }
         setUser(currentUser);
       } else {
         setUser(null);
         setRole(null);
+        setCargo(null);
       }
       setLoading(false);
     });
@@ -70,35 +76,61 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // 1. TELA DE CARREGAMENTO
+  // --- DEFINIÇÃO DE PERMISSÕES ATUALIZADA ---
+
+  // É considerado Admin se role for root/admin OU cargo for administrador
+  const isAdmin = useMemo(
+    () => role === "root" || role === "admin" || cargo === "administrador",
+    [role, cargo]
+  );
+
+  // Define quem tem acesso às ferramentas técnicas e Dashboard
+  const isStaff = useMemo(
+    () =>
+      ["root", "analista", "ti", "admin"].includes(role) ||
+      cargo === "administrador",
+    [role, cargo]
+  );
+
+  const isGestao = useMemo(
+    () => ["chefia", "coordenador"].includes(role),
+    [role]
+  );
+
+  // Lógica de Redirecionamento Inicial
+  const getHomePath = () => {
+    if (isStaff || isAdmin) return "/dashboard";
+    if (isGestao) return "/painel-gestao";
+    return "/home";
+  };
+
   if (loading || loadingLicense) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-600 border-slate-100"></div>
-        <p className="mt-4 text-slate-400 font-bold uppercase tracking-widest animate-pulse text-[10px]">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-600"></div>
+        <p className="mt-4 text-slate-400 font-black uppercase tracking-[0.3em] text-[10px]">
           Rodhon System: Validando Acesso
         </p>
       </div>
     );
   }
 
-  // 2. VERIFICAÇÃO DE LICENÇA (Bloqueia tudo se estiver expirado, exceto se for Admin)
-  // Nota: Geralmente o Admin (você) não deve ser bloqueado pela própria trava
-  if (user && !isLicenseValid && role !== "admin") {
+  if (user && !isLicenseValid && !isAdmin) {
     return <LicencaExpirada />;
   }
-
-  const isStaff = ["admin", "analista", "ti", "adm"].includes(role);
 
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} theme="colored" />
-
       <BrowserRouter>
         <GuardiaoSessao>
           <Routes>
-            {/* CASO: TROCA DE SENHA */}
-            {user && mustChangePassword ? (
+            {!user ? (
+              <>
+                <Route path="/login" element={<Login />} />
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </>
+            ) : mustChangePassword ? (
               <>
                 <Route path="/trocar-senha" element={<TrocarSenha />} />
                 <Route
@@ -108,41 +140,35 @@ function App() {
               </>
             ) : (
               <>
+                {/* Redirecionamento Baseado em Cargo/Role */}
                 <Route
                   path="/"
-                  element={
-                    !user ? (
-                      <Navigate to="/login" replace />
-                    ) : isStaff ? (
-                      <Navigate to="/dashboard" replace />
-                    ) : (
-                      <Navigate to="/home" replace />
-                    )
-                  }
+                  element={<Navigate to={getHomePath()} replace />}
                 />
 
                 <Route
-                  path="/login"
+                  path="/home"
                   element={
-                    !user ? (
-                      <Login />
+                    isStaff || isAdmin ? (
+                      <Navigate to="/dashboard" replace />
+                    ) : isGestao ? (
+                      <Navigate to="/painel-gestao" replace />
                     ) : (
-                      <Navigate to={isStaff ? "/dashboard" : "/home"} replace />
+                      <Home />
                     )
                   }
                 />
 
-                {/* PAINEL DO DONO (GESTÃO DE LICENÇAS) */}
-                {user && role === "admin" && (
-                  <Route path="/admin/licencas" element={<AdminLicencas />} />
-                )}
-
-                {/* ROTAS STAFF */}
-                {user && isStaff && (
+                {/* --- ROTAS STAFF & ADMIN --- */}
+                {(isStaff || isAdmin) && (
                   <>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/indicadores" element={<DashboardBI />} />
                     <Route path="/operacional" element={<PainelAnalista />} />
+                    <Route
+                      path="/cadastrar-chamado"
+                      element={<CadastroChamado />}
+                    />
                     <Route
                       path="/cadastrar-patrimonio"
                       element={<CadastroEquipamento />}
@@ -151,23 +177,34 @@ function App() {
                     <Route path="/inventario" element={<Inventario />} />
                     <Route path="/estoque" element={<Estoque />} />
                     <Route path="/usuarios" element={<Usuarios />} />
-                    <Route
-                      path="/cadastrar-chamado"
-                      element={
-                        <CadastroChamado
-                          isOpen={true}
-                          onClose={() => window.history.back()}
-                        />
-                      }
-                    />
                   </>
                 )}
 
+                {/* --- ROTAS GESTÃO --- */}
+                {(isGestao || isAdmin) && (
+                  <Route path="/painel-gestao" element={<GestaoChefia />}>
+                    <Route index element={<PainelGestao />} />
+                    <Route path="indicadores" element={<DashboardBI />} />
+                    <Route
+                      path="relatorios"
+                      element={
+                        <div className="p-8 font-black text-slate-400 italic uppercase">
+                          Relatórios em desenvolvimento
+                        </div>
+                      }
+                    />
+                  </Route>
+                )}
+
+                {/* --- ACESSO MASTER (LICENÇAS) --- */}
+                {isAdmin && (
+                  <Route path="/admin/licencas" element={<AdminLicencas />} />
+                )}
+
                 <Route
-                  path="/home"
-                  element={user ? <Home /> : <Navigate to="/login" replace />}
+                  path="*"
+                  element={<Navigate to={getHomePath()} replace />}
                 />
-                <Route path="*" element={<Navigate to="/" replace />} />
               </>
             )}
           </Routes>

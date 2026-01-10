@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { db, auth } from "../api/Firebase";
 import {
   collection,
@@ -43,7 +43,7 @@ const PainelAnalista = () => {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
 
-  // ESTADOS DE BUSCA (Ajustado para manual)
+  // ESTADOS DE BUSCA
   const [inputValue, setInputValue] = useState("");
   const [termoBusca, setTermoBusca] = useState("");
 
@@ -63,8 +63,12 @@ const PainelAnalista = () => {
 
   const user = auth.currentUser;
 
-  const isRemaneja = (item) =>
-    item?.tipo?.toLowerCase().includes("remanejamento") || !!item?.setorDestino;
+  const isRemaneja = useCallback(
+    (item) =>
+      item?.tipo?.toLowerCase().includes("remanejamento") ||
+      !!item?.setorDestino,
+    []
+  );
 
   const analistaNome = useMemo(() => {
     return (
@@ -93,10 +97,7 @@ const PainelAnalista = () => {
     setPaginaAtual(1);
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") executarBusca();
-  };
-
+  // Listeners e Dados
   useEffect(() => {
     if (!user) return;
     const fetchUserData = async () => {
@@ -104,7 +105,7 @@ const PainelAnalista = () => {
         const docSnap = await getDoc(doc(db, "usuarios", user.uid));
         if (docSnap.exists()) setUserData(docSnap.data());
       } catch (error) {
-        console.error(error);
+        console.error("Erro ao buscar dados do usuário:", error);
       }
     };
     fetchUserData();
@@ -114,15 +115,25 @@ const PainelAnalista = () => {
     if (!user) return;
     setLoading(true);
     const q = query(collection(db, "chamados"), orderBy("criadoEm", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const lista = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setChamados(lista);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const lista = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setChamados(lista);
+        setLoading(false);
+      },
+      (error) => {
+        toast.error("Erro na conexão em tempo real.");
+        setLoading(false);
+      }
+    );
     return () => unsubscribe();
   }, [user]);
 
-  // Handlers de Ação
+  // Handlers
   const handleAssumirChamado = async (chamado) => {
     try {
       await updateDoc(doc(db, "chamados", chamado.id), {
@@ -164,7 +175,7 @@ const PainelAnalista = () => {
       setMostrarModalFinalizar(false);
       setParecerTecnico("");
       setPatrimonio("");
-      toast.success("Finalizado!");
+      toast.success("OS Finalizada com sucesso!");
     } catch (err) {
       toast.error("Erro ao finalizar.");
     }
@@ -181,6 +192,8 @@ const PainelAnalista = () => {
         pausadoEm: serverTimestamp(),
       });
       setMostrarModalPausar(false);
+      setMotivoPausa("");
+      setDetalhePausa("");
       toast.warning("SLA Pausado.");
     } catch (err) {
       toast.error("Erro ao pausar.");
@@ -231,7 +244,7 @@ const PainelAnalista = () => {
         arquivadoEm: serverTimestamp(),
       });
       toast.update(idToast, {
-        render: "Sincronizado!",
+        render: "Sincronizado e Arquivado!",
         type: "success",
         isLoading: false,
         autoClose: 3000,
@@ -255,15 +268,17 @@ const PainelAnalista = () => {
     }, 500);
   };
 
+  // Filtro e Paginação Otimizados
   const chamadosFiltrados = useMemo(() => {
     const busca = termoBusca.toLowerCase().trim();
     return chamados.filter((c) => {
-      const matches =
+      const matchesBusca =
         c.numeroOs?.toString().includes(busca) ||
         c.nome?.toLowerCase().includes(busca) ||
         c.unidade?.toLowerCase().includes(busca) ||
         c.patrimonio?.toLowerCase().includes(busca);
-      return busca ? matches : c.status?.toLowerCase() !== "arquivado";
+
+      return busca ? matchesBusca : c.status?.toLowerCase() !== "arquivado";
     });
   }, [chamados, termoBusca]);
 
@@ -279,7 +294,7 @@ const PainelAnalista = () => {
       <style>{`
         @keyframes blink-soft-red {
           0%, 100% { background-color: rgba(254, 226, 226, 0.8); color: #dc2626; border-color: #fecaca; }
-          50% { background-color: rgba(239, 68, 68, 0.2); color: #b91c1c; border-color: #ef4444; }
+          50% { background-color: rgba(239, 68, 68, 0.4); color: #b91c1c; border-color: #ef4444; }
         }
         .animate-blink-priority { animation: blink-soft-red 1.5s infinite ease-in-out; }
         @media print { 
@@ -300,14 +315,13 @@ const PainelAnalista = () => {
             Fila Técnica
           </h1>
           <div className="flex gap-2 w-full md:w-auto">
-            {/* BUSCA MANUAL */}
             <div className="relative flex-1 md:w-80">
               <input
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Pesquisar e dar Enter..."
+                onKeyDown={(e) => e.key === "Enter" && executarBusca()}
+                placeholder="Pesquisar OS, Nome ou Unidade..."
                 className="w-full pl-4 pr-20 py-3 rounded-2xl border border-slate-200 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium transition-all"
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -321,13 +335,12 @@ const PainelAnalista = () => {
                 )}
                 <button
                   onClick={executarBusca}
-                  className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
+                  className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
                 >
                   <FiSearch size={18} />
                 </button>
               </div>
             </div>
-
             <Link
               to="/dashboard"
               className="bg-white border border-slate-200 p-3 rounded-2xl text-slate-600 hover:bg-slate-50 shadow-sm transition-all"
@@ -360,46 +373,44 @@ const PainelAnalista = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {!loading &&
+                {loading ? (
+                  <tr>
+                    <td
+                      colSpan="5"
+                      className="p-10 text-center text-slate-400 font-bold uppercase animate-pulse"
+                    >
+                      Carregando chamados...
+                    </td>
+                  </tr>
+                ) : (
                   chamadosPaginados.map((item) => {
                     const status = item.status?.toLowerCase();
                     const rem = isRemaneja(item);
                     const prio = item.prioridade?.toLowerCase() || "baixa";
 
-                    let estiloPrio =
+                    const estiloPrio =
                       prio === "alta" || prio === "urgente"
                         ? "animate-blink-priority"
                         : prio === "média" || prio === "media"
                         ? "bg-orange-100 text-orange-600 border-orange-200"
                         : "bg-emerald-100 text-emerald-600 border-emerald-200";
 
-                    let estiloStatus = "";
-                    switch (status) {
-                      case "aberto":
-                        estiloStatus =
-                          "bg-emerald-100 text-emerald-700 border-emerald-200";
-                        break;
-                      case "em atendimento":
-                        estiloStatus =
-                          "bg-blue-100 text-blue-700 border-blue-200";
-                        break;
-                      case "pendente":
-                        estiloStatus =
-                          "bg-orange-100 text-orange-700 border-orange-200";
-                        break;
-                      case "fechado":
-                        estiloStatus = "bg-red-100 text-red-700 border-red-200";
-                        break;
-                      default:
-                        estiloStatus =
-                          "bg-slate-100 text-slate-500 border-slate-200";
-                    }
+                    const statusStyles = {
+                      aberto:
+                        "bg-emerald-100 text-emerald-700 border-emerald-200",
+                      "em atendimento":
+                        "bg-blue-100 text-blue-700 border-blue-200",
+                      pendente:
+                        "bg-orange-100 text-orange-700 border-orange-200",
+                      fechado: "bg-red-100 text-red-700 border-red-200",
+                      arquivado: "bg-slate-100 text-slate-500 border-slate-200",
+                    };
 
                     return (
                       <tr
                         key={item.id}
                         className={`${
-                          rem ? "bg-orange-50/20" : ""
+                          rem ? "bg-orange-50/30" : ""
                         } hover:bg-slate-50 transition-colors`}
                       >
                         <td className="p-5">
@@ -438,16 +449,19 @@ const PainelAnalista = () => {
                         </td>
                         <td className="p-5 text-center">
                           <span
-                            className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${estiloStatus}`}
+                            className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
+                              statusStyles[status] || ""
+                            }`}
                           >
                             {item.status}
                           </span>
                         </td>
-                        <td className="p-5 text-center">
+                        <td className="p-5">
                           <div className="flex gap-2 justify-center items-center">
                             <button
                               onClick={() => handleImprimir(item)}
-                              className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-orange-600"
+                              title="Imprimir"
+                              className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-orange-600 transition-colors"
                             >
                               <FiPrinter size={18} />
                             </button>
@@ -456,16 +470,16 @@ const PainelAnalista = () => {
                                 setChamadoSelecionado(item);
                                 setMostrarModalVer(true);
                               }}
-                              className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-blue-600"
+                              title="Ver Detalhes"
+                              className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-blue-600 transition-colors"
                             >
                               <FiEye size={18} />
                             </button>
 
-                            {/* BOTÃO ATENDER - RESPEITANDO CORES ORIGINAIS */}
                             {status === "aberto" && (
                               <button
                                 onClick={() => handleAssumirChamado(item)}
-                                className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase text-white shadow-md ${
+                                className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase text-white shadow-md transition-transform active:scale-95 ${
                                   rem ? "bg-orange-500" : "bg-blue-600"
                                 }`}
                               >
@@ -476,7 +490,7 @@ const PainelAnalista = () => {
                             {status === "pendente" && (
                               <button
                                 onClick={() => handleRetomarChamado(item)}
-                                className="bg-amber-500 text-white p-2.5 rounded-xl"
+                                className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
                               >
                                 <FiPlayCircle size={20} />
                               </button>
@@ -489,7 +503,7 @@ const PainelAnalista = () => {
                                     setChamadoSelecionado(item);
                                     setMostrarModalFinalizar(true);
                                   }}
-                                  className="bg-emerald-500 text-white p-2.5 rounded-xl"
+                                  className="bg-emerald-500 text-white p-2.5 rounded-xl hover:bg-emerald-600 shadow-md"
                                 >
                                   <FiCheck size={18} />
                                 </button>
@@ -498,14 +512,13 @@ const PainelAnalista = () => {
                                     setChamadoSelecionado(item);
                                     setMostrarModalPausar(true);
                                   }}
-                                  className="bg-amber-500 text-white p-2.5 rounded-xl"
+                                  className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
                                 >
                                   <FiPauseCircle size={18} />
                                 </button>
-                                {/* BOTÃO DE VOLTAR PARA A FILA */}
                                 <button
                                   onClick={() => handleDevolverChamado(item)}
-                                  className="bg-slate-200 text-slate-500 p-2.5 rounded-xl"
+                                  className="bg-slate-200 text-slate-500 p-2.5 rounded-xl hover:bg-slate-300 transition-colors"
                                 >
                                   <FiRotateCcw size={18} />
                                 </button>
@@ -516,10 +529,10 @@ const PainelAnalista = () => {
                               <button
                                 onClick={() => handleEnviarParaPlanilha(item)}
                                 disabled={enviandoPlanilha === item.id}
-                                className={`p-2.5 text-white rounded-xl shadow-lg ${
+                                className={`p-2.5 text-white rounded-xl shadow-lg transition-all ${
                                   enviandoPlanilha === item.id
-                                    ? "bg-slate-400"
-                                    : "bg-emerald-600 animate-pulse"
+                                    ? "bg-slate-400 cursor-not-allowed"
+                                    : "bg-emerald-600 hover:bg-emerald-700 animate-pulse"
                                 }`}
                               >
                                 {enviandoPlanilha === item.id ? (
@@ -533,15 +546,17 @@ const PainelAnalista = () => {
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                )}
               </tbody>
             </table>
           </div>
+          {/* Paginação */}
           <div className="p-6 border-t border-slate-50 flex justify-between items-center">
             <button
               disabled={paginaAtual === 1}
               onClick={() => setPaginaAtual((p) => p - 1)}
-              className="p-2 rounded-xl border border-slate-200 disabled:opacity-30"
+              className="p-2 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
             >
               <FiChevronLeft />
             </button>
@@ -551,7 +566,7 @@ const PainelAnalista = () => {
             <button
               disabled={paginaAtual === totalPaginas}
               onClick={() => setPaginaAtual((p) => p + 1)}
-              className="p-2 rounded-xl border border-slate-200 disabled:opacity-30"
+              className="p-2 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
             >
               <FiChevronRight />
             </button>
@@ -559,7 +574,7 @@ const PainelAnalista = () => {
         </div>
       </main>
 
-      {/* MODAIS (FINAIS DO CÓDIGO) */}
+      {/* Modais */}
       <ModalDetalhesAnalista
         isOpen={mostrarModalVer}
         chamado={chamadoSelecionado}
@@ -572,48 +587,47 @@ const PainelAnalista = () => {
         formatarDataHora={formatarDataHora}
       />
 
-      {/* RESTANTE DOS MODAIS... (FINALIZAR E PAUSAR) */}
       {mostrarModalFinalizar && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl">
+          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
             <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase italic">
               Finalizar OS
             </h2>
             <form onSubmit={handleFinalizarChamado} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">
                   Patrimônio
                 </label>
                 <input
                   required
                   value={patrimonio}
                   onChange={(e) => setPatrimonio(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold"
-                  placeholder="Digite o patrimônio..."
+                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold focus:ring-2 focus:ring-emerald-500 transition-all"
+                  placeholder="Ex: PAT-12345"
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">
                   Parecer Técnico
                 </label>
                 <textarea
                   value={parecerTecnico}
                   onChange={(e) => setParecerTecnico(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-32 outline-none font-medium"
-                  placeholder="O que foi feito?"
+                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-32 outline-none font-medium focus:ring-2 focus:ring-emerald-500 transition-all"
+                  placeholder="Descreva a solução técnica aplicada..."
                 />
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setMostrarModalFinalizar(false)}
-                  className="flex-1 py-4 font-black uppercase text-xs text-slate-400"
+                  className="flex-1 py-4 font-black uppercase text-xs text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-emerald-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg"
+                  className="flex-1 bg-emerald-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg hover:bg-emerald-600 transition-all active:scale-95"
                 >
                   Concluir OS
                 </button>
@@ -625,7 +639,7 @@ const PainelAnalista = () => {
 
       {mostrarModalPausar && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl">
+          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
             <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase">
               Pausar SLA
             </h2>
@@ -634,11 +648,13 @@ const PainelAnalista = () => {
                 required
                 value={motivoPausa}
                 onChange={(e) => setMotivoPausa(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold outline-none"
+                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold outline-none focus:ring-2 focus:ring-amber-500 transition-all"
               >
                 <option value="">Selecione o motivo...</option>
                 <option value="Aguardando Peça">Aguardando Peça</option>
-                <option value="Aguardando Peça">Recolhido para Oficina</option>
+                <option value="Recolhido para Oficina">
+                  Recolhido para Oficina
+                </option>
                 <option value="Aguardando Retorno Usuário">
                   Aguardando Retorno Usuário
                 </option>
@@ -647,20 +663,20 @@ const PainelAnalista = () => {
               <textarea
                 value={detalhePausa}
                 onChange={(e) => setDetalhePausa(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-24 outline-none"
-                placeholder="Detalhes adicionais..."
+                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-24 outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                placeholder="Detalhes adicionais sobre a pausa..."
               />
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setMostrarModalPausar(false)}
-                  className="flex-1 text-slate-400 font-black uppercase text-xs"
+                  className="flex-1 text-slate-400 font-black uppercase text-xs hover:text-slate-600 transition-colors"
                 >
                   Sair
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-500 py-4 rounded-2xl text-white font-black uppercase text-xs shadow-lg"
+                  className="flex-1 bg-amber-500 py-4 rounded-2xl text-white font-black uppercase text-xs shadow-lg hover:bg-amber-600 transition-all active:scale-95"
                 >
                   Confirmar Pausa
                 </button>

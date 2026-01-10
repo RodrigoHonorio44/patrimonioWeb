@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import CadastroChamado from "../components/CadastroChamado";
 import MeusChamados from "../components/MeusChamados";
-import FormRemanejamento from "../components/FormRemanejamento"; // Importando o novo form
+import FormRemanejamento from "../components/FormRemanejamento";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { LayoutGrid } from "lucide-react";
@@ -10,7 +10,7 @@ import { doc, getDoc } from "firebase/firestore";
 
 export default function Home() {
   const [modalOpen, setModalOpen] = useState(false);
-  const [remanejamentoOpen, setRemanejamentoOpen] = useState(false); // Novo estado
+  const [remanejamentoOpen, setRemanejamentoOpen] = useState(false);
   const [nomeUsuario, setNomeUsuario] = useState("Usuário");
 
   useEffect(() => {
@@ -40,12 +40,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
-      {/* HEADER COMPONENTE REUTILIZÁVEL */}
       <Header />
 
-      {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
-        {/* BANNER DE BOAS-VINDAS */}
         <div className="mb-10">
           <div className="flex items-center gap-2 text-blue-600 font-black text-xs uppercase tracking-[0.2em] mb-2">
             <LayoutGrid size={14} /> Suporte Técnico
@@ -58,10 +55,8 @@ export default function Home() {
           </p>
         </div>
 
-        {/* CONTAINER DOS CHAMADOS */}
         <div className="bg-white rounded-[32px] border border-slate-200 shadow-xl shadow-slate-100/50 overflow-hidden">
           <div className="p-1">
-            {/* AGORA PASSAMOS AS DUAS PROPS: abrirFormulario e abrirRemanejamento */}
             <MeusChamados
               abrirFormulario={() => setModalOpen(true)}
               abrirRemanejamento={() => setRemanejamentoOpen(true)}
@@ -69,20 +64,17 @@ export default function Home() {
           </div>
         </div>
 
-        {/* FOOTER COMPONENTE REUTILIZÁVEL */}
         <Footer />
 
-        {/* Modal de cadastro de chamado (Manutenção) */}
+        {/* Modal de Manutenção */}
         <CadastroChamado
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
         />
 
-        {/* Modal de Remanejamento - Só renderiza se estiver aberto */}
+        {/* Modal de Remanejamento - CORRIGIDO PARA onClose */}
         {remanejamentoOpen && (
-          <FormRemanejamento
-            fecharFormulario={() => setRemanejamentoOpen(false)}
-          />
+          <FormRemanejamento onClose={() => setRemanejamentoOpen(false)} />
         )}
       </main>
     </div>

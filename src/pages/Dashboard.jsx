@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -15,8 +15,9 @@ import {
   Users,
   MessageSquarePlus,
   ChevronRight,
-  ShieldCheck,
-  Key, // Importado para representar a licença
+  ChevronLeft,
+  Key,
+  User,
 } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
@@ -25,6 +26,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [estatisticas, setEstatisticas] = useState({
     abertos: 0,
     fechados: 0,
@@ -40,14 +43,14 @@ export default function Dashboard() {
         navigate("/login");
         return;
       }
-
       try {
         const docRef = doc(db, "usuarios", user.uid);
         const docSnap = await getDoc(docRef);
-
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data.role === "usuario" || data.cargo === "usuario") {
+
+          // Se for apenas usuário comum, não entra no dashboard
+          if (data.role === "usuario" && data.cargo !== "ADMINISTRADOR") {
             navigate("/home");
             return;
           }
@@ -79,24 +82,26 @@ export default function Dashboard() {
     };
   }, [navigate]);
 
-  const nomeExibicao =
-    userData?.nome ||
-    userData?.name ||
-    auth.currentUser?.displayName ||
-    "Analista";
+  // --- LÓGICA DE PERMISSÕES ATUALIZADA ---
+  const isRoot = useMemo(() => userData?.role === "root", [userData]);
 
-  const isAdmin =
-    userData?.role === "admin" ||
-    userData?.cargo === "admin" ||
-    userData?.cargo === "Administrativo";
+  const isAdmin = useMemo(
+    () => userData?.cargo === "ADMINISTRADOR" && userData?.role === "admin",
+    [userData]
+  );
+
+  // Quem pode ver o bloco de Gestão de Usuários
+  const canManageUsers = isRoot || isAdmin;
+
+  const nomeExibicao = userData?.nome || userData?.name || "Analista";
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-500 font-bold animate-pulse uppercase text-xs tracking-widest">
-            Carregando Rodhon System...
+          <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest italic">
+            Rodhon System: Validando Privilégios
           </p>
         </div>
       </div>
@@ -108,58 +113,91 @@ export default function Dashboard() {
     return (
       <button
         onClick={() => navigate(path)}
-        className={`flex items-center gap-3 w-full p-3 rounded-xl font-bold transition-all group cursor-pointer ${
+        className={`flex items-center gap-4 w-full px-4 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all duration-300 group cursor-pointer ${
           active
-            ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
-            : "text-slate-500 hover:bg-slate-50 hover:text-blue-600"
-        }`}
+            ? "bg-blue-600 text-white shadow-xl shadow-blue-100"
+            : "text-slate-500 hover:bg-white hover:text-blue-600"
+        } ${!sidebarOpen && "justify-center px-0"}`}
       >
         <Icon
-          size={18}
+          size={22}
           className={
             active ? "text-white" : "group-hover:scale-110 transition-transform"
           }
         />
-        <span className="text-sm">{label}</span>
+        {sidebarOpen && <span className="truncate">{label}</span>}
       </button>
     );
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex font-sans">
-      <aside className="w-72 bg-white border-r border-slate-200 hidden md:flex flex-col h-screen sticky top-0">
-        <div className="pt-12 pb-8 px-6 flex flex-col items-center text-center">
-          <div className="text-slate-900 font-black text-3xl tracking-tighter italic leading-none uppercase">
-            RODHON<span className="text-blue-600">SYSTEM</span>
-          </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-3">
-            Technology Solutions
-          </p>
-          <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-100 to-transparent mt-8"></div>
+    <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans antialiased text-slate-900">
+      <aside
+        className={`relative ${
+          sidebarOpen ? "w-72" : "w-24"
+        } bg-[#F1F5F9] border-r border-slate-200/60 hidden md:flex flex-col z-50 transition-all duration-500 ease-in-out`}
+      >
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="absolute -right-3 top-12 bg-white border border-slate-200 text-slate-400 p-1.5 rounded-full shadow-sm hover:text-blue-600 z-[60] transition-all hover:scale-110"
+        >
+          {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+        </button>
+
+        <div className="h-28 flex items-center px-8 mb-4 bg-white/40 backdrop-blur-sm border-b border-slate-200/40 overflow-hidden">
+          {sidebarOpen ? (
+            <div className="flex flex-col min-w-[180px]">
+              <div className="flex items-center text-2xl font-black italic tracking-tighter">
+                <span className="text-[#0F172A]">RODHON</span>
+                <span className="text-[#2563EB]">SYSTEM</span>
+              </div>
+              <span className="text-[9px] font-bold text-slate-400 tracking-[0.4em] uppercase leading-none mt-1.5">
+                Technology Solutions
+              </span>
+            </div>
+          ) : (
+            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black italic shadow-lg shadow-blue-100 mx-auto shrink-0">
+              R
+            </div>
+          )}
         </div>
 
-        <nav className="flex-1 px-6 space-y-6 overflow-y-auto pb-8 custom-scrollbar">
-          {/* Módulo Master (Apenas Admin) */}
-          {isAdmin && (
+        <nav className="flex-1 px-4 space-y-6 overflow-y-auto py-4 custom-scrollbar">
+          {/* Módulo Master - VISIBILIDADE FILTRADA */}
+          {(isRoot || canManageUsers) && (
             <div>
-              <p className="px-3 text-[10px] font-black text-blue-600 uppercase mb-3 tracking-widest">
-                Master Control
-              </p>
-              <div className="space-y-1">
+              {sidebarOpen && (
+                <p className="px-4 text-[10px] font-black text-blue-600 uppercase mb-3 tracking-[0.2em]">
+                  Master Control
+                </p>
+              )}
+              <div className="space-y-1.5">
+                {/* APENAS ROOT ACESSA LICENÇAS */}
+                {isRoot && (
+                  <NavButton
+                    icon={Key}
+                    label="Licenças e SaaS"
+                    path="/admin/licencas"
+                  />
+                )}
+
+                {/* ROOT E ADMINISTRADOR GERENCIAM USUÁRIOS */}
                 <NavButton
-                  icon={Key}
-                  label="Licenças e SaaS"
-                  path="/admin/licencas"
+                  icon={Users}
+                  label="Gestão de Usuários"
+                  path="/usuarios"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <p className="px-3 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">
-              Dashboards
-            </p>
-            <div className="space-y-1">
+            {sidebarOpen && (
+              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em]">
+                Dashboards
+              </p>
+            )}
+            <div className="space-y-1.5">
               <NavButton
                 icon={LayoutDashboard}
                 label="Painel Geral"
@@ -174,10 +212,12 @@ export default function Dashboard() {
           </div>
 
           <div>
-            <p className="px-3 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
-              Operação
-            </p>
-            <div className="space-y-1">
+            {sidebarOpen && (
+              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em]">
+                Operação
+              </p>
+            )}
+            <div className="space-y-1.5">
               <NavButton
                 icon={MessageSquarePlus}
                 label="Abrir Chamado"
@@ -192,10 +232,12 @@ export default function Dashboard() {
           </div>
 
           <div>
-            <p className="px-3 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
-              Patrimônio
-            </p>
-            <div className="space-y-1">
+            {sidebarOpen && (
+              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em]">
+                Patrimônio
+              </p>
+            )}
+            <div className="space-y-1.5">
               <NavButton
                 icon={PlusCircle}
                 label="Novo Ativo"
@@ -214,131 +256,139 @@ export default function Dashboard() {
               />
             </div>
           </div>
-
-          {isAdmin && (
-            <div>
-              <p className="px-3 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
-                Configurações
-              </p>
-              <div className="space-y-1">
-                <NavButton
-                  icon={Users}
-                  label="Gestão de Usuários"
-                  path="/usuarios"
-                />
-              </div>
-            </div>
-          )}
         </nav>
 
-        <div className="p-6 border-t border-slate-100 bg-slate-50/50">
-          <div className="mb-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
-            <div className="h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-black text-xs uppercase shadow-md shadow-blue-100">
-              {nomeExibicao.substring(0, 2)}
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="text-[9px] font-black text-blue-500 uppercase tracking-tighter flex items-center gap-1">
-                {isAdmin && <ShieldCheck size={10} />}
-                {userData?.cargo || userData?.role || "Analista"}
-              </p>
-              <p className="text-sm font-bold text-slate-700 truncate">
-                {nomeExibicao}
-              </p>
-            </div>
-          </div>
+        <div className="p-4 border-t border-slate-200/60 bg-white/20">
           <button
             onClick={() => auth.signOut()}
-            className="flex items-center justify-center gap-2 p-3 text-rose-500 hover:bg-rose-50 w-full rounded-xl transition-all font-black text-xs uppercase tracking-widest border border-transparent hover:border-rose-100 cursor-pointer"
+            className="w-full flex items-center gap-4 px-4 py-4 text-slate-500 rounded-2xl transition-all duration-300 font-black text-[11px] uppercase tracking-widest group hover:bg-red-50 hover:text-red-600 cursor-pointer"
           >
-            <LogOut size={16} /> Encerrar Sessão
+            <LogOut size={22} className={!sidebarOpen && "mx-auto"} />
+            {sidebarOpen && <span>Encerrar Sessão</span>}
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 p-6 md:p-12 overflow-y-auto">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-12">
-          <div>
-            <p className="text-blue-600 font-black text-xs uppercase tracking-[0.2em] mb-1">
-              Painel Administrativo
-            </p>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-              Olá, {nomeExibicao.split(" ")[0]}!
+      <main className="flex-1 flex flex-col overflow-hidden relative">
+        <header className="h-24 bg-white/70 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-10 z-40">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+              <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em]">
+                {isRoot
+                  ? "Root Access"
+                  : isAdmin
+                  ? "Administrador"
+                  : "Analista Operacional"}
+              </h2>
+            </div>
+            <h1 className="text-xl font-black text-slate-800 tracking-tight italic">
+              Dashboard{" "}
+              <span className="text-slate-400 font-medium">de Controle</span>
             </h1>
           </div>
-          <button
-            onClick={() => navigate("/cadastrar-chamado")}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[20px] shadow-xl shadow-blue-100 flex items-center gap-3 font-black transition-all transform hover:-translate-y-1 cursor-pointer"
-          >
-            <Plus size={20} strokeWidth={3} /> NOVO CHAMADO
-          </button>
+          {/* ... User Profile ... */}
         </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          <StatCard
-            title="Em Aberto"
-            value={estatisticas.abertos}
-            color="amber"
-            icon={Clock}
-          />
-          <StatCard
-            title="Aguardando"
-            value={estatisticas.pendentes}
-            color="rose"
-            icon={AlertCircle}
-          />
-          <StatCard
-            title="Concluídos"
-            value={estatisticas.fechados}
-            color="emerald"
-            icon={CheckCircle}
-          />
-          <StatCard
-            title="Histórico"
-            value={estatisticas.total}
-            color="blue"
-            icon={ClipboardList}
-          />
-        </div>
+        <section className="flex-1 overflow-y-auto p-10 bg-[#F8FAFC]">
+          <div className="max-w-[1600px] mx-auto">
+            <div className="flex justify-between items-end mb-12">
+              <div>
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+                  Olá, {nomeExibicao.split(" ")[0]}!
+                </h1>
+                <p className="text-slate-400 mt-2 font-medium italic">
+                  Privilégios de{" "}
+                  {isRoot
+                    ? "Super Usuário"
+                    : isAdmin
+                    ? "Administrador"
+                    : "Técnico"}{" "}
+                  ativos.
+                </p>
+              </div>
+              <button
+                onClick={() => navigate("/cadastrar-chamado")}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-widest transition-all"
+              >
+                <Plus size={18} strokeWidth={3} /> Novo Chamado
+              </button>
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <QuickActionCard
-            title="Sala do Patrimônio"
-            description="Gerencie o estoque central e realize distribuições imediatas para as unidades."
-            icon={Package}
-            onClick={() => navigate("/estoque")}
-            variant="dark"
-          />
-          <QuickActionCard
-            title="Inventário Geral"
-            description="Base completa de equipamentos e controle de baixas definitivas do sistema."
-            icon={Search}
-            onClick={() => navigate("/inventario")}
-            variant="light"
-          />
-          <QuickActionCard
-            title="Equipe e Usuários"
-            description="Controle de acessos, permissões e perfis para analistas e administradores."
-            icon={Users}
-            onClick={() => navigate("/usuarios")}
-            variant="light"
-          />
-        </div>
+            {/* Grid de Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              <StatCard
+                title="Em Aberto"
+                value={estatisticas.abertos}
+                color="amber"
+                icon={Clock}
+              />
+              <StatCard
+                title="Aguardando"
+                value={estatisticas.pendentes}
+                color="rose"
+                icon={AlertCircle}
+              />
+              <StatCard
+                title="Concluídos"
+                value={estatisticas.fechados}
+                color="emerald"
+                icon={CheckCircle}
+              />
+              <StatCard
+                title="Histórico"
+                value={estatisticas.total}
+                color="blue"
+                icon={ClipboardList}
+              />
+            </div>
+
+            {/* Quick Actions dinâmicas */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <QuickActionCard
+                title="Sala do Patrimônio"
+                description="Gerencie o estoque central."
+                icon={Package}
+                onClick={() => navigate("/estoque")}
+                variant="dark"
+              />
+              <QuickActionCard
+                title="Inventário Geral"
+                description="Base completa de equipamentos."
+                icon={Search}
+                onClick={() => navigate("/inventario")}
+                variant="light"
+              />
+
+              {/* O Card de Gestão de Usuários só aparece para quem tem permissão */}
+              {canManageUsers && (
+                <QuickActionCard
+                  title="Equipe e Usuários"
+                  description="Controle de acessos e perfis."
+                  icon={Users}
+                  onClick={() => navigate("/usuarios")}
+                  variant="light"
+                />
+              )}
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
 }
 
-// Subcomponentes mantidos iguais...
+// Subcomponentes (StatCard e QuickActionCard mantêm o estilo original...)
 function StatCard({ title, value, color, icon: Icon }) {
   const themes = {
-    amber: "bg-amber-500",
-    rose: "bg-rose-500",
-    emerald: "bg-emerald-500",
-    blue: "bg-blue-600",
+    amber: "bg-amber-500 shadow-amber-100",
+    rose: "bg-rose-500 shadow-rose-100",
+    emerald: "bg-emerald-500 shadow-emerald-100",
+    blue: "bg-blue-600 shadow-blue-100",
   };
   return (
-    <div className="bg-white p-7 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl transition-all group">
-      <div className="flex justify-between items-center mb-6">
+    <div className="bg-white p-7 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden relative">
+      <div className="flex justify-between items-center mb-6 relative z-10">
         <div
           className={`${themes[color]} p-3 rounded-2xl text-white shadow-lg group-hover:scale-110 transition-transform`}
         >
@@ -348,7 +398,7 @@ function StatCard({ title, value, color, icon: Icon }) {
           {title}
         </span>
       </div>
-      <h3 className="text-4xl font-black text-slate-900">
+      <h3 className="text-4xl font-black text-slate-900 relative z-10">
         {value.toString().padStart(2, "0")}
       </h3>
     </div>
@@ -360,9 +410,9 @@ function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
   return (
     <div
       onClick={onClick}
-      className={`group cursor-pointer rounded-[40px] p-8 transition-all relative overflow-hidden flex flex-col justify-between h-72 ${
+      className={`group cursor-pointer rounded-[32px] p-8 transition-all relative overflow-hidden flex flex-col justify-between h-72 ${
         isDark
-          ? "bg-slate-900 text-white hover:bg-slate-800"
+          ? "bg-slate-900 text-white hover:bg-slate-800 shadow-2xl shadow-slate-200"
           : "bg-white border border-slate-200 text-slate-900 hover:border-blue-200 shadow-sm hover:shadow-md"
       }`}
     >
@@ -375,18 +425,16 @@ function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
           <Icon size={24} />
         </div>
         <h2 className="text-xl font-black mb-2">{title}</h2>
-        <p className="text-sm opacity-70 leading-relaxed">{description}</p>
+        <p className="text-sm opacity-70 leading-relaxed font-medium">
+          {description}
+        </p>
       </div>
-      <div className="relative z-10 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+      <div className="relative z-10 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-500">
         Acessar Módulo{" "}
         <ChevronRight
           size={14}
-          className="text-blue-500 group-hover:translate-x-1 transition-transform"
+          className="group-hover:translate-x-1 transition-transform"
         />
-      </div>
-
-      <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-        <Icon size={120} />
       </div>
     </div>
   );
