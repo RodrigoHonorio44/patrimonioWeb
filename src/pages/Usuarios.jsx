@@ -5,6 +5,7 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   signOut,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import {
   collection,
@@ -15,6 +16,7 @@ import {
   deleteDoc,
   onSnapshot,
   updateDoc,
+  getDoc,
   Timestamp,
 } from "firebase/firestore";
 import {
@@ -28,6 +30,8 @@ import {
   FiArrowDown,
   FiChevronLeft,
   FiAlertTriangle,
+  FiLock,
+  FiMail,
 } from "react-icons/fi";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
@@ -41,12 +45,13 @@ export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [formAberto, setFormAberto] = useState(null);
+  const [currentUserData, setCurrentUserData] = useState(null);
 
-  // ESTADO PARA O MODAL DE EXCLUSÃO
   const [modalExcluir, setModalExcluir] = useState({
     aberto: false,
     id: null,
     nome: "",
+    roleAlvo: "",
   });
 
   const [novoUser, setNovoUser] = useState({
@@ -59,10 +64,16 @@ export default function Usuarios() {
     prazoLicenca: "30",
   });
 
-  const requisitos = {
-    nome: novoUser.nome.trim().split(" ").length >= 2,
-    minimo: novoUser.senha.length >= 6,
-  };
+  useEffect(() => {
+    const loadLoggedUser = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const snap = await getDoc(doc(db, "usuarios", user.uid));
+        if (snap.exists()) setCurrentUserData(snap.data());
+      }
+    };
+    loadLoggedUser();
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, "usuarios"), orderBy("email", "asc"));
@@ -73,38 +84,57 @@ export default function Usuarios() {
     return () => unsubscribe();
   }, []);
 
-  const alterarNivel = async (id, novoRole) => {
+  const isOperadorRoot = currentUserData?.role === "root";
+
+  const handleResetPassword = async (email) => {
     try {
-      const mapeamento = {
-        admin: "ADMINISTRADOR",
-        analista: "ANALISTA",
-        chefia: "CHEFIA",
-        coordenador: "COORDENADOR",
-        usuario: "USUÁRIO",
-      };
-
-      const cargoNome = mapeamento[novoRole];
-      if (!cargoNome) return toast.error("Nível de acesso inválido.");
-
-      await updateDoc(doc(db, "usuarios", id), {
-        role: novoRole,
-        cargo: cargoNome,
-      });
-
-      toast.success(`Usuário promovido para ${cargoNome}`);
+      await sendPasswordResetEmail(auth, email);
+      toast.success(`E-mail de recuperação enviado para ${email}`);
     } catch (err) {
-      toast.error("Erro ao atualizar nível.");
+      toast.error("Erro ao enviar e-mail.");
     }
   };
 
-  // FUNÇÃO QUE EXECUTA A EXCLUSÃO DE FATO
+  const alterarNivel = async (userAlvo, novoRole) => {
+    if (userAlvo.role === "root" && !isOperadorRoot) {
+      return toast.error("Apenas um ROOT pode alterar outro ROOT.");
+    }
+
+    // Mapeamento para salvar o nome do cargo corretamente no Firestore
+    const mapeamentoCargos = {
+      admin: "ADMINISTRADOR",
+      analista: "ANALISTA",
+      chefia: "CHEFIA",
+      coordenador: "COORDENADOR",
+      usuario: "USUÁRIO",
+      root: "ROOT",
+    };
+
+    try {
+      const novoCargoNome = mapeamentoCargos[novoRole];
+
+      await updateDoc(doc(db, "usuarios", userAlvo.id), {
+        role: novoRole,
+        cargo: novoCargoNome, // Atualiza o cargo para o nome amigável
+      });
+
+      toast.success(`Usuário agora é ${novoCargoNome}`);
+    } catch (err) {
+      toast.error("Erro ao atualizar permissão.");
+    }
+  };
+
   const confirmarRemocao = async () => {
+    if (modalExcluir.roleAlvo === "root" && !isOperadorRoot) {
+      toast.error("Não é permitido excluir um usuário ROOT.");
+      return;
+    }
     try {
       await deleteDoc(doc(db, "usuarios", modalExcluir.id));
-      toast.success("Registro removido com sucesso.");
-      setModalExcluir({ aberto: false, id: null, nome: "" });
+      toast.success("Usuário removido.");
+      setModalExcluir({ aberto: false, id: null, nome: "", roleAlvo: "" });
     } catch (err) {
-      toast.error("Erro ao remover registro.");
+      toast.error("Erro ao remover.");
     }
   };
 
@@ -126,12 +156,16 @@ export default function Usuarios() {
         novoUser.senha
       );
 
+      const roleFinal = tipo === "analista" ? "analista" : "usuario";
+      const cargoFinal =
+        tipo === "analista" ? "ANALISTA" : novoUser.cargoH || "USUÁRIO";
+
       await setDoc(doc(db, "usuarios", user.uid), {
         uid: user.uid,
         nome: novoUser.nome,
         email: novoUser.email.toLowerCase().trim(),
-        role: tipo === "analista" ? "analista" : "usuario",
-        cargo: tipo === "analista" ? "ANALISTA" : "USUÁRIO",
+        role: roleFinal,
+        cargo: cargoFinal.toUpperCase(),
         unidade: tipo === "analista" ? "TI" : novoUser.unidade,
         statusLicenca: "ativa",
         validadeLicenca: Timestamp.fromDate(dataVencimento),
@@ -141,7 +175,7 @@ export default function Usuarios() {
       });
 
       await signOut(secondaryAuth);
-      toast.success(`Usuário criado com sucesso!`);
+      toast.success(`Usuário cadastrado!`);
       setFormAberto(null);
       setNovoUser({
         nome: "",
@@ -153,7 +187,7 @@ export default function Usuarios() {
         prazoLicenca: "30",
       });
     } catch (err) {
-      toast.error("Erro ao cadastrar: " + err.message);
+      toast.error("Erro: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -215,16 +249,16 @@ export default function Usuarios() {
           </div>
         </div>
 
-        {/* FORMS */}
+        {/* FORMULÁRIOS */}
         {formAberto && (
-          <div className="mb-10 bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="mb-10 bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm animate-in slide-in-from-top-4 duration-300">
             {formAberto === "analista" ? (
               <FormAnalista
                 dados={novoUser}
                 setDados={setNovoUser}
                 onSubmit={(e) => handleCadastrar(e, "analista")}
                 loading={loading}
-                requisitos={requisitos}
+                requisitos={{ minimo: novoUser.senha.length >= 6 }}
               />
             ) : (
               <FormUsuario
@@ -232,7 +266,7 @@ export default function Usuarios() {
                 setDados={setNovoUser}
                 onSubmit={(e) => handleCadastrar(e, "usuario")}
                 loading={loading}
-                requisitos={requisitos}
+                requisitos={{ minimo: novoUser.senha.length >= 6 }}
               />
             )}
           </div>
@@ -244,7 +278,7 @@ export default function Usuarios() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-100">
-                  <th className="p-8">Membro / Email</th>
+                  <th className="p-8">Colaborador</th>
                   <th className="p-8">Cargo Atual</th>
                   <th className="p-8 text-right">Controle de Hierarquia</th>
                 </tr>
@@ -252,6 +286,8 @@ export default function Usuarios() {
               <tbody className="divide-y divide-slate-50">
                 {usuarios.map((u) => {
                   const r = (u.role || "usuario").toLowerCase().trim();
+                  const isTargetRoot = r === "root";
+
                   return (
                     <tr
                       key={u.id}
@@ -259,12 +295,27 @@ export default function Usuarios() {
                     >
                       <td className="p-8">
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-black text-xs group-hover:bg-blue-600 group-hover:text-white transition-all">
-                            {u.nome?.substring(0, 1).toUpperCase()}
+                          <div
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs transition-all ${
+                              isTargetRoot
+                                ? "bg-purple-600 text-white"
+                                : "bg-slate-100 text-slate-400"
+                            }`}
+                          >
+                            {isTargetRoot ? (
+                              <FiShield size={14} />
+                            ) : (
+                              u.nome?.substring(0, 1).toUpperCase()
+                            )}
                           </div>
                           <div>
-                            <p className="font-black text-slate-800 uppercase italic text-sm">
+                            <p className="font-black text-slate-800 uppercase italic text-sm flex items-center gap-2">
                               {u.nome || "Sem Nome"}
+                              {isTargetRoot && (
+                                <span className="text-[8px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full not-italic">
+                                  ROOT
+                                </span>
+                              )}
                             </p>
                             <p className="text-[10px] text-slate-400 font-bold tracking-tight">
                               {u.email}
@@ -272,69 +323,86 @@ export default function Usuarios() {
                           </div>
                         </div>
                       </td>
+
                       <td className="p-8">
                         <span
-                          className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${
-                            r === "admin"
-                              ? "bg-slate-900 text-white"
-                              : r === "analista"
-                              ? "bg-emerald-100 text-emerald-600"
-                              : r === "chefia"
-                              ? "bg-blue-100 text-blue-600"
-                              : r === "coordenador"
-                              ? "bg-orange-100 text-orange-600"
-                              : "bg-slate-100 text-slate-500"
+                          className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                            isTargetRoot
+                              ? "bg-purple-600 text-white"
+                              : "bg-slate-100 text-slate-700"
                           }`}
                         >
-                          {u.cargo || r}
+                          {u.cargo || "USUÁRIO"}
                         </span>
                       </td>
-                      <td className="p-8">
-                        <div className="flex justify-end gap-2 items-center">
-                          <LevelButton
-                            icon={FiArrowUp}
-                            color="bg-black"
-                            label="ADMIN"
-                            onClick={() => alterarNivel(u.id, "admin")}
-                          />
-                          <LevelButton
-                            icon={FiArrowUp}
-                            color="bg-emerald-500"
-                            label="ANALISTA"
-                            onClick={() => alterarNivel(u.id, "analista")}
-                          />
-                          <LevelButton
-                            icon={FiArrowRight}
-                            color="bg-blue-500"
-                            label="CHEFIA"
-                            onClick={() => alterarNivel(u.id, "chefia")}
-                          />
-                          <LevelButton
-                            icon={FiChevronLeft}
-                            color="bg-orange-500"
-                            label="COORD"
-                            onClick={() => alterarNivel(u.id, "coordenador")}
-                          />
-                          <LevelButton
-                            icon={FiArrowDown}
-                            color="bg-red-500"
-                            label="USER"
-                            onClick={() => alterarNivel(u.id, "usuario")}
-                          />
-                          <div className="h-8 w-[1px] bg-slate-100 mx-2"></div>
-                          <button
-                            onClick={() =>
-                              setModalExcluir({
-                                aberto: true,
-                                id: u.id,
-                                nome: u.nome || u.email,
-                              })
-                            }
-                            className="p-3 text-slate-300 hover:text-red-600 transition-all cursor-pointer"
-                          >
-                            <FiTrash2 size={18} />
-                          </button>
-                        </div>
+
+                      <td className="p-8 text-right">
+                        {isTargetRoot && !isOperadorRoot ? (
+                          <div className="flex justify-end items-center gap-2 text-slate-300">
+                            <FiLock size={14} />
+                            <span className="text-[9px] font-black uppercase tracking-widest">
+                              Protegido
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex justify-end gap-1.5 items-center">
+                            <LevelButton
+                              icon={FiArrowUp}
+                              color="bg-black"
+                              label="ADMIN"
+                              onClick={() => alterarNivel(u, "admin")}
+                            />
+                            <LevelButton
+                              icon={FiArrowUp}
+                              color="bg-emerald-500"
+                              label="ANALISTA"
+                              onClick={() => alterarNivel(u, "analista")}
+                            />
+                            <LevelButton
+                              icon={FiArrowRight}
+                              color="bg-blue-500"
+                              label="CHEFIA"
+                              onClick={() => alterarNivel(u, "chefia")}
+                            />
+                            <LevelButton
+                              icon={FiChevronLeft}
+                              color="bg-orange-500"
+                              label="COORD"
+                              onClick={() => alterarNivel(u, "coordenador")}
+                            />
+                            <LevelButton
+                              icon={FiArrowDown}
+                              color="bg-slate-400"
+                              label="USER"
+                              onClick={() => alterarNivel(u, "usuario")}
+                            />
+
+                            <div className="h-8 w-[1px] bg-slate-100 mx-2"></div>
+
+                            <button
+                              onClick={() => handleResetPassword(u.email)}
+                              className="p-3 text-slate-300 hover:text-blue-600 transition-all cursor-pointer"
+                              title="Resetar Senha"
+                            >
+                              <FiMail size={18} />
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                setModalExcluir({
+                                  aberto: true,
+                                  id: u.id,
+                                  nome: u.nome || u.email,
+                                  roleAlvo: r,
+                                })
+                              }
+                              className="p-3 text-slate-300 hover:text-red-600 transition-all cursor-pointer"
+                              title="Excluir"
+                            >
+                              <FiTrash2 size={18} />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -345,33 +413,36 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* MODAL DE CONFIRMAÇÃO CUSTOMIZADO */}
+      {/* MODAL EXCLUIR */}
       {modalExcluir.aberto && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
             <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
               <FiAlertTriangle size={32} />
             </div>
             <h3 className="text-xl font-black text-center text-slate-900 mb-2 uppercase italic">
-              Excluir Registro?
+              Remover?
             </h3>
             <p className="text-slate-500 text-center text-sm mb-8">
-              Você está prestes a remover <strong>{modalExcluir.nome}</strong>{" "}
-              permanentemente do banco de dados. Esta ação não pode ser
-              desfeita.
+              Excluir permanentemente <strong>{modalExcluir.nome}</strong>?
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() =>
-                  setModalExcluir({ aberto: false, id: null, nome: "" })
+                  setModalExcluir({
+                    aberto: false,
+                    id: null,
+                    nome: "",
+                    roleAlvo: "",
+                  })
                 }
-                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all cursor-pointer"
+                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
               >
                 Cancelar
               </button>
               <button
                 onClick={confirmarRemocao}
-                className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-700 transition-all cursor-pointer"
+                className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-700 transition-all"
               >
                 Confirmar
               </button>
@@ -387,8 +458,8 @@ function LevelButton({ icon: Icon, color, onClick, label }) {
   return (
     <button
       onClick={onClick}
-      className={`p-2.5 ${color} text-white rounded-xl hover:scale-110 active:scale-95 transition-all cursor-pointer shadow-sm flex flex-col items-center group relative`}
-      title={`Promover para ${label}`}
+      className={`p-2.5 ${color} text-white rounded-xl hover:scale-110 active:scale-95 transition-all cursor-pointer shadow-sm flex items-center justify-center`}
+      title={`Tornar ${label}`}
     >
       <Icon size={14} strokeWidth={4} />
     </button>
