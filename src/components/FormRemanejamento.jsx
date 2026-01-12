@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { db, auth } from "../api/Firebase";
+import { useNavigate } from "react-router-dom"; // IMPORTADO
 import {
   collection,
   addDoc,
@@ -21,12 +22,22 @@ import {
 } from "react-icons/fi";
 
 const FormRemanejamento = ({ onClose }) => {
+  const navigate = useNavigate(); // HOOK DE NAVEGAÇÃO
   const [loading, setLoading] = useState(false);
   const [sucesso, setSucesso] = useState(false);
   const [osGerada, setOsGerada] = useState("");
   const [modoSetor, setModoSetor] = useState(false);
   const [naoSeiPatrimonio, setNaoSeiPatrimonio] = useState(false);
   const [userName, setUserName] = useState("Usuário");
+
+  // FUNÇÃO UNIFICADA PARA SAIR
+  const handleExit = () => {
+    if (onClose) {
+      onClose(); // Se for um modal aberto dentro de outra página
+    } else {
+      navigate("/dashboard"); // Se for acessado via rota /remanejamento
+    }
+  };
 
   const [formData, setFormData] = useState({
     unidade: "",
@@ -129,8 +140,8 @@ const FormRemanejamento = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[10001] flex items-center justify-center p-2 sm:p-4 bg-slate-900/40 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-[550px] rounded-[2.5rem] shadow-2xl relative p-6 sm:p-10 border-t-8 border-orange-400 overflow-y-auto max-h-[90vh]">
+    <div className="fixed inset-0 z-10001 flex items-center justify-center p-2 sm:p-4 bg-slate-900/40 backdrop-blur-sm">
+      <div className="bg-white w-full max-w-137.5 rounded-[2.5rem] shadow-2xl relative p-6 sm:p-10 border-t-8 border-orange-400 overflow-y-auto max-h-[90vh]">
         {sucesso ? (
           <div className="flex flex-col items-center justify-center py-10 text-center animate-in fade-in zoom-in">
             <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-6 animate-bounce">
@@ -146,7 +157,7 @@ const FormRemanejamento = ({ onClose }) => {
             </div>
             <button
               type="button"
-              onClick={onClose} // Fecha o modal no PainelGestao
+              onClick={handleExit} // ALTERADO PARA handleExit
               className="w-full bg-slate-800 text-white py-5 rounded-2xl font-black text-xs uppercase hover:bg-slate-900 transition-all"
             >
               Concluir e Sair
@@ -154,10 +165,9 @@ const FormRemanejamento = ({ onClose }) => {
           </div>
         ) : (
           <>
-            {/* Botão de Fechar X com type="button" para não validar campos */}
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleExit} // ALTERADO PARA handleExit
               className="absolute top-6 right-6 p-2 text-slate-300 hover:text-red-400 transition-all"
             >
               <FiX size={20} />
@@ -257,6 +267,7 @@ const FormRemanejamento = ({ onClose }) => {
                     <input
                       name="equipamento"
                       required
+                      step="any"
                       readOnly={modoSetor}
                       value={formData.equipamento}
                       type="text"
@@ -365,7 +376,7 @@ const FormRemanejamento = ({ onClose }) => {
                     rows="2"
                     placeholder="Por que realizar essa mudança?"
                     onChange={handleChange}
-                    className="w-full bg-slate-50 border-2 border-transparent focus:border-orange-100 rounded-[1.5rem] py-5 pl-12 pr-6 text-sm font-semibold focus:outline-none resize-none"
+                    className="w-full bg-slate-50 border-2 border-transparent focus:border-orange-100 rounded-3xl py-5 pl-12 pr-6 text-sm font-semibold focus:outline-none resize-none"
                   />
                 </div>
               </div>

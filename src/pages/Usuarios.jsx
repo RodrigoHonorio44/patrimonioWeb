@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { db, auth } from "../api/Firebase";
 import { initializeApp } from "firebase/app";
 import {
@@ -23,22 +24,25 @@ import {
   FiShield,
   FiUserPlus,
   FiX,
-  FiArrowLeft,
   FiTrash2,
   FiArrowUp,
   FiArrowRight,
   FiArrowDown,
   FiChevronLeft,
+  FiChevronRight,
   FiAlertTriangle,
   FiLock,
   FiMail,
+  FiCheckSquare,
+  FiArrowLeft,
 } from "react-icons/fi";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
 
 import app from "../api/Firebase";
 import FormAnalista from "../components/FormAnalista";
 import FormUsuario from "../components/FormUsuario";
+import Header from "../components/Header";
+import Footer from "../components/Footer";
 
 export default function Usuarios() {
   const navigate = useNavigate();
@@ -46,6 +50,10 @@ export default function Usuarios() {
   const [loading, setLoading] = useState(false);
   const [formAberto, setFormAberto] = useState(null);
   const [currentUserData, setCurrentUserData] = useState(null);
+
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const usersPerPage = 10;
 
   const [modalExcluir, setModalExcluir] = useState({
     aberto: false,
@@ -63,6 +71,15 @@ export default function Usuarios() {
     matricula: "",
     prazoLicenca: "30",
   });
+
+  const tradutorPermissoes = {
+    chamados: "Chamados",
+    dashboard_bi: "Painel BI",
+    financeiro: "Financeiro",
+    inventario: "Inventário",
+    kb: "Base de Conhecimento",
+    monitoramento: "Monitoramento",
+  };
 
   useEffect(() => {
     const loadLoggedUser = async () => {
@@ -84,12 +101,17 @@ export default function Usuarios() {
     return () => unsubscribe();
   }, []);
 
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = usuarios.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(usuarios.length / usersPerPage);
+
   const isOperadorRoot = currentUserData?.role === "root";
 
   const handleResetPassword = async (email) => {
     try {
       await sendPasswordResetEmail(auth, email);
-      toast.success(`E-mail de recuperação enviado para ${email}`);
+      toast.success(`E-mail enviado para ${email}`);
     } catch (err) {
       toast.error("Erro ao enviar e-mail.");
     }
@@ -99,36 +121,15 @@ export default function Usuarios() {
     if (userAlvo.role === "root" && !isOperadorRoot) {
       return toast.error("Apenas um ROOT pode alterar outro ROOT.");
     }
-
-    // Mapeamento para salvar o nome do cargo corretamente no Firestore
-    const mapeamentoCargos = {
-      admin: "ADMINISTRADOR",
-      analista: "ANALISTA",
-      chefia: "CHEFIA",
-      coordenador: "COORDENADOR",
-      usuario: "USUÁRIO",
-      root: "ROOT",
-    };
-
     try {
-      const novoCargoNome = mapeamentoCargos[novoRole];
-
-      await updateDoc(doc(db, "usuarios", userAlvo.id), {
-        role: novoRole,
-        cargo: novoCargoNome, // Atualiza o cargo para o nome amigável
-      });
-
-      toast.success(`Usuário agora é ${novoCargoNome}`);
+      await updateDoc(doc(db, "usuarios", userAlvo.id), { role: novoRole });
+      toast.success(`Nível alterado para ${novoRole.toUpperCase()}`);
     } catch (err) {
-      toast.error("Erro ao atualizar permissão.");
+      toast.error("Erro ao atualizar nível.");
     }
   };
 
   const confirmarRemocao = async () => {
-    if (modalExcluir.roleAlvo === "root" && !isOperadorRoot) {
-      toast.error("Não é permitido excluir um usuário ROOT.");
-      return;
-    }
     try {
       await deleteDoc(doc(db, "usuarios", modalExcluir.id));
       toast.success("Usuário removido.");
@@ -157,15 +158,15 @@ export default function Usuarios() {
       );
 
       const roleFinal = tipo === "analista" ? "analista" : "usuario";
-      const cargoFinal =
-        tipo === "analista" ? "ANALISTA" : novoUser.cargoH || "USUÁRIO";
+      const cargoHospitalarFinal =
+        tipo === "analista" ? "ANALISTA TI" : novoUser.cargoH || "USUÁRIO";
 
       await setDoc(doc(db, "usuarios", user.uid), {
         uid: user.uid,
         nome: novoUser.nome,
         email: novoUser.email.toLowerCase().trim(),
         role: roleFinal,
-        cargo: cargoFinal.toUpperCase(),
+        cargoHospitalar: cargoHospitalarFinal.toUpperCase(),
         unidade: tipo === "analista" ? "TI" : novoUser.unidade,
         statusLicenca: "ativa",
         validadeLicenca: Timestamp.fromDate(dataVencimento),
@@ -194,9 +195,10 @@ export default function Usuarios() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans antialiased text-slate-900 relative">
-      <div className="max-w-7xl mx-auto">
-        {/* HEADER */}
+    <div className="flex flex-col min-h-screen bg-[#F8FAFC] font-sans antialiased text-slate-900">
+      <Header cargo={currentUserData?.cargoHospitalar || "CARREGANDO..."} />
+
+      <main className="grow max-w-7xl mx-auto p-4 md:p-10 w-full">
         <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
           <div>
             <button
@@ -216,7 +218,7 @@ export default function Usuarios() {
               onClick={() =>
                 setFormAberto(formAberto === "analista" ? null : "analista")
               }
-              className={`px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer shadow-xl ${
+              className={`px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-xl ${
                 formAberto === "analista"
                   ? "bg-red-500 text-white"
                   : "bg-blue-600 text-white"
@@ -233,7 +235,7 @@ export default function Usuarios() {
               onClick={() =>
                 setFormAberto(formAberto === "usuario" ? null : "usuario")
               }
-              className={`px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all cursor-pointer shadow-xl ${
+              className={`px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-xl ${
                 formAberto === "usuario"
                   ? "bg-red-50 text-red-500"
                   : "bg-slate-900 text-white"
@@ -249,9 +251,8 @@ export default function Usuarios() {
           </div>
         </div>
 
-        {/* FORMULÁRIOS */}
         {formAberto && (
-          <div className="mb-10 bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm animate-in slide-in-from-top-4 duration-300">
+          <div className="mb-10 bg-white p-8 rounded-4xl border border-slate-100 shadow-sm animate-in slide-in-from-top-4 duration-300">
             {formAberto === "analista" ? (
               <FormAnalista
                 dados={novoUser}
@@ -272,21 +273,30 @@ export default function Usuarios() {
           </div>
         )}
 
-        {/* TABELA */}
-        <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-4xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] border-b border-slate-100">
                   <th className="p-8">Colaborador</th>
-                  <th className="p-8">Cargo Atual</th>
-                  <th className="p-8 text-right">Controle de Hierarquia</th>
+                  <th className="p-8">Cargo Hospitalar</th>
+                  <th className="p-8">Nível Sistema</th>
+                  <th className="p-8">Módulos Extras</th>
+                  <th className="p-8 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {usuarios.map((u) => {
+                {currentUsers.map((u) => {
                   const r = (u.role || "usuario").toLowerCase().trim();
                   const isTargetRoot = r === "root";
+                  const listaExtras = u.permissoesExtras
+                    ? Object.entries(u.permissoesExtras)
+                        .filter(([_, ativo]) => ativo === true)
+                        .map(
+                          ([chave]) =>
+                            tradutorPermissoes[chave] || chave.toUpperCase()
+                        )
+                    : [];
 
                   return (
                     <tr
@@ -296,7 +306,7 @@ export default function Usuarios() {
                       <td className="p-8">
                         <div className="flex items-center gap-4">
                           <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs transition-all ${
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${
                               isTargetRoot
                                 ? "bg-purple-600 text-white"
                                 : "bg-slate-100 text-slate-400"
@@ -309,38 +319,56 @@ export default function Usuarios() {
                             )}
                           </div>
                           <div>
-                            <p className="font-black text-slate-800 uppercase italic text-sm flex items-center gap-2">
+                            <p className="font-black text-slate-800 uppercase italic text-sm">
                               {u.nome || "Sem Nome"}
-                              {isTargetRoot && (
-                                <span className="text-[8px] bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full not-italic">
-                                  ROOT
-                                </span>
-                              )}
                             </p>
-                            <p className="text-[10px] text-slate-400 font-bold tracking-tight">
+                            <p className="text-[10px] text-slate-400 font-bold">
                               {u.email}
                             </p>
                           </div>
                         </div>
                       </td>
-
+                      <td className="p-8 text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                        {u.cargoHospitalar || "NÃO INFORMADO"}
+                      </td>
                       <td className="p-8">
                         <span
                           className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
                             isTargetRoot
                               ? "bg-purple-600 text-white"
-                              : "bg-slate-100 text-slate-700"
+                              : "bg-blue-50 text-blue-600 border border-blue-100"
                           }`}
                         >
-                          {u.cargo || "USUÁRIO"}
+                          {u.role || "USUÁRIO"}
                         </span>
                       </td>
-
+                      <td className="p-8">
+                        <div className="flex flex-wrap gap-1.5 max-w-64">
+                          {listaExtras.length > 0 ? (
+                            listaExtras.map((nome, idx) => (
+                              <span
+                                key={idx}
+                                className="flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-100 px-2 py-1 rounded-lg text-[9px] font-black uppercase"
+                              >
+                                <FiCheckSquare
+                                  size={12}
+                                  className="text-amber-500"
+                                />{" "}
+                                {nome}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-slate-300 text-[10px] font-bold italic uppercase">
+                              Padrão
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-8 text-right">
                         {isTargetRoot && !isOperadorRoot ? (
                           <div className="flex justify-end items-center gap-2 text-slate-300">
                             <FiLock size={14} />
-                            <span className="text-[9px] font-black uppercase tracking-widest">
+                            <span className="text-[9px] font-black uppercase">
                               Protegido
                             </span>
                           </div>
@@ -351,6 +379,13 @@ export default function Usuarios() {
                               color="bg-black"
                               label="ADMIN"
                               onClick={() => alterarNivel(u, "admin")}
+                            />
+                            {/* BOTÃO COORDENADOR ADICIONADO ABAIXO */}
+                            <LevelButton
+                              icon={FiArrowUp}
+                              color="bg-orange-500"
+                              label="COORDENADOR"
+                              onClick={() => alterarNivel(u, "coordenador")}
                             />
                             <LevelButton
                               icon={FiArrowUp}
@@ -365,28 +400,17 @@ export default function Usuarios() {
                               onClick={() => alterarNivel(u, "chefia")}
                             />
                             <LevelButton
-                              icon={FiChevronLeft}
-                              color="bg-orange-500"
-                              label="COORD"
-                              onClick={() => alterarNivel(u, "coordenador")}
-                            />
-                            <LevelButton
                               icon={FiArrowDown}
                               color="bg-slate-400"
                               label="USER"
                               onClick={() => alterarNivel(u, "usuario")}
                             />
-
-                            <div className="h-8 w-[1px] bg-slate-100 mx-2"></div>
-
                             <button
                               onClick={() => handleResetPassword(u.email)}
-                              className="p-3 text-slate-300 hover:text-blue-600 transition-all cursor-pointer"
-                              title="Resetar Senha"
+                              className="p-3 text-slate-300 hover:text-blue-600 cursor-pointer"
                             >
                               <FiMail size={18} />
                             </button>
-
                             <button
                               onClick={() =>
                                 setModalExcluir({
@@ -396,8 +420,7 @@ export default function Usuarios() {
                                   roleAlvo: r,
                                 })
                               }
-                              className="p-3 text-slate-300 hover:text-red-600 transition-all cursor-pointer"
-                              title="Excluir"
+                              className="p-3 text-slate-300 hover:text-red-600 cursor-pointer"
                             >
                               <FiTrash2 size={18} />
                             </button>
@@ -410,13 +433,33 @@ export default function Usuarios() {
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
 
-      {/* MODAL EXCLUIR */}
+          <div className="bg-slate-50/50 p-6 flex justify-center items-center border-t border-slate-100">
+            <div className="flex gap-4">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => p - 1)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 disabled:opacity-30 hover:bg-slate-50 font-black text-[10px] uppercase cursor-pointer"
+              >
+                <FiChevronLeft size={16} /> Anterior
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => p + 1)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 disabled:opacity-30 hover:bg-slate-50 font-black text-[10px] uppercase cursor-pointer"
+              >
+                Próximo <FiChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <Footer />
+
       {modalExcluir.aberto && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
+        <div className="fixed inset-0 z-999 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-4xl p-8 max-w-sm w-full shadow-2xl border border-slate-100">
             <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
               <FiAlertTriangle size={32} />
             </div>
@@ -436,13 +479,13 @@ export default function Usuarios() {
                     roleAlvo: "",
                   })
                 }
-                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase"
               >
                 Cancelar
               </button>
               <button
                 onClick={confirmarRemocao}
-                className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-700 transition-all"
+                className="flex-1 py-4 bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase"
               >
                 Confirmar
               </button>

@@ -9,7 +9,7 @@ import {
   AlertCircle,
   BarChart3,
   PlusCircle,
-  Repeat,
+  Repeat, // Ícone usado para Remanejamento
   Search,
   Package,
   Users,
@@ -17,6 +17,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Key,
+  PieChart,
+  User,
 } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
@@ -37,7 +39,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. CARREGA DADOS DO USUÁRIO SEM REDIRECIONAR (O App.js já cuida da segurança)
     const loadUserData = async () => {
       const currentUser = auth.currentUser;
       if (currentUser) {
@@ -56,7 +57,6 @@ export default function Dashboard() {
 
     loadUserData();
 
-    // 2. MONITORAMENTO DOS CHAMADOS EM TEMPO REAL
     const unsubscribeChamados = onSnapshot(
       collection(db, "chamados"),
       (snapshot) => {
@@ -73,7 +73,6 @@ export default function Dashboard() {
     return () => unsubscribeChamados();
   }, []);
 
-  // --- LÓGICA DE PERMISSÕES PARA INTERFACE ---
   const isRoot = useMemo(
     () => userData?.role?.toLowerCase() === "root",
     [userData]
@@ -84,9 +83,15 @@ export default function Dashboard() {
       userData?.role?.toLowerCase() === "admin",
     [userData]
   );
-  const canManageUsers = isRoot || isAdmin;
 
-  const nomeExibicao = userData?.nome || userData?.name || "Analista";
+  const temAcesso = (moduloId) => {
+    if (isRoot) return true;
+    return userData?.permissoesExtras?.[moduloId] === true;
+  };
+
+  const canManageUsers = isRoot || isAdmin;
+  const nomeExibicao = userData?.nome || "Analista";
+  const unidadeExibicao = userData?.unidade || "SISTEMA";
 
   if (loading) {
     return (
@@ -101,8 +106,8 @@ export default function Dashboard() {
     );
   }
 
-  // Componente interno de botão para manter o padrão visual
-  const NavButton = ({ icon: Icon, label, path }) => {
+  const NavButton = ({ icon: Icon, label, path, moduloId }) => {
+    if (moduloId && !temAcesso(moduloId)) return null;
     const active = location.pathname === path;
     return (
       <button
@@ -126,7 +131,6 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans antialiased text-slate-900">
-      {/* SIDEBAR */}
       <aside
         className={`relative ${
           sidebarOpen ? "w-72" : "w-24"
@@ -134,18 +138,16 @@ export default function Dashboard() {
       >
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute -right-3 top-12 bg-white border border-slate-200 text-slate-400 p-1.5 rounded-full shadow-sm z-[60]"
+          className="absolute -right-3 top-12 bg-white border border-slate-200 text-slate-400 p-1.5 rounded-full shadow-sm z-60"
         >
           {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
         </button>
 
         <div className="h-28 flex items-center px-8 mb-4 border-b border-slate-200/40">
           {sidebarOpen ? (
-            <div className="flex flex-col">
-              <div className="flex items-center text-2xl font-black italic tracking-tighter">
-                <span className="text-[#0F172A]">RODHON</span>
-                <span className="text-[#2563EB]">SYSTEM</span>
-              </div>
+            <div className="flex items-center text-2xl font-black italic tracking-tighter">
+              <span className="text-[#0F172A]">RODHON</span>
+              <span className="text-[#2563EB]">SYSTEM</span>
             </div>
           ) : (
             <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black italic mx-auto">
@@ -179,71 +181,75 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div>
-            {sidebarOpen && (
-              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
-                Dashboards
-              </p>
-            )}
-            <div className="space-y-1.5">
-              <NavButton
-                icon={LayoutDashboard}
-                label="Painel Geral"
-                path="/dashboard"
-              />
-              <NavButton
-                icon={BarChart3}
-                label="Indicadores BI"
-                path="/dashboard-bi"
-              />
+          {temAcesso("dashboard_bi") && (
+            <div>
+              {sidebarOpen && (
+                <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
+                  Inteligência
+                </p>
+              )}
+              <div className="space-y-1.5">
+                <NavButton icon={BarChart3} label="Power BI" path="/bi" />
+              </div>
             </div>
-          </div>
+          )}
 
-          <div>
-            {sidebarOpen && (
-              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
-                Operação
-              </p>
-            )}
-            <div className="space-y-1.5">
-              <NavButton
-                icon={MessageSquarePlus}
-                label="Abrir Chamado"
-                path="/cadastro-chamado"
-              />
-              <NavButton
-                icon={ClipboardList}
-                label="Fila de Trabalho"
-                path="/painel-analista"
-              />
-            </div>
-          </div>
+          {temAcesso("chamados") && (
+            <div>
+              {sidebarOpen && (
+                <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
+                  Operação
+                </p>
+              )}
+              <div className="space-y-1.5">
+                <NavButton
+                  icon={MessageSquarePlus}
+                  label="Abrir Chamado"
+                  path="/cadastro-chamado"
+                />
+                <NavButton
+                  icon={ClipboardList}
+                  label="Fila de Trabalho"
+                  path="/painel-analista"
+                />
 
-          <div>
-            {sidebarOpen && (
-              <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
-                Patrimônio
-              </p>
-            )}
-            <div className="space-y-1.5">
-              <NavButton
-                icon={PlusCircle}
-                label="Novo Ativo"
-                path="/cadastro-equipamento"
-              />
-              <NavButton
-                icon={Repeat}
-                label="Transferências"
-                path="/transferencia"
-              />
-              <NavButton icon={Search} label="Inventário" path="/inventario" />
-              <NavButton
-                icon={Package}
-                label="Sala do Patrimônio"
-                path="/estoque"
-              />
+                {/* INCLUSÃO DO MÓDULO DE REMANEJAMENTO */}
+                <NavButton
+                  icon={Repeat}
+                  label="Remanejamento"
+                  path="/remanejamento"
+                  moduloId="remanejamento"
+                />
+              </div>
             </div>
-          </div>
+          )}
+
+          {temAcesso("inventario") && (
+            <div>
+              {sidebarOpen && (
+                <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
+                  Patrimônio
+                </p>
+              )}
+              <div className="space-y-1.5">
+                <NavButton
+                  icon={PlusCircle}
+                  label="Novo Ativo"
+                  path="/cadastro-equipamento"
+                />
+                <NavButton
+                  icon={Search}
+                  label="Inventário"
+                  path="/inventario"
+                />
+                <NavButton
+                  icon={Package}
+                  label="Sala do Patrimônio"
+                  path="/estoque"
+                />
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-slate-200/60">
@@ -257,9 +263,8 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-24 bg-white/70 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-10 z-40">
+        <header className="h-24 bg-white border-b border-slate-100 flex items-center justify-between px-10 z-40">
           <div className="flex flex-col">
             <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
               {isRoot ? "Root Access" : isAdmin ? "Administrador" : "Analista"}
@@ -268,70 +273,91 @@ export default function Dashboard() {
               Dashboard
             </h1>
           </div>
+
+          <div className="flex items-center gap-6">
+            <div className="flex flex-col items-end">
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-tighter">
+                  {unidadeExibicao}
+                </span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  Usuário
+                </span>
+              </div>
+              <h3 className="text-lg font-black text-slate-800 uppercase italic leading-tight mt-0.5">
+                {nomeExibicao}
+              </h3>
+            </div>
+            <div className="w-14 h-14 bg-linear-to-br from-blue-500 to-blue-700 rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center text-white">
+              <User size={28} strokeWidth={2.5} />
+            </div>
+          </div>
         </header>
 
         <section className="flex-1 overflow-y-auto p-10 bg-[#F8FAFC]">
-          <div className="max-w-[1600px] mx-auto">
+          <div className="max-w-400 mx-auto">
             <div className="flex justify-between items-end mb-12">
               <h1 className="text-4xl font-black text-slate-900">
                 Olá, {nomeExibicao.split(" ")[0]}!
               </h1>
-              <button
-                onClick={() => navigate("/cadastro-chamado")}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl shadow-xl flex items-center gap-3 font-black text-xs uppercase tracking-widest transition-all"
-              >
-                <Plus size={18} strokeWidth={3} /> Novo Chamado
-              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              <StatCard
-                title="Em Aberto"
-                value={estatisticas.abertos}
-                color="amber"
-                icon={Clock}
-              />
-              <StatCard
-                title="Aguardando"
-                value={estatisticas.pendentes}
-                color="rose"
-                icon={AlertCircle}
-              />
-              <StatCard
-                title="Concluídos"
-                value={estatisticas.fechados}
-                color="emerald"
-                icon={CheckCircle}
-              />
-              <StatCard
-                title="Histórico"
-                value={estatisticas.total}
-                color="blue"
-                icon={ClipboardList}
-              />
-            </div>
+            {temAcesso("chamados") && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                <StatCard
+                  title="Em Aberto"
+                  value={estatisticas.abertos}
+                  color="amber"
+                  icon={Clock}
+                />
+                <StatCard
+                  title="Aguardando"
+                  value={estatisticas.pendentes}
+                  color="rose"
+                  icon={AlertCircle}
+                />
+                <StatCard
+                  title="Concluídos"
+                  value={estatisticas.fechados}
+                  color="emerald"
+                  icon={CheckCircle}
+                />
+                <StatCard
+                  title="Histórico"
+                  value={estatisticas.total}
+                  color="blue"
+                  icon={ClipboardList}
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <QuickActionCard
-                title="Sala do Patrimônio"
-                description="Gerencie o estoque central."
-                icon={Package}
-                onClick={() => navigate("/estoque")}
-                variant="dark"
-              />
-              <QuickActionCard
-                title="Inventário Geral"
-                description="Base completa de equipamentos."
-                icon={Search}
-                onClick={() => navigate("/inventario")}
-                variant="light"
-              />
-              {canManageUsers && (
+              {temAcesso("dashboard_bi") && (
                 <QuickActionCard
-                  title="Equipe e Usuários"
-                  description="Controle de acessos e perfis."
-                  icon={Users}
-                  onClick={() => navigate("/usuarios")}
+                  title="Painel de BI"
+                  description="Relatórios e indicadores em tempo real."
+                  icon={PieChart}
+                  onClick={() => navigate("/bi")}
+                  variant="dark"
+                />
+              )}
+              {temAcesso("inventario") && (
+                <QuickActionCard
+                  title="Inventário Geral"
+                  description="Base completa de equipamentos e ativos."
+                  icon={Search}
+                  onClick={() => navigate("/inventario")}
+                  variant="light"
+                />
+              )}
+
+              {/* CARD DE AÇÃO RÁPIDA PARA REMANEJAMENTO NO CORPO DO DASHBOARD */}
+              {temAcesso("remanejamento") && (
+                <QuickActionCard
+                  title="Remanejamento"
+                  description="Movimentar equipamentos entre setores ou unidades."
+                  icon={Repeat}
+                  onClick={() => navigate("/remanejamento")}
                   variant="light"
                 />
               )}
@@ -343,7 +369,7 @@ export default function Dashboard() {
   );
 }
 
-// Subcomponentes (StatCard e QuickActionCard)
+// Subcomponentes mantidos
 function StatCard({ title, value, color, icon: Icon }) {
   const themes = {
     amber: "bg-amber-500 shadow-amber-100",
@@ -352,8 +378,8 @@ function StatCard({ title, value, color, icon: Icon }) {
     blue: "bg-blue-600 shadow-blue-100",
   };
   return (
-    <div className="bg-white p-7 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden relative">
-      <div className="flex justify-between items-center mb-6 relative z-10">
+    <div className="bg-white p-7 rounded-4xl border border-slate-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden">
+      <div className="flex justify-between items-center mb-6">
         <div
           className={`${themes[color]} p-3 rounded-2xl text-white shadow-lg group-hover:scale-110 transition-transform`}
         >
@@ -363,7 +389,7 @@ function StatCard({ title, value, color, icon: Icon }) {
           {title}
         </span>
       </div>
-      <h3 className="text-4xl font-black text-slate-900 relative z-10">
+      <h3 className="text-4xl font-black text-slate-900">
         {value.toString().padStart(2, "0")}
       </h3>
     </div>
@@ -375,13 +401,13 @@ function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
   return (
     <div
       onClick={onClick}
-      className={`group cursor-pointer rounded-[32px] p-8 transition-all relative overflow-hidden flex flex-col justify-between h-72 ${
+      className={`group cursor-pointer rounded-4xl p-8 transition-all flex flex-col justify-between h-72 ${
         isDark
           ? "bg-slate-900 text-white hover:bg-slate-800"
-          : "bg-white border border-slate-200 text-slate-900 hover:border-blue-200 shadow-sm"
+          : "bg-white border border-slate-200 text-slate-900 shadow-sm hover:border-blue-200"
       }`}
     >
-      <div className="relative z-10">
+      <div>
         <div
           className={`mb-6 inline-block p-4 rounded-2xl ${
             isDark ? "bg-slate-800" : "bg-blue-50 text-blue-600"
@@ -394,7 +420,7 @@ function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
           {description}
         </p>
       </div>
-      <div className="relative z-10 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-500">
+      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-500">
         Acessar Módulo{" "}
         <ChevronRight
           size={14}

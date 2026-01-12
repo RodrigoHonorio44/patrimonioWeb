@@ -240,7 +240,7 @@ export default function Usuarios() {
         </div>
 
         {formAberto && (
-          <div className="mb-10 bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="mb-10 bg-white p-8 rounded-4xl border border-slate-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
             {formAberto === "analista" ? (
               <FormAnalista
                 dados={novoUser}
@@ -261,7 +261,7 @@ export default function Usuarios() {
           </div>
         )}
 
-        <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-4xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -368,7 +368,7 @@ export default function Usuarios() {
                               onClick={() => alterarNivel(u, "usuario")}
                             />
 
-                            <div className="h-8 w-[1px] bg-slate-100 mx-2"></div>
+                            <div className="h-8 w-px bg-slate-100 mx-2"></div>
 
                             <button
                               onClick={() => handleResetPassword(u.email)}
@@ -406,8 +406,8 @@ export default function Usuarios() {
 
       {/* MODAL DE EXCLUSÃO */}
       {modalExcluir.aberto && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[32px] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-999 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-4xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
               <FiAlertTriangle size={32} />
             </div>

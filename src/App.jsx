@@ -2,8 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
 import { auth, db } from "./api/Firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { ToastContainer } from "react-toastify";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 // COMPONENTES E PAGES
@@ -26,9 +26,11 @@ import AdminLicencas from "./pages/AdminLicencas";
 import CadastroChamado from "./components/CadastroChamado";
 import GestaoChefia from "./pages/GestaoeChefia";
 import PainelGestao from "./pages/PainelGestao";
+import FormRemanejamento from "./components/FormRemanejamento";
 
 function App() {
   const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isBlocked, setIsBlocked] = useState(
@@ -37,6 +39,34 @@ function App() {
 
   const { isLicenseValid, loadingLicense } = useLicenseGuard();
 
+  // --- DERRUBADA DE CONEXÃO EM TEMPO REAL ---
+  useEffect(() => {
+    if (!user) return;
+    const userDocRef = doc(db, "usuarios", user.uid);
+    const unsubscribeSessao = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const localSessionId = localStorage.getItem("current_session_id");
+        if (data.currentSessionId && data.currentSessionId !== localSessionId) {
+          toast.error(
+            "Acesso detectado em outro dispositivo. Encerrando sessão...",
+            {
+              autoClose: 5000,
+              theme: "dark",
+            }
+          );
+          setTimeout(() => {
+            signOut(auth);
+            localStorage.removeItem("current_session_id");
+            window.location.href = "/login";
+          }, 4000);
+        }
+      }
+    });
+    return () => unsubscribeSessao();
+  }, [user]);
+
+  // --- OBSERVAÇÃO DE ESTADO DE AUTENTICAÇÃO E BLOQUEIO ---
   useEffect(() => {
     const handleBlockEvent = () => {
       sessionStorage.setItem("app_blocked", "true");
@@ -50,14 +80,10 @@ function App() {
         try {
           const docRef = doc(db, "usuarios", currentUser.uid);
           const docSnap = await getDoc(docRef);
-
           if (docSnap.exists()) {
-            const userData = docSnap.data();
-
-            // LÓGICA DE BLOQUEIO: Usuário desativado ou Licença específica bloqueada
+            const data = docSnap.data();
             const bloqueado =
-              userData.status === "Bloqueado" ||
-              userData.statusLicenca === "bloqueada";
+              data.status === "Bloqueado" || data.statusLicenca === "bloqueada";
 
             if (bloqueado) {
               sessionStorage.setItem("app_blocked", "true");
@@ -67,16 +93,16 @@ function App() {
             } else {
               sessionStorage.removeItem("app_blocked");
               setIsBlocked(false);
-              setRole(userData.role?.toLowerCase().trim() || "usuario");
+              setUserData(data);
+              setRole(data.role?.toLowerCase().trim() || "usuario");
               setUser(currentUser);
             }
           }
         } catch (error) {
-          console.error("Erro ao carregar perfil:", error);
+          console.error(error);
         }
       } else {
         setUser(null);
-        // Só limpa o bloqueio se não houver a flag persistente de bloqueio forçado
         if (!sessionStorage.getItem("app_blocked")) setIsBlocked(false);
       }
       setLoading(false);
@@ -89,19 +115,26 @@ function App() {
   }, []);
 
   // --- LÓGICA DE PERMISSÕES ---
+  const temAcesso = (moduloId) => {
+    if (role === "root") return true;
+    if (!userData) return false;
+    const permissoes = userData.permissoesExtras || {};
+    return (
+      permissoes[moduloId] === true ||
+      permissoes[moduloId.toLowerCase()] === true
+    );
+  };
+
   const isTiOrAdmin = useMemo(
     () => ["root", "admin", "analista", "ti"].includes(role),
     [role]
   );
-
   const isGestao = useMemo(
     () => ["chefia", "coordenador"].includes(role),
     [role]
   );
-
   const isUsuarioComum = useMemo(() => role === "usuario", [role]);
 
-  // --- DEFINIÇÃO DE ROTA INICIAL ---
   const getHomePath = () => {
     if (isTiOrAdmin) return "/dashboard";
     if (isGestao) return "/gestao-chefia";
@@ -109,16 +142,16 @@ function App() {
   };
 
   const ProtectedRoute = ({ children, condition }) => {
+    if (loading) return null;
     return condition ? children : <Navigate to={getHomePath()} replace />;
   };
 
-  // Loader inicial enquanto valida segurança
   if (loading || loadingLicense) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-white">
         <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-600"></div>
-        <p className="mt-4 text-slate-400 font-black uppercase tracking-widest text-[10px]">
-          Validando Segurança
+        <p className="mt-4 text-slate-400 font-black text-[10px]">
+          VALIDANDO SEGURANÇA
         </p>
       </div>
     );
@@ -129,20 +162,17 @@ function App() {
       <ToastContainer position="top-right" autoClose={3000} theme="colored" />
       <BrowserRouter>
         <Routes>
-          {/* HIERARQUIA 1: BLOQUEIO POR STATUS (USUÁRIO/LICENÇA ESPECÍFICA) */}
           {isBlocked ? (
             <>
               <Route path="/bloqueado" element={<MensagemBloqueio />} />
               <Route path="*" element={<Navigate to="/bloqueado" replace />} />
             </>
-          ) : /* HIERARQUIA 2: LICENÇA GERAL DO SISTEMA EXPIRADA */
-          !isLicenseValid ? (
+          ) : !isLicenseValid ? (
             <>
               <Route path="/expirado" element={<LicencaExpirada />} />
               <Route path="*" element={<Navigate to="/expirado" replace />} />
             </>
           ) : (
-            /* HIERARQUIA 3: FLUXO NORMAL */
             <>
               <Route
                 path="/login"
@@ -158,35 +188,12 @@ function App() {
                     element={<Navigate to={getHomePath()} replace />}
                   />
 
-                  {/* ROTAS COMUNS */}
-                  <Route
-                    path="/home"
-                    element={
-                      <ProtectedRoute condition={isUsuarioComum}>
-                        <Home />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="/trocar-senha" element={<TrocarSenha />} />
-                  <Route
-                    path="/cadastro-chamado"
-                    element={<CadastroChamado />}
-                  />
-
-                  {/* DASHBOARDS TI */}
+                  {/* --- TI / ADMIN --- */}
                   <Route
                     path="/dashboard"
                     element={
                       <ProtectedRoute condition={isTiOrAdmin}>
                         <Dashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/dashboard-bi"
-                    element={
-                      <ProtectedRoute condition={isTiOrAdmin}>
-                        <DashboardBI />
                       </ProtectedRoute>
                     }
                   />
@@ -198,21 +205,6 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-
-                  {/* SEÇÃO GESTÃO */}
-                  <Route
-                    path="/gestao-chefia"
-                    element={
-                      <ProtectedRoute condition={isGestao || role === "root"}>
-                        <GestaoChefia />
-                      </ProtectedRoute>
-                    }
-                  >
-                    <Route index element={<PainelGestao />} />
-                    <Route path="painel-gestao" element={<PainelGestao />} />
-                  </Route>
-
-                  {/* OPERACIONAL E ADMIN */}
                   <Route
                     path="/cadastro-equipamento"
                     element={
@@ -245,6 +237,47 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
+
+                  {/* --- GESTÃO COM ROTAS ANINHADAS --- */}
+                  <Route
+                    path="/gestao-chefia"
+                    element={
+                      <ProtectedRoute condition={isGestao || role === "root"}>
+                        <GestaoChefia />
+                      </ProtectedRoute>
+                    }
+                  >
+                    <Route index element={<PainelGestao />} />
+                    <Route path="painel-gestao" element={<PainelGestao />} />
+                  </Route>
+
+                  {/* --- COMUNS --- */}
+                  <Route
+                    path="/home"
+                    element={
+                      <ProtectedRoute condition={isUsuarioComum}>
+                        <Home />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/bi"
+                    element={
+                      <ProtectedRoute condition={temAcesso("dashboard_bi")}>
+                        <DashboardBI />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/remanejamento"
+                    element={
+                      <ProtectedRoute
+                        condition={isTiOrAdmin || temAcesso("remanejamento")}
+                      >
+                        <FormRemanejamento />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="/usuarios"
                     element={
@@ -262,6 +295,11 @@ function App() {
                         <AdminLicencas />
                       </ProtectedRoute>
                     }
+                  />
+                  <Route path="/trocar-senha" element={<TrocarSenha />} />
+                  <Route
+                    path="/cadastro-chamado"
+                    element={<CadastroChamado />}
                   />
 
                   <Route

@@ -298,7 +298,7 @@ const DashboardBI = () => {
       </header>
 
       {/* Filtros */}
-      <section className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm">
+      <section className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div className="space-y-2">
           <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest flex items-center gap-2">
             <FiFilter /> Unidade
@@ -382,11 +382,11 @@ const DashboardBI = () => {
 
       {/* Gráficos */}
       <section className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-4xl border border-slate-200 shadow-sm">
           <h3 className="text-lg font-black mb-6 flex items-center gap-2">
             <FiLayers className="text-blue-500" /> Chamados por Unidade
           </h3>
-          <div className="h-[300px]">
+          <div className="h-75">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dadosSetores}>
                 <CartesianGrid
@@ -426,11 +426,11 @@ const DashboardBI = () => {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-4xl border border-slate-200 shadow-sm">
           <h3 className="text-lg font-black mb-6 flex items-center gap-2">
             <FiTrendingUp className="text-amber-500" /> Fluxo Diário
           </h3>
-          <div className="h-[300px]">
+          <div className="h-75">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={dadosEvolucao}>
                 <CartesianGrid
@@ -563,9 +563,7 @@ const MetricCard = ({ label, value, color, icon: Icon }) => {
     rose: "bg-rose-500 shadow-rose-100",
   };
   return (
-    <div
-      className={`${variants[color]} p-6 rounded-[24px] text-white shadow-xl`}
-    >
+    <div className={`${variants[color]} p-6 rounded-3xl text-white shadow-xl`}>
       <div className="flex justify-between items-start mb-2 opacity-80">
         <span className="text-[10px] font-black uppercase tracking-tighter">
           {label}
@@ -585,7 +583,7 @@ const ExpandableTable = ({
   children,
   color = "text-slate-800",
 }) => (
-  <div className="bg-white border border-slate-200 rounded-[24px] overflow-hidden shadow-sm transition-all">
+  <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm transition-all">
     <button
       onClick={toggle}
       className="w-full p-6 flex justify-between items-center hover:bg-slate-50"

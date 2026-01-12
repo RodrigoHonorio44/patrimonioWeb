@@ -7,7 +7,7 @@ const FormAnalista = ({ dados, setDados, onSubmit, loading, requisitos }) => {
   const senhaValida = dados.senha.length >= 6;
 
   return (
-    <div className="bg-white p-8 rounded-[2rem] shadow-xl border-2 border-blue-500 mb-8 animate-in fade-in zoom-in duration-300">
+    <div className="bg-white p-8 rounded-4xl shadow-xl border-2 border-blue-500 mb-8 animate-in fade-in zoom-in duration-300">
       <div className="flex justify-between items-start mb-6">
         <h2 className="text-blue-600 font-black uppercase text-xs flex items-center gap-2">
           <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
@@ -112,7 +112,7 @@ const FormAnalista = ({ dados, setDados, onSubmit, loading, requisitos }) => {
         </div>
 
         {/* CONFIGURAÇÃO DE LICENÇA */}
-        <div className="md:col-span-2 lg:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 rounded-[2rem] border border-dashed border-slate-200">
+        <div className="md:col-span-2 lg:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 rounded-4xl border border-dashed border-slate-200">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-black text-blue-600 uppercase ml-2 flex items-center gap-1">
               <Calendar size={12} /> Definir Prazo de Acesso (Licença)

@@ -51,7 +51,7 @@ const PainelGestao = () => {
 
       {/* MODAL DE SUPORTE/MANUTENÇÃO */}
       {modalSuporteAberto && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <CadastroChamado
             isOpen={modalSuporteAberto}
             onClose={() => setModalSuporteAberto(false)}
@@ -61,7 +61,7 @@ const PainelGestao = () => {
 
       {/* MODAL DE REMANEJAMENTO */}
       {modalRemanejamentoAberto && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <FormRemanejamento
             onClose={() => setModalRemanejamentoAberto(false)}
           />

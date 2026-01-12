@@ -93,7 +93,7 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
     );
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto mt-12 px-4 md:px-10 mb-20 text-left">
+    <div className="w-full max-w-400 mx-auto mt-12 px-4 md:px-10 mb-20 text-left">
       <div className="mb-10 flex flex-col md:flex-row items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-black text-slate-800 uppercase italic tracking-tighter">
@@ -212,7 +212,7 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
                       </div>
                     </td>
 
-                    <td className="px-8 py-6 max-w-[280px]">
+                    <td className="px-8 py-6 max-w-70">
                       <p className="text-xs text-slate-500 truncate italic font-medium">
                         {isRemanejamento
                           ? item.tipo || "Solicitação de Remanejamento"
@@ -252,12 +252,6 @@ const MeusChamados = ({ abrirFormulario, abrirRemanejamento }) => {
 
         {/* CONTROLES DE PAGINAÇÃO */}
         <div className="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-xs font-bold text-slate-500 uppercase">
-            Mostrando {indicePrimeiroItem + 1} a{" "}
-            {Math.min(indiceUltimoItem, chamados.length)} de {chamados.length}{" "}
-            chamados
-          </p>
-
           <div className="flex gap-2">
             <button
               onClick={() => setPaginaAtual((prev) => Math.max(prev - 1, 1))}

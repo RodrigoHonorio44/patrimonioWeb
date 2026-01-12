@@ -1,9 +1,25 @@
 import React from "react";
-import { FiCalendar, FiLock, FiInfo, FiShield } from "react-icons/fi";
+import {
+  FiCalendar,
+  FiLock,
+  FiInfo,
+  FiShield,
+  FiUser,
+  FiHash,
+} from "react-icons/fi";
 
-const FormUsuario = ({ dados, setDados, onSubmit, loading, requisitos }) => {
+const FormUsuario = ({ dados, setDados, onSubmit, loading }) => {
+  // Validação local para habilitar o botão
+  const isFormValid =
+    dados.nome &&
+    dados.email &&
+    dados.senha?.length >= 6 &&
+    dados.unidade &&
+    dados.cargoH &&
+    dados.matricula;
+
   return (
-    <div className="bg-white p-8 rounded-[2rem] shadow-xl border-2 border-slate-900 mb-8 animate-in fade-in zoom-in duration-300">
+    <div className="bg-white p-8 rounded-4xl shadow-xl border-2 border-slate-900 mb-8 animate-in fade-in zoom-in duration-300">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-slate-900 font-black uppercase text-xs flex items-center gap-2">
           <span className="w-2 h-2 bg-slate-900 rounded-full animate-pulse"></span>
@@ -31,103 +47,116 @@ const FormUsuario = ({ dados, setDados, onSubmit, loading, requisitos }) => {
           name="prevent_autofill_pass"
         />
 
+        {/* NOME */}
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-            Nome Completo
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 flex items-center gap-1">
+            <FiUser size={10} /> Nome Completo
           </label>
           <input
             type="text"
-            placeholder="Nome Completo"
+            placeholder="Ex: João Silva"
             required
-            className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-slate-900 transition-all font-bold"
+            className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-slate-900 transition-all font-bold text-sm"
             value={dados.nome}
             onChange={(e) => setDados({ ...dados, nome: e.target.value })}
           />
         </div>
 
+        {/* EMAIL */}
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-            E-mail
+            E-mail Institucional
           </label>
           <input
             type="email"
-            placeholder="E-mail"
+            placeholder="email@empresa.com"
             required
-            className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-slate-900 transition-all font-bold"
+            className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-slate-900 transition-all font-bold text-sm"
             value={dados.email}
             onChange={(e) => setDados({ ...dados, email: e.target.value })}
           />
         </div>
 
+        {/* MATRÍCULA */}
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-            Matrícula
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 flex items-center gap-1">
+            <FiHash size={10} /> Matrícula
           </label>
           <input
             type="text"
-            placeholder="Matrícula"
+            placeholder="000000"
             required
-            className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-slate-900 transition-all font-bold"
+            className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-slate-900 transition-all font-bold text-sm"
             value={dados.matricula}
             onChange={(e) => setDados({ ...dados, matricula: e.target.value })}
           />
         </div>
 
+        {/* UNIDADE */}
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-            Unidade
+            Unidade Hospitalar
           </label>
           <select
-            className="p-4 bg-slate-50 rounded-2xl outline-none border-none focus:ring-2 ring-slate-900 transition-all cursor-pointer font-bold shadow-sm"
+            className="p-4 bg-slate-50 rounded-2xl outline-none border-none focus:ring-2 ring-slate-900 transition-all cursor-pointer font-bold shadow-sm text-sm"
             required
             value={dados.unidade}
             onChange={(e) => setDados({ ...dados, unidade: e.target.value })}
           >
-            <option value="">Unidade Hospitalar...</option>
+            <option value="">Selecione a Unidade...</option>
             <option value="Hospital Conde">Hospital Conde</option>
-            <option value="Upa Inoão">Upa Inoão</option>
+            <option value="Upa Inoã">Upa Inoã</option>
             <option value="Upa Santa Rita">Upa Santa Rita</option>
             <option value="Samu Barroco">Samu Barroco</option>
+            <option value="Samu Centro">Samu Centro</option>
+            <option value="Samu Ponta Negra">Samu Ponta Negra</option>
           </select>
         </div>
 
+        {/* CARGO */}
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-            Cargo
+            Cargo / Função
           </label>
           <select
-            className="p-4 bg-slate-50 rounded-2xl outline-none border-none focus:ring-2 ring-slate-900 transition-all cursor-pointer font-bold shadow-sm"
+            className="p-4 bg-slate-50 rounded-2xl outline-none border-none focus:ring-2 ring-slate-900 transition-all cursor-pointer font-bold shadow-sm text-sm"
             required
             value={dados.cargoH}
             onChange={(e) => setDados({ ...dados, cargoH: e.target.value })}
           >
-            <option value="">Cargo...</option>
-            <option value="Enfermeira">Enfermeira</option>
-            <option value="Tecnico de Enfermagem">Técnico de Enfermagem</option>
+            <option value="">Selecione o Cargo...</option>
             <option value="Administrativo">Administrativo</option>
             <option value="Chefia">Chefia</option>
+            <option value="Diretor(a)">Diretor(a)</option>
+            <option value="Enfermeiro(a)">Enfermeiro(a)</option>
+            <option value="Recepcionista">Recepcionista</option>
+            <option value="Supervisao">Supervisão</option>
+            <option value="Tecnico(a) de Enfermagem">
+              Técnico(a) de Enfermagem
+            </option>
           </select>
         </div>
 
+        {/* SENHA */}
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-            Senha Provisória
+            Senha Provisória (Mín. 6 chars)
           </label>
           <input
             type="password"
             placeholder="••••••••"
             required
-            className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-slate-900 transition-all font-bold"
+            className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-slate-900 transition-all font-bold text-sm"
             value={dados.senha}
             onChange={(e) => setDados({ ...dados, senha: e.target.value })}
           />
         </div>
 
-        {/* CONFIGURAÇÃO DE ACESSO */}
-        <div className="lg:col-span-3 bg-slate-900/5 p-6 rounded-[2rem] border border-dashed border-slate-300 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+        {/* CONFIGURAÇÃO DE LICENÇA */}
+        <div className="lg:col-span-3 bg-slate-900/5 p-6 rounded-4xl border border-dashed border-slate-300 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-black text-slate-900 uppercase ml-2 flex items-center gap-1">
-              <FiCalendar /> Validade da Licença do App
+              <FiCalendar /> Tempo de Licença
             </label>
             <select
               required
@@ -151,11 +180,11 @@ const FormUsuario = ({ dados, setDados, onSubmit, loading, requisitos }) => {
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-1 text-[10px] font-black text-slate-900 uppercase">
-                Segurança Ativa
+                Segurança SaaS Ativa
               </div>
               <p className="text-[11px] text-slate-500 leading-tight mt-1">
-                O usuário deverá trocar a senha no <b>primeiro acesso</b>. O
-                ciclo de 60 dias começará após a troca.
+                Acesso limitado a <b>uma sessão por vez</b>. O login em um novo
+                dispositivo derrubará os outros.
               </p>
             </div>
           </div>
@@ -163,12 +192,17 @@ const FormUsuario = ({ dados, setDados, onSubmit, loading, requisitos }) => {
 
         <button
           type="submit"
-          disabled={loading || !requisitos.nome || !dados.unidade}
-          className="lg:col-span-3 bg-slate-900 text-white font-black py-5 rounded-2xl uppercase text-xs tracking-[0.2em] disabled:opacity-50 hover:bg-black transition-all active:scale-95 shadow-lg shadow-slate-100 cursor-pointer flex items-center justify-center gap-2"
+          disabled={loading || !isFormValid}
+          className="lg:col-span-3 bg-slate-900 text-white font-black py-5 rounded-2xl uppercase text-xs tracking-[0.2em] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-black transition-all active:scale-95 shadow-lg shadow-slate-100 cursor-pointer flex items-center justify-center gap-2"
         >
-          {loading
-            ? "Processando Cadastro..."
-            : "Salvar Funcionário e Ativar App"}
+          {loading ? (
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              Sincronizando...
+            </div>
+          ) : (
+            "Salvar Funcionário e Ativar App"
+          )}
         </button>
       </form>
     </div>

@@ -3,7 +3,7 @@ import { Stethoscope, Lock, User, Loader2, AlertCircle } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore"; // Adicionado updateDoc
 import { toast } from "react-toastify";
 
 export default function Login() {
@@ -39,12 +39,9 @@ export default function Login() {
           userData.status === "Bloqueado" ||
           userData.statusLicenca === "bloqueada"
         ) {
-          // GATILHO INSTANTÂNEO: Avisa o App.js antes de qualquer outra ação
           sessionStorage.setItem("user_blocked", "true");
           window.dispatchEvent(new Event("force_block_event"));
-
           toast.error("Acesso suspenso pelo administrador.");
-
           await signOut(auth);
           navigate("/bloqueado", { replace: true });
           setLoading(false);
@@ -60,10 +57,17 @@ export default function Login() {
           return;
         }
 
+        // --- 3. IMPLEMENTAÇÃO DE LOGIN ÚNICO (DERRUBADA) ---
+        const newSessionId = Date.now().toString();
+        localStorage.setItem("current_session_id", newSessionId);
+        await updateDoc(userDocRef, {
+          currentSessionId: newSessionId,
+        });
+
         // LOGIN VÁLIDO: Limpa qualquer trava residual
         sessionStorage.removeItem("user_blocked");
 
-        // --- 3. FLUXO NORMAL DE ACESSO ---
+        // --- 4. FLUXO NORMAL DE ACESSO ---
         if (userData.requiresPasswordChange === true) {
           toast.info("Primeiro acesso. Por favor, altere sua senha.");
           navigate("/trocar-senha");
@@ -74,7 +78,7 @@ export default function Login() {
         const userCargo = userData.cargo?.toLowerCase().trim();
 
         if (
-          ["analista", "admin", "root"].includes(userRole) ||
+          ["analista", "admin", "root", "coordenador"].includes(userRole) || // Incluído coordenador aqui também
           userCargo === "admin" ||
           userCargo === "administrador"
         ) {

@@ -15,18 +15,16 @@ import {
   Save,
   Lock,
   Unlock,
-  ArrowLeft,
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
-  Database,
-  ShieldCheck,
   Users,
-  LogOut,
-  Infinity, // Adicionado para ícone vitalício
+  Infinity,
   Clock,
+  Settings, // Adicionado para o botão de módulos
 } from "lucide-react";
 import { toast } from "react-toastify";
+import ModalPermissoes from "../components/ModalPermissoes"; // Importação do Modal
 
 export default function AdminLicencas() {
   const navigate = useNavigate();
@@ -37,6 +35,7 @@ export default function AdminLicencas() {
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("");
   const [paginaAtual, setPaginaAtual] = useState(1);
+  const [userPermissao, setUserPermissao] = useState(null); // Estado para abrir o modal
   const clientesPorPagina = 6;
 
   // --- FUNÇÃO DE CÁLCULO AUTOMÁTICO ---
@@ -57,7 +56,7 @@ export default function AdminLicencas() {
         break;
       case "vitalicio":
         data.setFullYear(data.getFullYear() + 30);
-        break; // Simula vitalício (2056+)
+        break;
       default:
         return "";
     }
@@ -130,7 +129,7 @@ export default function AdminLicencas() {
         onClick={() => navigate(path)}
         className={`flex items-center gap-4 w-full px-4 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all duration-300 group cursor-pointer ${
           active
-            ? "bg-blue-600 text-white shadow-xl shadow-blue-100"
+            ? "bg-blue-600 text-white shadow-xl"
             : "text-slate-500 hover:bg-white hover:text-blue-600"
         } ${!sidebarOpen && "justify-center px-0"}`}
       >
@@ -161,47 +160,43 @@ export default function AdminLicencas() {
 
   if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">
-            Sincronizando Rodhon Core...
-          </p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-white text-center p-10">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">
+          Sincronizando Core...
+        </p>
       </div>
     );
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans antialiased text-slate-900">
+      {/* SIDEBAR */}
       <aside
         className={`relative ${
           sidebarOpen ? "w-72" : "w-24"
-        } bg-[#F1F5F9] border-r border-slate-200/60 hidden md:flex flex-col z-50 transition-all duration-500 ease-in-out`}
+        } bg-[#F1F5F9] border-r border-slate-200/60 hidden md:flex flex-col z-50 transition-all duration-500`}
       >
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute -right-3 top-12 bg-white border border-slate-200 text-slate-400 p-1.5 rounded-full shadow-sm hover:text-blue-600 z-[60] transition-all hover:scale-110"
+          className="absolute -right-3 top-12 bg-white border border-slate-200 text-slate-400 p-1.5 rounded-full shadow-sm hover:text-blue-600 z-60 transition-all hover:scale-110"
         >
           {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
         </button>
-        <div className="h-28 flex items-center px-8 mb-4 bg-white/40 backdrop-blur-sm border-b border-slate-200/40 overflow-hidden">
+        <div className="h-28 flex items-center px-8 mb-4 border-b border-slate-200/40 overflow-hidden">
           {sidebarOpen ? (
-            <div className="flex flex-col min-w-[180px]">
+            <div className="flex flex-col">
               <div className="flex items-center text-2xl font-black italic tracking-tighter">
                 <span className="text-[#0F172A]">RODHON</span>
                 <span className="text-[#2563EB]">SYSTEM</span>
               </div>
-              <span className="text-[9px] font-bold text-slate-400 tracking-[0.4em] uppercase leading-none mt-1.5">
-                Technology Solutions
-              </span>
             </div>
           ) : (
-            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black italic shadow-lg shadow-blue-100 mx-auto shrink-0">
+            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black italic shadow-lg mx-auto">
               R
             </div>
           )}
         </div>
-        <nav className="flex-1 px-4 space-y-6 overflow-y-auto py-4">
+        <nav className="flex-1 px-4 space-y-2 py-4">
           <NavButton
             icon={Key}
             label="Licenças e SaaS"
@@ -216,8 +211,9 @@ export default function AdminLicencas() {
         </nav>
       </aside>
 
+      {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-24 bg-white/70 backdrop-blur-xl border-b border-slate-100 flex items-center justify-between px-10 z-40">
+        <header className="h-24 bg-white border-b border-slate-100 flex items-center justify-between px-10 z-40">
           <h1 className="text-xl font-black text-slate-800 tracking-tight italic">
             Cadeado <span className="text-blue-600">Mestre</span>
           </h1>
@@ -239,22 +235,21 @@ export default function AdminLicencas() {
         </header>
 
         <section className="flex-1 overflow-y-auto p-10 bg-[#F8FAFC]">
-          <div className="max-w-[1200px] mx-auto space-y-4 pb-10">
+          <div className="max-w-300 mx-auto space-y-4 pb-10">
             {clientesExibidos.map((cliente) => {
               const isVitalicio =
                 cliente.validadeLicenca?.toDate().getFullYear() > 2050;
-
               return (
                 <div
                   key={cliente.id}
-                  className={`bg-white p-6 rounded-[32px] border-2 flex flex-col xl:flex-row items-center justify-between gap-6 transition-all ${
+                  className={`bg-white p-6 rounded-4xl border-2 flex flex-col xl:flex-row items-center justify-between gap-6 transition-all ${
                     cliente.statusLicenca === "bloqueada"
                       ? "border-red-100 bg-red-50/10"
                       : "border-slate-50 shadow-sm hover:shadow-md"
                   }`}
                 >
-                  {/* INFO CLIENTE */}
-                  <div className="flex items-center gap-4 w-full xl:w-1/4">
+                  {/* INFO CLIENTE E BOTÃO DE MÓDULOS */}
+                  <div className="flex items-center gap-4 w-full xl:w-1/3">
                     <div
                       className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg shrink-0 ${
                         cliente.statusLicenca === "bloqueada"
@@ -264,30 +259,37 @@ export default function AdminLicencas() {
                     >
                       {cliente.nome?.substring(0, 1).toUpperCase()}
                     </div>
-                    <div className="truncate">
+                    <div className="truncate flex-1">
                       <p className="font-black text-slate-800 uppercase italic text-sm truncate">
                         {cliente.nome}
                       </p>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 mb-2">
                         {isVitalicio ? (
                           <span className="flex items-center gap-1 text-[9px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-black uppercase">
                             <Infinity size={10} /> Vitalício
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-black uppercase">
-                            <Clock size={10} /> Expira em:{" "}
+                            <Clock size={10} /> Expira:{" "}
                             {cliente.validadeLicenca
                               ?.toDate()
                               .toLocaleDateString("pt-BR")}
                           </span>
                         )}
                       </div>
+
+                      {/* BOTÃO PARA ABRIR O MODAL DE MÓDULOS */}
+                      <button
+                        onClick={() => setUserPermissao(cliente)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-sm"
+                      >
+                        <Settings size={12} /> Travar Módulos
+                      </button>
                     </div>
                   </div>
 
-                  {/* CONTROLES DE PLANO E DATA */}
-                  <div className="flex flex-wrap items-center gap-3 justify-end w-full xl:w-3/4">
-                    {/* SELECT DE PLANO RÁPIDO */}
+                  {/* CONTROLES (PLANOS, STATUS, DATA) */}
+                  <div className="flex flex-wrap items-center gap-3 justify-end w-full xl:w-2/3">
                     <div className="flex flex-col gap-1">
                       <label className="text-[8px] font-black text-slate-400 uppercase ml-2">
                         Plano Rápido
@@ -312,8 +314,7 @@ export default function AdminLicencas() {
                       </select>
                     </div>
 
-                    {/* BOTÕES DE STATUS */}
-                    <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 border border-slate-200 mt-4 xl:mt-0">
+                    <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1 border border-slate-200">
                       <button
                         onClick={() =>
                           atualizarLicenca(
@@ -322,10 +323,10 @@ export default function AdminLicencas() {
                             document.getElementById(`dt-${cliente.id}`).value
                           )
                         }
-                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 cursor-pointer transition-all ${
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all ${
                           cliente.statusLicenca !== "bloqueada"
                             ? "bg-emerald-500 text-white shadow-lg"
-                            : "text-slate-400 hover:text-slate-600"
+                            : "text-slate-400"
                         }`}
                       >
                         <Unlock size={14} /> Ativo
@@ -338,18 +339,17 @@ export default function AdminLicencas() {
                             document.getElementById(`dt-${cliente.id}`).value
                           )
                         }
-                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 cursor-pointer transition-all ${
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all ${
                           cliente.statusLicenca === "bloqueada"
                             ? "bg-red-600 text-white shadow-lg"
-                            : "text-slate-400 hover:text-slate-600"
+                            : "text-slate-400"
                         }`}
                       >
                         <Lock size={14} /> Bloquear
                       </button>
                     </div>
 
-                    {/* DATA E SAVE */}
-                    <div className="flex items-center gap-2 mt-4 xl:mt-0">
+                    <div className="flex items-center gap-2">
                       <input
                         type="date"
                         id={`dt-${cliente.id}`}
@@ -369,7 +369,7 @@ export default function AdminLicencas() {
                             document.getElementById(`dt-${cliente.id}`).value
                           )
                         }
-                        className="p-3 bg-slate-900 text-white rounded-xl hover:bg-blue-600 transition-all cursor-pointer shadow-md active:scale-95"
+                        className="p-3 bg-slate-900 text-white rounded-xl hover:bg-blue-600 transition-all cursor-pointer active:scale-95"
                       >
                         <Save size={18} />
                       </button>
@@ -381,9 +381,9 @@ export default function AdminLicencas() {
           </div>
         </section>
 
-        {/* FOOTER PAGINAÇÃO */}
+        {/* PAGINAÇÃO */}
         <footer className="bg-white border-t border-slate-100 p-6 flex justify-between items-center px-10 shrink-0">
-          <div className="flex flex-col text-[11px] font-black uppercase text-slate-400">
+          <div className="text-[11px] font-black uppercase text-slate-400">
             Página {paginaAtual} de {totalPaginas || 1}
           </div>
           <div className="flex gap-2">
@@ -406,6 +406,14 @@ export default function AdminLicencas() {
           </div>
         </footer>
       </main>
+
+      {/* RENDERIZAÇÃO DO MODAL DE PERMISSÕES */}
+      {userPermissao && (
+        <ModalPermissoes
+          usuario={userPermissao}
+          aoFechar={() => setUserPermissao(null)}
+        />
+      )}
     </div>
   );
 }

@@ -33,6 +33,8 @@ import {
   FiSearch,
   FiDownload,
   FiAlertCircle,
+  FiLock,
+  FiUser,
 } from "react-icons/fi";
 
 const WEB_APP_URL =
@@ -43,7 +45,6 @@ const PainelAnalista = () => {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
 
-  // ESTADOS DE BUSCA
   const [inputValue, setInputValue] = useState("");
   const [termoBusca, setTermoBusca] = useState("");
 
@@ -85,7 +86,6 @@ const PainelAnalista = () => {
     return date.toLocaleString("pt-BR");
   };
 
-  // Funções de Busca
   const executarBusca = () => {
     setTermoBusca(inputValue);
     setPaginaAtual(1);
@@ -97,7 +97,6 @@ const PainelAnalista = () => {
     setPaginaAtual(1);
   };
 
-  // Listeners e Dados
   useEffect(() => {
     if (!user) return;
     const fetchUserData = async () => {
@@ -133,16 +132,25 @@ const PainelAnalista = () => {
     return () => unsubscribe();
   }, [user]);
 
-  // Handlers
   const handleAssumirChamado = async (chamado) => {
+    const jaTemTecnico =
+      chamado.status === "em atendimento" || chamado.status === "pendente";
+
     try {
       await updateDoc(doc(db, "chamados", chamado.id), {
         status: "em atendimento",
         tecnicoResponsavel: analistaNome,
         tecnicoId: user.uid,
         iniciadoEm: serverTimestamp(),
+        logSeguranca: jaTemTecnico
+          ? `Assumido por Admin: ${analistaNome}`
+          : null,
       });
-      toast.info(`Você assumiu a OS #${chamado.numeroOs}`);
+      toast.info(
+        jaTemTecnico
+          ? `Override realizado na OS #${chamado.numeroOs}`
+          : `Você assumiu a OS #${chamado.numeroOs}`
+      );
     } catch (err) {
       toast.error("Erro ao assumir.");
     }
@@ -155,6 +163,9 @@ const PainelAnalista = () => {
         tecnicoResponsavel: deleteField(),
         tecnicoId: deleteField(),
         iniciadoEm: deleteField(),
+        motivoPausa: deleteField(),
+        detalhePausa: deleteField(),
+        pausadoEm: deleteField(),
       });
       toast.warning("Chamado devolvido para a fila.");
     } catch (err) {
@@ -261,14 +272,6 @@ const PainelAnalista = () => {
     }
   };
 
-  const handleImprimir = (item) => {
-    setChamadoSelecionado(item);
-    setTimeout(() => {
-      window.print();
-    }, 500);
-  };
-
-  // Filtro e Paginação Otimizados
   const chamadosFiltrados = useMemo(() => {
     const busca = termoBusca.toLowerCase().trim();
     return chamados.filter((c) => {
@@ -292,11 +295,11 @@ const PainelAnalista = () => {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans antialiased">
       <style>{`
-        @keyframes blink-soft-red {
-          0%, 100% { background-color: rgba(254, 226, 226, 0.8); color: #dc2626; border-color: #fecaca; }
-          50% { background-color: rgba(239, 68, 68, 0.4); color: #b91c1c; border-color: #ef4444; }
+        @keyframes blink-urgent {
+          0%, 100% { background-color: #fee2e2; color: #dc2626; border-color: #fecaca; }
+          50% { background-color: #dc2626; color: #ffffff; border-color: #dc2626; }
         }
-        .animate-blink-priority { animation: blink-soft-red 1.5s infinite ease-in-out; }
+        .animate-urgent { animation: blink-urgent 1s infinite ease-in-out; }
         @media print { 
           body * { visibility: hidden; } 
           #area-impressao, #area-impressao * { visibility: visible; } 
@@ -350,7 +353,7 @@ const PainelAnalista = () => {
           </div>
         </div>
 
-        <div className="no-print bg-white rounded-[32px] shadow-xl border border-slate-100 overflow-hidden">
+        <div className="no-print bg-white rounded-4xl shadow-xl border border-slate-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -365,7 +368,7 @@ const PainelAnalista = () => {
                     Prioridade
                   </th>
                   <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
-                    Status
+                    Técnico / Status
                   </th>
                   <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
                     Ações
@@ -388,12 +391,23 @@ const PainelAnalista = () => {
                     const rem = isRemaneja(item);
                     const prio = item.prioridade?.toLowerCase() || "baixa";
 
+                    const isDono = item.tecnicoId === user.uid;
+                    const isAdminOuRoot = ["root", "admin"].includes(
+                      userData?.role
+                    );
+                    const isOcupado =
+                      (status === "em atendimento" || status === "pendente") &&
+                      !isDono;
+                    const estaBloqueado = isOcupado && !isAdminOuRoot;
+
                     const estiloPrio =
-                      prio === "alta" || prio === "urgente"
-                        ? "animate-blink-priority"
+                      prio === "urgente"
+                        ? "animate-urgent font-black shadow-sm"
+                        : prio === "alta"
+                        ? "bg-red-600 text-white border-red-700 font-black"
                         : prio === "média" || prio === "media"
-                        ? "bg-orange-100 text-orange-600 border-orange-200"
-                        : "bg-emerald-100 text-emerald-600 border-emerald-200";
+                        ? "bg-orange-100 text-orange-600 border-orange-200 font-bold"
+                        : "bg-emerald-100 text-emerald-600 border-emerald-200 font-bold";
 
                     const statusStyles = {
                       aberto:
@@ -442,87 +456,135 @@ const PainelAnalista = () => {
                         </td>
                         <td className="p-5 text-center">
                           <div
-                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg border font-black text-[10px] uppercase transition-all ${estiloPrio}`}
+                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-[10px] uppercase transition-all ${estiloPrio}`}
                           >
                             <FiAlertCircle size={12} /> {prio}
                           </div>
                         </td>
                         <td className="p-5 text-center">
-                          <span
-                            className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
-                              statusStyles[status] || ""
-                            }`}
-                          >
-                            {item.status}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            {item.tecnicoResponsavel && (
+                              <div
+                                className={`flex items-center gap-1 text-[9px] font-black uppercase ${
+                                  isDono ? "text-blue-600" : "text-slate-400"
+                                }`}
+                              >
+                                <FiUser size={10} />{" "}
+                                {isDono ? "Você" : item.tecnicoResponsavel}
+                              </div>
+                            )}
+                            <span
+                              className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
+                                statusStyles[status] || ""
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+                          </div>
                         </td>
                         <td className="p-5">
                           <div className="flex gap-2 justify-center items-center">
-                            <button
-                              onClick={() => handleImprimir(item)}
-                              title="Imprimir"
-                              className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-orange-600 transition-colors"
-                            >
-                              <FiPrinter size={18} />
-                            </button>
+                            {/* BOTÃO VISUALIZAR */}
                             <button
                               onClick={() => {
                                 setChamadoSelecionado(item);
                                 setMostrarModalVer(true);
                               }}
-                              title="Ver Detalhes"
                               className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-blue-600 transition-colors"
+                              title="Ver Detalhes"
                             >
                               <FiEye size={18} />
                             </button>
 
-                            {status === "aberto" && (
-                              <button
-                                onClick={() => handleAssumirChamado(item)}
-                                className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase text-white shadow-md transition-transform active:scale-95 ${
-                                  rem ? "bg-orange-500" : "bg-blue-600"
-                                }`}
-                              >
-                                Atender
-                              </button>
-                            )}
+                            {/* BOTÃO IMPRIMIR */}
+                            <button
+                              onClick={() => {
+                                setChamadoSelecionado(item);
+                                setTimeout(() => window.print(), 100);
+                              }}
+                              className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-orange-600 transition-colors"
+                              title="Imprimir OS"
+                            >
+                              <FiPrinter size={18} />
+                            </button>
 
-                            {status === "pendente" && (
-                              <button
-                                onClick={() => handleRetomarChamado(item)}
-                                className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
+                            {estaBloqueado ? (
+                              <div
+                                className="flex items-center gap-2 bg-slate-100 text-slate-400 px-4 py-2 rounded-xl cursor-not-allowed border border-slate-200"
+                                title={`Bloqueado: ${item.tecnicoResponsavel} está atendendo.`}
                               >
-                                <FiPlayCircle size={20} />
-                              </button>
-                            )}
-
-                            {status === "em atendimento" && (
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => {
-                                    setChamadoSelecionado(item);
-                                    setMostrarModalFinalizar(true);
-                                  }}
-                                  className="bg-emerald-500 text-white p-2.5 rounded-xl hover:bg-emerald-600 shadow-md"
-                                >
-                                  <FiCheck size={18} />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setChamadoSelecionado(item);
-                                    setMostrarModalPausar(true);
-                                  }}
-                                  className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
-                                >
-                                  <FiPauseCircle size={18} />
-                                </button>
-                                <button
-                                  onClick={() => handleDevolverChamado(item)}
-                                  className="bg-slate-200 text-slate-500 p-2.5 rounded-xl hover:bg-slate-300 transition-colors"
-                                >
-                                  <FiRotateCcw size={18} />
-                                </button>
+                                <FiLock size={14} />
+                                <span className="text-[10px] font-black uppercase">
+                                  Ocupado
+                                </span>
                               </div>
+                            ) : (
+                              <>
+                                {status === "aberto" && (
+                                  <button
+                                    onClick={() => handleAssumirChamado(item)}
+                                    className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase text-white shadow-md transition-transform active:scale-95 ${
+                                      rem ? "bg-orange-500" : "bg-blue-600"
+                                    }`}
+                                  >
+                                    Atender
+                                  </button>
+                                )}
+
+                                {isOcupado && isAdminOuRoot && (
+                                  <button
+                                    onClick={() => handleAssumirChamado(item)}
+                                    className="px-5 py-2 rounded-xl text-[10px] font-black uppercase text-white bg-red-600 shadow-md hover:bg-red-700 transition-all"
+                                  >
+                                    Assumir
+                                  </button>
+                                )}
+
+                                {status === "pendente" && isDono && (
+                                  <button
+                                    onClick={() => handleRetomarChamado(item)}
+                                    className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
+                                  >
+                                    <FiPlayCircle size={20} />
+                                  </button>
+                                )}
+
+                                {status === "em atendimento" && isDono && (
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={() => {
+                                        setChamadoSelecionado(item);
+                                        setMostrarModalFinalizar(true);
+                                      }}
+                                      className="bg-emerald-500 text-white p-2.5 rounded-xl hover:bg-emerald-600 shadow-md"
+                                    >
+                                      <FiCheck size={18} />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setChamadoSelecionado(item);
+                                        setMostrarModalPausar(true);
+                                      }}
+                                      className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
+                                    >
+                                      <FiPauseCircle size={18} />
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+
+                            {(isDono ||
+                              (isAdminOuRoot &&
+                                (status === "em atendimento" ||
+                                  status === "pendente"))) && (
+                              <button
+                                onClick={() => handleDevolverChamado(item)}
+                                className="p-2.5 bg-slate-200 text-slate-500 rounded-xl hover:bg-orange-500 hover:text-white transition-colors"
+                                title="Devolver para fila"
+                              >
+                                <FiRotateCcw size={18} />
+                              </button>
                             )}
 
                             {status === "fechado" && (
@@ -534,6 +596,7 @@ const PainelAnalista = () => {
                                     ? "bg-slate-400 cursor-not-allowed"
                                     : "bg-emerald-600 hover:bg-emerald-700 animate-pulse"
                                 }`}
+                                title="Arquivar OS"
                               >
                                 {enviandoPlanilha === item.id ? (
                                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -551,7 +614,6 @@ const PainelAnalista = () => {
               </tbody>
             </table>
           </div>
-          {/* Paginação */}
           <div className="p-6 border-t border-slate-50 flex justify-between items-center">
             <button
               disabled={paginaAtual === 1}
@@ -574,22 +636,23 @@ const PainelAnalista = () => {
         </div>
       </main>
 
-      {/* Modais */}
       <ModalDetalhesAnalista
         isOpen={mostrarModalVer}
         chamado={chamadoSelecionado}
         onClose={() => setMostrarModalVer(false)}
         isRemaneja={isRemaneja}
       />
+
       <ImprimirAnalista
         chamado={chamadoSelecionado}
         isRemaneja={isRemaneja}
         formatarDataHora={formatarDataHora}
       />
 
+      {/* MODAL FINALIZAR */}
       {mostrarModalFinalizar && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-4xl p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
             <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase italic">
               Finalizar OS
             </h2>
@@ -602,7 +665,7 @@ const PainelAnalista = () => {
                   required
                   value={patrimonio}
                   onChange={(e) => setPatrimonio(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold focus:ring-2 focus:ring-emerald-500 transition-all"
+                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold focus:ring-2 focus:ring-emerald-500"
                   placeholder="Ex: PAT-12345"
                 />
               </div>
@@ -613,7 +676,7 @@ const PainelAnalista = () => {
                 <textarea
                   value={parecerTecnico}
                   onChange={(e) => setParecerTecnico(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-32 outline-none font-medium focus:ring-2 focus:ring-emerald-500 transition-all"
+                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-32 outline-none font-medium focus:ring-2 focus:ring-emerald-500"
                   placeholder="Descreva a solução técnica aplicada..."
                 />
               </div>
@@ -621,13 +684,13 @@ const PainelAnalista = () => {
                 <button
                   type="button"
                   onClick={() => setMostrarModalFinalizar(false)}
-                  className="flex-1 py-4 font-black uppercase text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                  className="flex-1 py-4 font-black uppercase text-xs text-slate-400"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-emerald-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg hover:bg-emerald-600 transition-all active:scale-95"
+                  className="flex-1 bg-emerald-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg active:scale-95"
                 >
                   Concluir OS
                 </button>
@@ -637,9 +700,10 @@ const PainelAnalista = () => {
         </div>
       )}
 
+      {/* MODAL PAUSAR */}
       {mostrarModalPausar && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-[32px] p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-4xl p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
             <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase">
               Pausar SLA
             </h2>
@@ -648,7 +712,7 @@ const PainelAnalista = () => {
                 required
                 value={motivoPausa}
                 onChange={(e) => setMotivoPausa(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold outline-none focus:ring-2 focus:ring-amber-500"
               >
                 <option value="">Selecione o motivo...</option>
                 <option value="Aguardando Peça">Aguardando Peça</option>
@@ -663,20 +727,20 @@ const PainelAnalista = () => {
               <textarea
                 value={detalhePausa}
                 onChange={(e) => setDetalhePausa(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-24 outline-none focus:ring-2 focus:ring-amber-500 transition-all"
-                placeholder="Detalhes adicionais sobre a pausa..."
+                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-24 outline-none focus:ring-2 focus:ring-amber-500"
+                placeholder="Detalhes adicionais..."
               />
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setMostrarModalPausar(false)}
-                  className="flex-1 text-slate-400 font-black uppercase text-xs hover:text-slate-600 transition-colors"
+                  className="flex-1 text-slate-400 font-black uppercase text-xs"
                 >
                   Sair
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-500 py-4 rounded-2xl text-white font-black uppercase text-xs shadow-lg hover:bg-amber-600 transition-all active:scale-95"
+                  className="flex-1 bg-amber-500 py-4 rounded-2xl text-white font-black uppercase text-xs shadow-lg active:scale-95"
                 >
                   Confirmar Pausa
                 </button>
