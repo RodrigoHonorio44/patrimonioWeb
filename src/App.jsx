@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
-import { auth, db } from "./api/Firebase";
+// Corrigido para minúsculo para evitar erro de case-sensitivity
+import { auth, db } from "./api/firebase"; 
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { ToastContainer, toast } from "react-toastify";
@@ -27,6 +28,9 @@ import CadastroChamado from "./components/CadastroChamado";
 import GestaoChefia from "./pages/GestaoeChefia";
 import PainelGestao from "./pages/PainelGestao";
 import FormRemanejamento from "./components/FormRemanejamento";
+
+// NOVO IMPORT: Saída de Equipamento
+import SaidaEquipamento from "./pages/SaidaEquipamento"; 
 
 function App() {
   const [user, setUser] = useState(null);
@@ -210,6 +214,15 @@ function App() {
                     element={
                       <ProtectedRoute condition={isTiOrAdmin}>
                         <CadastroEquipamento />
+                      </ProtectedRoute>
+                    }
+                  />
+                  {/* NOVA ROTA: Saída de Equipamento */}
+                  <Route
+                    path="/saida-equipamento"
+                    element={
+                      <ProtectedRoute condition={isTiOrAdmin}>
+                        <SaidaEquipamento />
                       </ProtectedRoute>
                     }
                   />
