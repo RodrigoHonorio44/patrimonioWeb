@@ -8,9 +8,16 @@ import "react-toastify/dist/ReactToastify.css";
 
 // COMPONENTES E PAGES
 import GuardiaoSessao from "./components/GuardiaoSessao";
+<<<<<<< HEAD
 import { useLicenseGuard } from "./hooks/useLicenseGuard";
 import LicencaExpirada from "./pages/LicencaExpirada";
 import MensagemBloqueio from "./pages/MensagemBloqueio";
+=======
+import { useLicenseGuard } from "./hooks/useLicenseGuard"; 
+import LicencaExpirada from "./pages/LicencaExpirada"; 
+
+// Importação das Páginas
+>>>>>>> 6b6a0ef (atualizado 15.1 23.20)
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import DashboardBI from "./pages/DashboardBI";
@@ -23,6 +30,12 @@ import Estoque from "./pages/Estoque";
 import Usuarios from "./pages/Usuarios";
 import TrocarSenha from "./pages/TrocarSenha";
 import AdminLicencas from "./pages/AdminLicencas";
+<<<<<<< HEAD
+=======
+import PainelCoordenacao from "./pages/PainelCoordenacao";
+
+// Importando componentes
+>>>>>>> 6b6a0ef (atualizado 15.1 23.20)
 import CadastroChamado from "./components/CadastroChamado";
 import GestaoChefia from "./pages/GestaoeChefia";
 import PainelGestao from "./pages/PainelGestao";
@@ -114,6 +127,7 @@ function App() {
     };
   }, []);
 
+<<<<<<< HEAD
   // --- LÓGICA DE PERMISSÕES ---
   const temAcesso = (moduloId) => {
     if (role === "root") return true;
@@ -146,6 +160,8 @@ function App() {
     return condition ? children : <Navigate to={getHomePath()} replace />;
   };
 
+=======
+>>>>>>> 6b6a0ef (atualizado 15.1 23.20)
   if (loading || loadingLicense) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-white">
@@ -157,10 +173,23 @@ function App() {
     );
   }
 
+<<<<<<< HEAD
+=======
+  // Root e Admin geralmente ignoram bloqueio de licença para manutenção
+  if (user && !isLicenseValid && !["admin", "root"].includes(role)) {
+    return <LicencaExpirada />;
+  }
+
+  // --- ATUALIZAÇÃO DOS GRUPOS DE ACESSO ---
+  const isStaff = ["root", "admin", "analista", "ti", "adm", "coordenador"].includes(role);
+  const isAdminOrAnalyst = ["root", "admin", "analista"].includes(role);
+
+>>>>>>> 6b6a0ef (atualizado 15.1 23.20)
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} theme="colored" />
       <BrowserRouter>
+<<<<<<< HEAD
         <Routes>
           {isBlocked ? (
             <>
@@ -313,6 +342,106 @@ function App() {
             </>
           )}
         </Routes>
+=======
+        <GuardiaoSessao>
+          <Routes>
+            {user && mustChangePassword ? (
+              <>
+                <Route path="/trocar-senha" element={<TrocarSenha />} />
+                <Route path="*" element={<Navigate to="/trocar-senha" replace />} />
+              </>
+            ) : (
+              <>
+                {/* 1. LOGICA DE RAIZ (/) */}
+                <Route
+                  path="/"
+                  element={
+                    !user ? (
+                      <Navigate to="/login" replace />
+                    ) : role === "coordenador" ? (
+                      <Navigate to="/coordenacao" replace />
+                    ) : isAdminOrAnalyst ? (
+                      <Navigate to="/dashboard" replace />
+                    ) : (
+                      <Navigate to="/home" replace />
+                    )
+                  }
+                />
+
+                {/* 2. LOGICA DE LOGIN */}
+                <Route
+                  path="/login"
+                  element={
+                    !user ? (
+                      <Login />
+                    ) : (
+                      <Navigate 
+                        to={
+                          role === "coordenador" 
+                            ? "/coordenacao" 
+                            : (isAdminOrAnalyst ? "/dashboard" : "/home")
+                        } 
+                        replace 
+                      />
+                    )
+                  }
+                />
+
+                {/* PAINEL DO DONO / ROOT */}
+                {user && (role === "admin" || role === "root") && (
+                  <Route path="/admin/licencas" element={<AdminLicencas />} />
+                )}
+
+                {/* ROTAS PROTEGIDAS (STAFF) */}
+                {user && isStaff && (
+                  <>
+                    {(role === "coordenador" || role === "admin" || role === "root") && (
+                        <Route path="/coordenacao" element={<PainelCoordenacao />} />
+                    )}
+
+                    {isAdminOrAnalyst && (
+                        <Route path="/dashboard" element={<Dashboard />} />
+                    )}
+
+                    <Route path="/indicadores" element={<DashboardBI />} />
+                    <Route path="/operacional" element={<PainelAnalista />} />
+                    <Route path="/cadastrar-patrimonio" element={<CadastroEquipamento />} />
+                    <Route path="/transferencia" element={<Transferencia />} />
+                    <Route path="/inventario" element={<Inventario />} />
+                    <Route path="/estoque" element={<Estoque />} />
+                    <Route path="/usuarios" element={<Usuarios />} />
+                    <Route
+                      path="/cadastrar-chamado"
+                      element={
+                        <CadastroChamado
+                          isOpen={true}
+                          onClose={() => window.history.back()}
+                        />
+                      }
+                    />
+                  </>
+                )}
+
+                {/* 3. PROTEÇÃO DA HOME - Se for root, redireciona para dashboard */}
+                <Route
+                  path="/home"
+                  element={
+                    !user ? (
+                      <Navigate to="/login" replace />
+                    ) : isAdminOrAnalyst ? (
+                      <Navigate to="/dashboard" replace />
+                    ) : (
+                      <Home />
+                    )
+                  }
+                />
+
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </>
+            )}
+          </Routes>
+        </GuardiaoSessao>
+>>>>>>> 6b6a0ef (atualizado 15.1 23.20)
       </BrowserRouter>
     </>
   );
