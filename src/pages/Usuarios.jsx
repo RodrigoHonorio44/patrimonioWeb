@@ -194,6 +194,40 @@ export default function Usuarios() {
     }
   };
 
+<<<<<<< HEAD
+=======
+  const removerAcesso = async (id, nome) => {
+    if (window.confirm(`Excluir dados de ${nome} do Banco?`)) {
+      try {
+        await deleteDoc(doc(db, "usuarios", id));
+        toast.success("Registro removido.");
+      } catch (err) {
+        toast.error("Erro ao remover registro.");
+      }
+    }
+  };
+
+  // FUNÇÃO DE ALTERAÇÃO DE NÍVEL CORRIGIDA PARA "coordenador" (com dois 'o')
+  const alterarNivel = async (id, novoRole) => {
+    try {
+      const cargoLabel =
+        novoRole === "analista"
+          ? "ANALISTA"
+          : novoRole === "coordenador"
+          ? "COORDENADOR"
+          : "USUÁRIO";
+
+      await updateDoc(doc(db, "usuarios", id), {
+        role: novoRole,
+        cargo: cargoLabel,
+      });
+      toast.info(`Nível alterado para ${cargoLabel}`);
+    } catch (err) {
+      toast.error("Erro ao atualizar nível.");
+    }
+  };
+
+>>>>>>> 6b6a0ef (atualizado 15.1 23.20)
   return (
     <div className="flex flex-col min-h-screen bg-[#F8FAFC] font-sans antialiased text-slate-900">
       <Header cargo={currentUserData?.cargoHospitalar || "CARREGANDO..."} />
@@ -333,15 +367,27 @@ export default function Usuarios() {
                       </td>
                       <td className="p-8">
                         <span
+<<<<<<< HEAD
                           className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
                             isTargetRoot
                               ? "bg-purple-600 text-white"
                               : "bg-blue-50 text-blue-600 border border-blue-100"
+=======
+                          className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
+                            r === "admin"
+                              ? "bg-purple-100 text-purple-600"
+                              : r === "coordenador"
+                              ? "bg-orange-100 text-orange-600"
+                              : r === "analista"
+                              ? "bg-blue-100 text-blue-600"
+                              : "bg-slate-100 text-slate-500"
+>>>>>>> 6b6a0ef (atualizado 15.1 23.20)
                           }`}
                         >
                           {u.role || "USUÁRIO"}
                         </span>
                       </td>
+<<<<<<< HEAD
                       <td className="p-8">
                         <div className="flex flex-wrap gap-1.5 max-w-64">
                           {listaExtras.length > 0 ? (
@@ -361,6 +407,38 @@ export default function Usuarios() {
                             <span className="text-slate-300 text-[10px] font-bold italic uppercase">
                               Padrão
                             </span>
+=======
+                      <td className="p-6">
+                        <div className="flex justify-end gap-3 items-center">
+                          {r !== "admin" && (
+                            <>
+                              {r === "user" ? (
+                                <button
+                                  onClick={() => alterarNivel(u.id, "analista")}
+                                  className="p-2.5 bg-emerald-500 text-white rounded-xl hover:scale-110 shadow-lg shadow-emerald-100 transition-all cursor-pointer"
+                                  title="Promover a Analista"
+                                >
+                                  <FiArrowUp size={18} strokeWidth={3} />
+                                </button>
+                              ) : r === "analista" ? (
+                                <button
+                                  onClick={() => alterarNivel(u.id, "coordenador")}
+                                  className="p-2.5 bg-orange-500 text-white rounded-xl hover:scale-110 shadow-lg shadow-orange-100 transition-all cursor-pointer"
+                                  title="Promover a Coordenador"
+                                >
+                                  <FiArrowRight size={18} strokeWidth={3} />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => alterarNivel(u.id, "user")}
+                                  className="p-2.5 bg-blue-500 text-white rounded-xl hover:scale-110 shadow-lg shadow-blue-100 transition-all cursor-pointer"
+                                  title="Resetar para Usuário"
+                                >
+                                  <FiRefreshCw size={18} strokeWidth={3} />
+                                </button>
+                              )}
+                            </>
+>>>>>>> 6b6a0ef (atualizado 15.1 23.20)
                           )}
                         </div>
                       </td>
@@ -495,6 +573,7 @@ export default function Usuarios() {
       )}
     </div>
   );
+<<<<<<< HEAD
 }
 
 function LevelButton({ icon: Icon, color, onClick, label }) {
@@ -508,3 +587,6 @@ function LevelButton({ icon: Icon, color, onClick, label }) {
     </button>
   );
 }
+=======
+}
+>>>>>>> 6b6a0ef (atualizado 15.1 23.20)

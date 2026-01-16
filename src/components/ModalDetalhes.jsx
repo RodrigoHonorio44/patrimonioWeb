@@ -1,193 +1,189 @@
-import React from "react";
-import {
-  FiX,
-  FiCheckCircle,
-  FiTool,
-  FiPauseCircle,
-  FiClock,
-  FiInfo,
-  FiCalendar,
-  FiArrowRight,
-} from "react-icons/fi";
+import React, { useEffect, useState } from "react";
+import { db, auth } from "../api/Firebase";
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, query, orderBy, limit } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
+import { 
+  ClipboardList, Users, LayoutDashboard, PlusCircle, 
+  ArrowRightLeft, Lock, LogOut, UserPlus, Eye 
+} from "lucide-react";
+import { toast } from "react-toastify";
 
-const ModalDetalhes = ({ chamado, aoFechar, calcularSLA }) => {
-  if (!chamado) return null;
+// IMPORTAÇÃO DOS SEUS COMPONENTES (IGUAIS AOS DA HOME)
+import CadastroChamado from "../components/CadastroChamado";
+import ModalDetalhes from "../components/ModalDetalhes";
 
-  const statusLower = chamado.status?.toLowerCase().trim() || "";
+export default function PainelCoordenacao() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [autorizado, setAutorizado] = useState(false);
+  const [abaAtiva, setAbaAtiva] = useState("chamados");
+  const [userName, setUserName] = useState("Coordenador");
+  
+  // Estados para Modais
+  const [modalChamadoAberto, setModalChamadoAberto] = useState(false);
+  const [chamadoSelecionado, setChamadoSelecionado] = useState(null);
+  
+  // Lista de atividades para o Coordenador visualizar
+  const [atividades, setAtividades] = useState([]);
 
-  // Definições de estado de status
-  const isPendente = statusLower === "pendente";
-  const isPausado = statusLower === "pausado";
-  const isFechado = statusLower === "fechado" || statusLower === "arquivado";
+  // Estado do Formulário de Remanejo
+  const [formDataRemanejo, setFormDataRemanejo] = useState({ tecnicoId: "", deSetor: "", paraSetor: "", motivo: "" });
 
-  // Lógica para detectar remanejamento
-  const isRemanejamento = chamado.tipo?.toLowerCase().includes("remanejamento");
+  useEffect(() => {
+    const verificarAcesso = () => {
+      const user = auth.currentUser;
+      if (!user) { navigate("/login"); return; }
 
-  // Função para formatar o timestamp do Firebase (Data e Hora)
-  const formatarDataModal = (timestamp) => {
-    if (!timestamp) return "---";
-    const data = timestamp.toDate();
-    return `${data.toLocaleDateString("pt-BR")} às ${data.toLocaleTimeString(
-      "pt-BR",
-      { hour: "2-digit", minute: "2-digit" }
-    )}`;
+      const unsubUser = onSnapshot(doc(db, "usuarios", user.uid), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setUserName(data.nome || "Coordenador");
+          const role = data.role?.toLowerCase().trim();
+          if (role !== "coordenador" && role !== "admin") { navigate("/home"); return; }
+          setAutorizado(data.statusLicenca !== "bloqueada");
+        }
+        setLoading(false);
+      });
+
+      // Busca os últimos chamados/remanejamentos para a lista
+      const q = query(collection(db, "chamados"), orderBy("dataCriacao", "desc"), limit(5));
+      const unsubAtividades = onSnapshot(q, (snapshot) => {
+        const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setAtividades(lista);
+      });
+
+      return () => { unsubUser(); unsubAtividades(); };
+    };
+    verificarAcesso();
+  }, [navigate]);
+
+  // Função necessária para o ModalDetalhes funcionar
+  const calcularSLA = (inicio, fim) => {
+    if (!inicio) return "---";
+    const dataInicio = inicio.toDate();
+    const dataFim = fim ? fim.toDate() : new Date();
+    const diffMs = dataFim - dataInicio;
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${diffHrs}h ${diffMins}m`;
   };
 
+  const handleRemanejar = async (e) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, "chamados"), { // Salvando como tipo remanejamento para aparecer no modal
+        ...formDataRemanejo,
+        tipo: "REMANEJAMENTO TÉCNICO",
+        status: "fechado",
+        numeroOs: Math.floor(1000 + Math.random() * 9000),
+        criadoEm: serverTimestamp(),
+        finalizadoEm: serverTimestamp(),
+        autorizadoPor: userName,
+      });
+      toast.success("Remanejamento efetivado!");
+      setFormDataRemanejo({ tecnicoId: "", deSetor: "", paraSetor: "", motivo: "" });
+    } catch (error) { toast.error("Erro ao registrar."); }
+  };
+
+  if (loading) return <div className="h-screen flex items-center justify-center font-black italic text-slate-400">CARREGANDO...</div>;
+
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-        onClick={aoFechar}
-      ></div>
-
-      <div className="bg-white w-full max-w-[550px] rounded-[3rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in duration-300">
-        <div className="p-8 md:p-10 text-left">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-black text-slate-800 italic">
-              Chamado{" "}
-              <span
-                className={isRemanejamento ? "text-amber-500" : "text-blue-600"}
-              >
-                #{chamado.numeroOs}
-              </span>
-            </h2>
-            <button
-              onClick={aoFechar}
-              className="p-2 bg-slate-100 text-slate-400 rounded-full hover:bg-red-50 hover:text-red-500 transition-all"
-            >
-              <FiX size={20} />
-            </button>
-          </div>
-
-          <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-            {/* BANNER DE STATUS COM DATA DE FECHAMENTO SE ESTIVER CONCLUÍDO */}
-            {isFechado ? (
-              <div className="bg-green-50 border-l-[6px] border-green-500 p-6 rounded-r-2xl shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 text-green-700 font-black text-[11px] uppercase tracking-widest">
-                    <FiCheckCircle size={20} /> ATENDIMENTO FINALIZADO
-                  </div>
-                </div>
-                <p className="text-green-800 text-[14px] font-bold italic mb-2">
-                  {chamado.feedbackAnalista ||
-                    "O chamado foi encerrado com sucesso."}
-                </p>
-                <div className="flex items-center gap-2 text-green-600/70 text-[10px] font-black uppercase">
-                  <FiCalendar size={12} /> Concluído em:{" "}
-                  {formatarDataModal(chamado.finalizadoEm)}
-                </div>
-              </div>
-            ) : isPausado || isPendente ? (
-              <div className="bg-orange-50 border-l-[6px] border-orange-500 p-6 rounded-r-2xl shadow-sm">
-                <div className="flex items-center gap-2 text-orange-700 font-black text-[11px] uppercase tracking-widest mb-3">
-                  <FiPauseCircle size={20} /> STATUS:{" "}
-                  {statusLower.toUpperCase()}
-                </div>
-                <p className="text-orange-800 text-[14px] font-bold italic">
-                  {chamado.motivoPausa ||
-                    chamado.motivoPendente ||
-                    "Aguardando materiais ou retorno técnico."}
-                </p>
-              </div>
-            ) : (
-              <div className="bg-blue-50 border-l-[6px] border-blue-500 p-6 rounded-r-2xl shadow-sm">
-                <div className="flex items-center gap-2 text-blue-700 font-black text-[11px] uppercase tracking-widest mb-3">
-                  <FiTool size={20} /> EM ATENDIMENTO
-                </div>
-                <p className="text-blue-800 text-[14px] font-bold italic">
-                  O analista está trabalhando na sua solicitação.
-                </p>
-              </div>
-            )}
-
-            {/* SEÇÃO: DESCRIÇÃO / TIPO */}
-            <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100">
-              <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1 flex items-center gap-2">
-                <FiInfo size={14} />{" "}
-                {isRemanejamento
-                  ? "Tipo de Solicitação"
-                  : "Descrição do Problema"}
-              </p>
-              <p className="text-slate-700 text-sm font-bold italic">
-                {isRemanejamento
-                  ? chamado.tipo
-                  : chamado.descricao || "Não informada."}
-              </p>
-            </div>
-
-            {/* GRID DE INFORMAÇÕES DETALHADAS */}
-            <div className="grid grid-cols-2 gap-y-6 gap-x-4 px-2">
-              <Detail
-                label="DATA DE ABERTURA"
-                value={formatarDataModal(chamado.criadoEm)}
-              />
-              <Detail
-                label="DATA DE FECHAMENTO"
-                value={formatarDataModal(chamado.finalizadoEm)}
-                color={isFechado ? "text-green-600" : "text-slate-400"}
-              />
-              <Detail
-                label="TÉCNICO RESPONSÁVEL"
-                value={chamado.tecnicoResponsavel || "Aguardando Analista"}
-              />
-              <Detail
-                label="TEMPO TOTAL (SLA)"
-                value={calcularSLA(chamado.criadoEm, chamado.finalizadoEm)}
-              />
-
-              <Detail
-                label={
-                  isRemanejamento
-                    ? "TRAJETO DO REMANEJAMENTO"
-                    : "UNIDADE / SETOR"
-                }
-                className="col-span-2 border-t border-slate-50 pt-4"
-                value={
-                  isRemanejamento ? (
-                    <div className="flex items-center gap-3">
-                      <span className="px-3 py-1 bg-red-50 text-red-500 rounded-lg text-xs font-black uppercase">
-                        {chamado.setorOrigem || chamado.localOrigem}
-                      </span>
-                      <FiArrowRight size={14} className="text-slate-300" />
-                      <span className="px-3 py-1 bg-green-50 text-green-500 rounded-lg text-xs font-black uppercase">
-                        {chamado.setorDestino || chamado.localDestino}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-slate-700 font-bold">
-                      {chamado.unidade}{" "}
-                      <span className="text-slate-400 mx-1">|</span>{" "}
-                      {chamado.local || chamado.setor}
-                    </span>
-                  )
-                }
-              />
-            </div>
-
-            <button
-              onClick={aoFechar}
-              className={`w-full text-white font-black py-4 rounded-2xl transition-all text-xs uppercase tracking-widest shadow-lg ${
-                isRemanejamento
-                  ? "bg-amber-500 hover:bg-amber-600 shadow-amber-100"
-                  : "bg-slate-900 hover:bg-blue-600 shadow-slate-200"
-              }`}
-            >
-              Fechar Visualização
-            </button>
+    <div className="min-h-screen bg-[#f8fafc] flex">
+      {/* SIDEBAR */}
+      <aside className="w-72 bg-white border-r border-slate-200 hidden lg:flex flex-col h-screen sticky top-0 p-8 shadow-sm">
+        <div className="mb-12">
+          <div className="text-slate-900 font-black text-2xl italic uppercase tracking-tighter">
+            RODHON<span className="text-blue-600">COORD</span>
           </div>
         </div>
-      </div>
+        <nav className="flex-1 space-y-3">
+          <button onClick={() => setAbaAtiva("chamados")} className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold transition-all uppercase text-xs ${abaAtiva === 'chamados' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>
+            <ClipboardList size={20} /> Abertura O.S
+          </button>
+          <button onClick={() => setAbaAtiva("remanejamento")} className={`w-full flex items-center gap-3 p-4 rounded-2xl font-bold transition-all uppercase text-xs ${abaAtiva === 'remanejamento' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>
+            <ArrowRightLeft size={20} /> Remanejamento
+          </button>
+        </nav>
+        <button onClick={() => auth.signOut()} className="flex items-center gap-2 text-slate-400 font-black uppercase text-[10px] mt-auto hover:text-red-600 pt-6 border-t border-slate-100">
+          <LogOut size={14} /> Sair
+        </button>
+      </aside>
+
+      {/* CONTEÚDO */}
+      <main className="flex-1 p-8 lg:p-16 overflow-y-auto">
+        <header className="mb-12">
+          <h1 className="text-6xl font-black text-slate-900 italic uppercase leading-none">
+            {abaAtiva === "chamados" ? "Gestão de <span class='text-blue-600'>Suporte</span>" : "Gestão de <span class='text-blue-600'>Equipe</span>"}
+          </h1>
+        </header>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
+          
+          {/* COLUNA DA ESQUERDA: FORMULÁRIOS */}
+          <section>
+            {abaAtiva === "chamados" ? (
+              <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl text-center">
+                <PlusCircle size={48} className="text-blue-600 mx-auto mb-6" />
+                <h2 className="text-xl font-black text-slate-800 uppercase italic mb-4">Novo Chamado Técnico</h2>
+                <button onClick={() => setModalChamadoAberto(true)} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase italic tracking-widest shadow-lg hover:bg-blue-700 transition-all">
+                  Abrir Formulário Padrão
+                </button>
+              </div>
+            ) : (
+              <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl">
+                <h3 className="text-xl font-black italic uppercase text-slate-800 mb-6 flex items-center gap-3">
+                  <UserPlus className="text-orange-500"/> Remanejamento
+                </h3>
+                <form onSubmit={handleRemanejar} className="space-y-4">
+                  <input required value={formDataRemanejo.tecnicoId} onChange={(e) => setFormDataRemanejo({...formDataRemanejo, tecnicoId: e.target.value})} className="w-full bg-slate-50 p-4 rounded-xl border-none font-bold outline-none" placeholder="Nome do Técnico" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <input required value={formDataRemanejo.deSetor} onChange={(e) => setFormDataRemanejo({...formDataRemanejo, deSetor: e.target.value})} className="bg-slate-50 p-4 rounded-xl border-none font-bold outline-none" placeholder="Origem" />
+                    <input required value={formDataRemanejo.paraSetor} onChange={(e) => setFormDataRemanejo({...formDataRemanejo, paraSetor: e.target.value})} className="bg-slate-50 p-4 rounded-xl border-none font-bold outline-none" placeholder="Destino" />
+                  </div>
+                  <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-xl font-black uppercase italic text-xs tracking-widest hover:bg-orange-600 transition-all">
+                    Efetivar Troca
+                  </button>
+                </form>
+              </div>
+            )}
+          </section>
+
+          {/* COLUNA DA DIREITA: LISTA PARA USAR O MODAL DETALHES */}
+          <section className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl">
+            <h3 className="text-xs font-black uppercase text-slate-400 tracking-[0.3em] mb-6 flex items-center gap-2">
+              <Eye size={14}/> Atividades Recentes
+            </h3>
+            <div className="space-y-4">
+              {atividades.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all group">
+                  <div>
+                    <p className="text-[10px] font-black text-blue-600 uppercase">#{item.numeroOs || "S/N"}</p>
+                    <p className="text-sm font-bold text-slate-700 truncate max-w-[200px]">{item.assunto || item.tipo}</p>
+                  </div>
+                  <button 
+                    onClick={() => setChamadoSelecionado(item)}
+                    className="p-3 bg-white text-slate-400 rounded-xl group-hover:text-blue-600 shadow-sm transition-all"
+                  >
+                    <Eye size={18} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* MODAIS INTEGRADOS */}
+        <CadastroChamado 
+          isOpen={modalChamadoAberto} 
+          onClose={() => setModalChamadoAberto(false)} 
+        />
+
+        <ModalDetalhes 
+          chamado={chamadoSelecionado} 
+          aoFechar={() => setChamadoSelecionado(null)} 
+          calcularSLA={calcularSLA}
+        />
+      </main>
     </div>
   );
-};
-
-const Detail = ({ label, value, className = "", color = "text-slate-700" }) => (
-  <div className={`flex flex-col ${className}`}>
-    <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mb-1">
-      {label}
-    </span>
-    <div className={`text-[12px] font-bold ${color}`}>{value || "---"}</div>
-  </div>
-);
-
-export default ModalDetalhes;
+}
