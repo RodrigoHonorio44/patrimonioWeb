@@ -27,6 +27,8 @@ import CadastroChamado from "./components/CadastroChamado";
 import GestaoChefia from "./pages/GestaoeChefia";
 import PainelGestao from "./pages/PainelGestao";
 import FormRemanejamento from "./components/FormRemanejamento";
+// ADICIONADA A IMPORTAÇÃO DA PÁGINA (Ajuste o caminho se necessário)
+import ConsultaPatrimonio from "./pages/ConsultaPatrimonio"; 
 
 function App() {
   const [user, setUser] = useState(null);
@@ -135,7 +137,14 @@ function App() {
   );
   const isUsuarioComum = useMemo(() => role === "usuario", [role]);
 
+  // Retorna true se o usuário logado precisa atualizar a credencial provisória
+  const precisaTrocarSenha = useMemo(
+    () => user && userData?.requiresPasswordChange === true,
+    [user, userData]
+  );
+
   const getHomePath = () => {
+    if (precisaTrocarSenha) return "/trocar-senha";
     if (isTiOrAdmin) return "/dashboard";
     if (isGestao) return "/gestao-chefia";
     return "/home";
@@ -143,6 +152,7 @@ function App() {
 
   const ProtectedRoute = ({ children, condition }) => {
     if (loading) return null;
+    if (precisaTrocarSenha) return <Navigate to="/trocar-senha" replace />;
     return condition ? children : <Navigate to={getHomePath()} replace />;
   };
 
@@ -182,131 +192,144 @@ function App() {
               />
 
               {user ? (
-                <Route element={<GuardiaoSessao />}>
-                  <Route
-                    path="/"
-                    element={<Navigate to={getHomePath()} replace />}
-                  />
+                precisaTrocarSenha ? (
+                  <>
+                    <Route path="/trocar-senha" element={<TrocarSenha />} />
+                    <Route path="*" element={<Navigate to="/trocar-senha" replace />} />
+                  </>
+                ) : (
+                  <Route element={<GuardiaoSessao />}>
+                    <Route
+                      path="/"
+                      element={<Navigate to={getHomePath()} replace />}
+                    />
 
-                  {/* --- TI / ADMIN --- */}
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute condition={isTiOrAdmin}>
-                        <Dashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/painel-analista"
-                    element={
-                      <ProtectedRoute condition={isTiOrAdmin}>
-                        <PainelAnalista />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/cadastro-equipamento"
-                    element={
-                      <ProtectedRoute condition={isTiOrAdmin}>
-                        <CadastroEquipamento />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/estoque"
-                    element={
-                      <ProtectedRoute condition={isTiOrAdmin}>
-                        <Estoque />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/inventario"
-                    element={
-                      <ProtectedRoute condition={isTiOrAdmin}>
-                        <Inventario />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/transferencia"
-                    element={
-                      <ProtectedRoute condition={isTiOrAdmin}>
-                        <Transferencia />
-                      </ProtectedRoute>
-                    }
-                  />
+                    {/* --- TI / ADMIN --- */}
+                    <Route
+                      path="/dashboard"
+                      element={
+                        <ProtectedRoute condition={isTiOrAdmin}>
+                          <Dashboard />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/painel-analista"
+                      element={
+                        <ProtectedRoute condition={isTiOrAdmin}>
+                          <PainelAnalista />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/cadastro-equipamento"
+                      element={
+                        <ProtectedRoute condition={isTiOrAdmin}>
+                          <CadastroEquipamento />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/estoque"
+                      element={
+                        <ProtectedRoute condition={isTiOrAdmin}>
+                          <Estoque />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/inventario"
+                      element={
+                        <ProtectedRoute condition={isTiOrAdmin}>
+                          <Inventario />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/transferencia"
+                      element={
+                        <ProtectedRoute condition={isTiOrAdmin}>
+                          <Transferencia />
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  {/* --- GESTÃO COM ROTAS ANINHADAS --- */}
-                  <Route
-                    path="/gestao-chefia"
-                    element={
-                      <ProtectedRoute condition={isGestao || role === "root"}>
-                        <GestaoChefia />
-                      </ProtectedRoute>
-                    }
-                  >
-                    <Route index element={<PainelGestao />} />
-                    <Route path="painel-gestao" element={<PainelGestao />} />
+                    {/* --- GESTÃO COM ROTAS ANINHADAS --- */}
+                    <Route
+                      path="/gestao-chefia"
+                      element={
+                        <ProtectedRoute condition={isGestao || role === "root"}>
+                          <GestaoChefia />
+                        </ProtectedRoute>
+                      }
+                    >
+                      <Route index element={<PainelGestao />} />
+                      <Route path="painel-gestao" element={<PainelGestao />} />
+                    </Route>
+
+                    {/* --- COMUNS / COMPARTILHADAS --- */}
+                    <Route
+                      path="/home"
+                      element={
+                        <ProtectedRoute condition={isUsuarioComum}>
+                          <Home />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/bi"
+                      element={
+                        <ProtectedRoute condition={temAcesso("dashboard_bi")}>
+                          <DashboardBI />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/remanejamento"
+                      element={
+                        <ProtectedRoute
+                          condition={isTiOrAdmin || temAcesso("remanejamento")}
+                        >
+                          <FormRemanejamento />
+                        </ProtectedRoute>
+                      }
+                    />
+                    {/* ADICIONADA A ROTA DA PÁGINA DE CONSULTA DE PATRIMÔNIO */}
+                    <Route
+                      path="/consulta-patrimonio"
+                      element={<ConsultaPatrimonio />}
+                    />
+                    
+                    <Route
+                      path="/usuarios"
+                      element={
+                        <ProtectedRoute
+                          condition={role === "admin" || role === "root"}
+                        >
+                          <Usuarios />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin/licencas"
+                      element={
+                        <ProtectedRoute condition={role === "root"}>
+                          <AdminLicencas />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route path="/trocar-senha" element={<TrocarSenha />} />
+                    <Route
+                      path="/cadastro-chamado"
+                      element={<CadastroChamado />}
+                    />
+
+                    <Route
+                      path="*"
+                      element={<Navigate to={getHomePath()} replace />}
+                    />
                   </Route>
-
-                  {/* --- COMUNS --- */}
-                  <Route
-                    path="/home"
-                    element={
-                      <ProtectedRoute condition={isUsuarioComum}>
-                        <Home />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/bi"
-                    element={
-                      <ProtectedRoute condition={temAcesso("dashboard_bi")}>
-                        <DashboardBI />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/remanejamento"
-                    element={
-                      <ProtectedRoute
-                        condition={isTiOrAdmin || temAcesso("remanejamento")}
-                      >
-                        <FormRemanejamento />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/usuarios"
-                    element={
-                      <ProtectedRoute
-                        condition={role === "admin" || role === "root"}
-                      >
-                        <Usuarios />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/admin/licencas"
-                    element={
-                      <ProtectedRoute condition={role === "root"}>
-                        <AdminLicencas />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="/trocar-senha" element={<TrocarSenha />} />
-                  <Route
-                    path="/cadastro-chamado"
-                    element={<CadastroChamado />}
-                  />
-
-                  <Route
-                    path="*"
-                    element={<Navigate to={getHomePath()} replace />}
-                  />
-                </Route>
+                )
               ) : (
                 <Route path="*" element={<Navigate to="/login" replace />} />
               )}

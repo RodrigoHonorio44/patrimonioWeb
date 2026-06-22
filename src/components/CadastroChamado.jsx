@@ -10,6 +10,7 @@ import {
   FileText,
   BarChart,
   CheckCircle2,
+  Users,
 } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
@@ -22,6 +23,7 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
   const [protocoloGerado, setProtocoloGerado] = useState("");
 
   const [unidade, setUnidade] = useState("");
+  const [equipe, setEquipe] = useState("");
   const [equipamento, setEquipamento] = useState("");
   const [patrimonio, setPatrimonio] = useState("");
   const [setor, setSetor] = useState("");
@@ -29,15 +31,14 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
   const [prioridade, setPrioridade] = useState("média");
   const [naoSeiPatrimonio, setNaoSeiPatrimonio] = useState(false);
 
-  // Se for modal e estiver explicitamente fechado, não renderiza
   if (onClose && !isOpen) return null;
 
   const handleFechar = () => {
     setSucesso(false);
     if (onClose) {
-      onClose(); // Fecha o modal (Home/Gestão)
+      onClose();
     } else {
-      navigate(-1); // Volta a rota (Dashboard)
+      navigate(-1);
     }
   };
 
@@ -49,7 +50,7 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
 
   const handleNovoChamado = async (e) => {
     e.preventDefault();
-    if (!unidade) return;
+    if (!unidade || !equipe) return;
     setLoading(true);
 
     const novaOs = `${new Date().getFullYear()}-${Math.floor(
@@ -58,6 +59,7 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
 
     try {
       await addDoc(collection(db, "chamados"), {
+        equipe,
         equipamento,
         patrimonio,
         setor,
@@ -84,7 +86,6 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
     }
   };
 
-  // Mantém o fundo escuro e centralização independente de ser rota ou modal
   const containerStyle =
     "fixed inset-0 z-[999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-md transition-all";
 
@@ -150,11 +151,38 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
                 </div>
               </div>
 
+              {/* EQUIPE DESTINO */}
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-1 block">
+                  Equipe Responsável
+                </label>
+                <div className="relative">
+                  <Users
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={18}
+                  />
+                  <select
+                    required
+                    value={equipe}
+                    onChange={(e) => setEquipe(e.target.value)}
+                    className="w-full p-4 pl-12 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none focus:bg-white focus:border-blue-600 appearance-none text-sm font-bold text-slate-700 transition-all cursor-pointer"
+                  >
+                    <option value="">Para qual equipe é o chamado?</option>
+                    <option value="refrigeracao">Refrigeração</option>
+                    <option value="Patrimonio">Patrimônio</option>
+                    <option value="ti computadores impressoras">TI Computadores e Impressoras</option>
+                    <option value="ti sistema e redes">TI Sistema e Redes</option>
+                    <option value="manutencao predial">Manutenção Predial</option>
+                    <option value="engenharia clinica">Engenharia Clínica</option>
+                  </select>
+                </div>
+              </div>
+
               {/* GRID: EQUIPAMENTO E PATRIMÔNIO */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="relative">
+                <div className="relative flex flex-col justify-end">
                   <Monitor
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    className="absolute left-4 bottom-5 text-slate-400"
                     size={16}
                   />
                   <input
@@ -186,6 +214,7 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
                     />
                     <input
                       required
+                      dynamic-input="true"
                       readOnly={naoSeiPatrimonio}
                       value={patrimonio}
                       onChange={(e) => setPatrimonio(e.target.value)}

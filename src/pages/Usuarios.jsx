@@ -69,6 +69,7 @@ export default function Usuarios() {
     unidade: "",
     cargoH: "",
     matricula: "",
+    equipe: "",
     prazoLicenca: "30",
   });
 
@@ -79,6 +80,7 @@ export default function Usuarios() {
     inventario: "Inventário",
     kb: "Base de Conhecimento",
     monitoramento: "Monitoramento",
+    remanejamento: "Remanejamento",
   };
 
   useEffect(() => {
@@ -161,19 +163,40 @@ export default function Usuarios() {
       const cargoHospitalarFinal =
         tipo === "analista" ? "ANALISTA TI" : novoUser.cargoH || "USUÁRIO";
 
-      await setDoc(doc(db, "usuarios", user.uid), {
+      // Estrutura básica salva para todos
+      const payloadUsuario = {
         uid: user.uid,
-        nome: novoUser.nome,
+        nome: novoUser.nome.toLowerCase().trim(),
         email: novoUser.email.toLowerCase().trim(),
         role: roleFinal,
-        cargoHospitalar: cargoHospitalarFinal.toUpperCase(),
+        cargoHospitalar: cargoHospitalarFinal,
         unidade: tipo === "analista" ? "TI" : novoUser.unidade,
+        matricula: novoUser.matricula ? novoUser.matricula.toLowerCase().trim() : "",
         statusLicenca: "ativa",
         validadeLicenca: Timestamp.fromDate(dataVencimento),
         status: "Ativo",
-        requiresPasswordChange: true,
+        requiresPasswordChange: false,
         createdAt: Timestamp.now(),
-      });
+        ultimaTrocaSenha: Timestamp.now(),
+        historicoSenhas: [],
+        currentSessionId: "",
+      };
+
+      // Adiciona o campo equipe apenas se for analista (conforme seu estado de dados)
+      if (tipo === "analista") {
+        payloadUsuario.equipe = novoUser.equipe ? novoUser.equipe.toLowerCase().trim() : "";
+        payloadUsuario.permissoesExtras = {
+          chamados: true,
+          remanejamento: true,
+        };
+      } else {
+        payloadUsuario.permissoesExtras = {
+          chamados: false,
+          remanejamento: false,
+        };
+      }
+
+      await setDoc(doc(db, "usuarios", user.uid), payloadUsuario);
 
       await signOut(secondaryAuth);
       toast.success(`Usuário cadastrado!`);
@@ -185,6 +208,7 @@ export default function Usuarios() {
         unidade: "",
         cargoH: "",
         matricula: "",
+        equipe: "",
         prazoLicenca: "30",
       });
     } catch (err) {
@@ -380,7 +404,6 @@ export default function Usuarios() {
                               label="ADMIN"
                               onClick={() => alterarNivel(u, "admin")}
                             />
-                            {/* BOTÃO COORDENADOR ADICIONADO ABAIXO */}
                             <LevelButton
                               icon={FiArrowUp}
                               color="bg-orange-500"

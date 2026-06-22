@@ -91,7 +91,7 @@ const PainelAnalista = () => {
     setPaginaAtual(1);
   };
 
-  const limparBusca = () => {
+  const limpiarBusca = () => {
     setInputValue("");
     setTermoBusca("");
     setPaginaAtual(1);
@@ -179,8 +179,8 @@ const PainelAnalista = () => {
     try {
       await updateDoc(doc(db, "chamados", chamadoSelecionado.id), {
         status: "fechado",
-        feedbackAnalista: parecerTecnico,
-        patrimonio: patrimonio.toUpperCase().trim(),
+        feedbackAnalista: parecerTecnico.trim().toLowerCase(),
+        patrimonio: patrimonio.trim().toLowerCase(),
         finalizadoEm: serverTimestamp(),
       });
       setMostrarModalFinalizar(false);
@@ -198,8 +198,8 @@ const PainelAnalista = () => {
     try {
       await updateDoc(doc(db, "chamados", chamadoSelecionado.id), {
         status: "pendente",
-        motivoPausa,
-        detalhePausa,
+        motivoPausa: motivoPausa.toLowerCase(),
+        detalhePausa: detalhePausa.trim().toLowerCase(),
         pausadoEm: serverTimestamp(),
       });
       setMostrarModalPausar(false);
@@ -272,18 +272,32 @@ const PainelAnalista = () => {
     }
   };
 
+  {/* FILTRO DE SEGURANÇA POR EQUIPE EXECUTADO NO USEMEMO */}
   const chamadosFiltrados = useMemo(() => {
     const busca = termoBusca.toLowerCase().trim();
+    const isAdminOuRoot = ["root", "admin"].includes(userData?.role?.toLowerCase());
+    const equipeUsuario = userData?.equipe?.toLowerCase().trim();
+
     return chamados.filter((c) => {
+      // 1. Regra de Nível de Acesso (Se não for Admin/Root, só vê a própria equipe)
+      if (!isAdminOuRoot) {
+        const equipeChamado = c.equipe?.toLowerCase().trim();
+        if (!equipeUsuario || equipeChamado !== equipeUsuario) {
+          return false;
+        }
+      }
+
+      // 2. Regra de Busca Textual
       const matchesBusca =
         c.numeroOs?.toString().includes(busca) ||
         c.nome?.toLowerCase().includes(busca) ||
         c.unidade?.toLowerCase().includes(busca) ||
-        c.patrimonio?.toLowerCase().includes(busca);
+        c.patrimonio?.toLowerCase().includes(busca) ||
+        c.equipe?.toLowerCase().includes(busca);
 
       return busca ? matchesBusca : c.status?.toLowerCase() !== "arquivado";
     });
-  }, [chamados, termoBusca]);
+  }, [chamados, termoBusca, userData]);
 
   const totalPaginas =
     Math.ceil(chamadosFiltrados.length / itensPorPagina) || 1;
@@ -364,6 +378,10 @@ const PainelAnalista = () => {
                   <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     Detalhes
                   </th>
+                  {/* INCLUSÃO DA COLUNA EQUIPE NO CABEÇALHO */}
+                  <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                    Equipe
+                  </th>
                   <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
                     Prioridade
                   </th>
@@ -379,7 +397,7 @@ const PainelAnalista = () => {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan="5"
+                      colSpan="6"
                       className="p-10 text-center text-slate-400 font-bold uppercase animate-pulse"
                     >
                       Carregando chamados...
@@ -393,7 +411,7 @@ const PainelAnalista = () => {
 
                     const isDono = item.tecnicoId === user.uid;
                     const isAdminOuRoot = ["root", "admin"].includes(
-                      userData?.role
+                      userData?.role?.toLowerCase()
                     );
                     const isOcupado =
                       (status === "em atendimento" || status === "pendente") &&
@@ -453,6 +471,12 @@ const PainelAnalista = () => {
                               {item.setor || item.setorOrigem}
                             </span>
                           </div>
+                        </td>
+                        {/* EXIBIÇÃO DO CAMPO EQUIPE NA LINHA DA TABELA */}
+                        <td className="p-5 text-center">
+                          <span className="text-xs font-bold uppercase text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                            {item.equipe || "Não Definida"}
+                          </span>
                         </td>
                         <td className="p-5 text-center">
                           <div
@@ -663,10 +687,11 @@ const PainelAnalista = () => {
                 </label>
                 <input
                   required
+                  type="text"
                   value={patrimonio}
                   onChange={(e) => setPatrimonio(e.target.value)}
                   className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Ex: PAT-12345"
+                  placeholder="Ex: pat-12345"
                 />
               </div>
               <div>

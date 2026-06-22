@@ -7,14 +7,17 @@ import Footer from "../components/Footer";
 import { LayoutGrid } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
 export default function Home() {
+  const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
   const [remanejamentoOpen, setRemanejamentoOpen] = useState(false);
   const [nomeUsuario, setNomeUsuario] = useState("Usuário");
+  const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    const buscarNomeUsuario = async () => {
+    const verificarUsuario = async () => {
       const user = auth.currentUser;
       if (user) {
         try {
@@ -23,6 +26,13 @@ export default function Home() {
 
           if (docSnap.exists()) {
             const data = docSnap.data();
+
+            // Intercepta e manda para a troca de senha se a flag for true
+            if (data.requiresPasswordChange === true) {
+              navigate("/trocar-senha");
+              return; // Para a execução aqui para não renderizar o resto
+            }
+
             setNomeUsuario(
               data.nome || data.name || user.displayName || "Usuário"
             );
@@ -30,13 +40,26 @@ export default function Home() {
             setNomeUsuario(user.displayName);
           }
         } catch (error) {
-          console.error("Erro ao buscar nome:", error);
+          console.error("Erro ao buscar dados do usuário:", error);
+        } finally {
+          setCarregando(false);
         }
+      } else {
+        setCarregando(false);
       }
     };
 
-    buscarNomeUsuario();
-  }, []);
+    verificarUsuario();
+  }, [navigate]);
+
+  // Enquanto valida se precisa trocar de senha, exibe uma tela limpa ou de loading
+  if (carregando) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
@@ -72,7 +95,7 @@ export default function Home() {
           onClose={() => setModalOpen(false)}
         />
 
-        {/* Modal de Remanejamento - CORRIGIDO PARA onClose */}
+        {/* Modal de Remanejamento */}
         {remanejamentoOpen && (
           <FormRemanejamento onClose={() => setRemanejamentoOpen(false)} />
         )}

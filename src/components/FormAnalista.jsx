@@ -1,10 +1,10 @@
 import React from "react";
-import { Calendar, ShieldCheck, AlertCircle, User } from "lucide-react";
+import { Calendar, ShieldCheck, AlertCircle } from "lucide-react";
 
-const FormAnalista = ({ dados, setDados, onSubmit, loading, requisitos }) => {
+const FormAnalista = ({ dados, setDados, onSubmit, loading }) => {
   // Validações em tempo real para os avisos
-  const temSobrenome = dados.nome.trim().split(" ").length >= 2;
-  const senhaValida = dados.senha.length >= 6;
+  const temSobrenome = dados.nome?.trim().split(" ").length >= 2;
+  const senhaValida = dados.senha?.length >= 6;
 
   return (
     <div className="bg-white p-8 rounded-4xl shadow-xl border-2 border-blue-500 mb-8 animate-in fade-in zoom-in duration-300">
@@ -35,6 +35,7 @@ const FormAnalista = ({ dados, setDados, onSubmit, loading, requisitos }) => {
           <input
             type="text"
             name="nome_analista"
+            dynamic-input="true"
             autoComplete="new-password"
             placeholder="Ex: João Silva"
             required
@@ -43,13 +44,12 @@ const FormAnalista = ({ dados, setDados, onSubmit, loading, requisitos }) => {
                 ? "bg-amber-50 ring-2 ring-amber-400"
                 : "bg-slate-50 focus:ring-2 ring-blue-500"
             }`}
-            value={dados.nome}
-            onChange={(e) => setDados({ ...dados, nome: e.target.value })}
+            value={dados.nome || ""}
+            onChange={(e) => setDados({ ...dados, nome: e.target.value.toLowerCase() })}
           />
           {dados.nome && !temSobrenome && (
             <span className="text-[9px] text-amber-600 font-bold flex items-center gap-1 ml-2 mt-1">
-              <AlertCircle size={10} /> Digite o nome completo (Nome e
-              Sobrenome)
+              <AlertCircle size={10} /> Digite o nome completo (Nome e Sobrenome)
             </span>
           )}
         </div>
@@ -66,9 +66,30 @@ const FormAnalista = ({ dados, setDados, onSubmit, loading, requisitos }) => {
             placeholder="analista@email.com"
             required
             className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 transition-all font-bold"
-            value={dados.email}
-            onChange={(e) => setDados({ ...dados, email: e.target.value })}
+            value={dados.email || ""}
+            onChange={(e) => setDados({ ...dados, email: e.target.value.toLowerCase() })}
           />
+        </div>
+
+        {/* EQUIPE / SETOR */}
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+            Equipe / Setor
+          </label>
+          <select
+            required
+            className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 transition-all font-bold text-sm text-slate-700 cursor-pointer"
+            value={dados.equipe || ""}
+            onChange={(e) => setDados({ ...dados, equipe: e.target.value })}
+          >
+            <option value="" disabled hidden>Selecione a equipe</option>
+            <option value="manutencao predial">Manutenção Predial</option>
+            <option value="engenharia clinica">Engenharia Clínica</option>
+            <option value="patrimonio">Patrimônio</option>
+            <option value="ti malta">Ti Malta</option>
+            <option value="sistema e redes">Sistema e Redes</option>
+            <option value="refrigeracao">Refrigeração</option>
+          </select>
         </div>
 
         {/* MATRÍCULA */}
@@ -79,14 +100,15 @@ const FormAnalista = ({ dados, setDados, onSubmit, loading, requisitos }) => {
           <input
             type="text"
             placeholder="000000"
+            dynamic-input="true"
             className="p-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 transition-all font-bold"
-            value={dados.matricula}
-            onChange={(e) => setDados({ ...dados, matricula: e.target.value })}
+            value={dados.matricula || ""}
+            onChange={(e) => setDados({ ...dados, matricula: e.target.value.toLowerCase() })}
           />
         </div>
 
         {/* SENHA PROVISÓRIA COM AVISO DE TAMANHO */}
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 md:col-span-2 lg:col-span-4">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
             Senha Provisória
           </label>
@@ -101,7 +123,7 @@ const FormAnalista = ({ dados, setDados, onSubmit, loading, requisitos }) => {
                 ? "bg-red-50 ring-2 ring-red-400"
                 : "bg-slate-50 focus:ring-2 ring-blue-500"
             }`}
-            value={dados.senha}
+            value={dados.senha || ""}
             onChange={(e) => setDados({ ...dados, senha: e.target.value })}
           />
           {dados.senha && !senhaValida && (
@@ -154,8 +176,7 @@ const FormAnalista = ({ dados, setDados, onSubmit, loading, requisitos }) => {
 
         <button
           type="submit"
-          // O botão agora habilita se houver texto nos campos, permitindo que o Firebase/Submit valide
-          disabled={loading || !dados.nome || !dados.email || !dados.senha}
+          disabled={loading || !dados.nome || !dados.email || !dados.senha || !dados.equipe}
           className="md:col-span-2 lg:col-span-4 bg-blue-600 text-white font-black py-5 rounded-2xl uppercase text-xs tracking-[0.2em] disabled:opacity-50 shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all transform active:scale-95 cursor-pointer flex items-center justify-center gap-2"
         >
           {loading

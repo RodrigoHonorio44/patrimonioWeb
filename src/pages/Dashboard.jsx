@@ -12,6 +12,7 @@ import {
   Repeat, // Ícone usado para Remanejamento
   Search,
   Package,
+  Truck, // ADICIONADO: Ícone para Saída/Transferência
   Users,
   MessageSquarePlus,
   ChevronRight,
@@ -19,6 +20,7 @@ import {
   Key,
   PieChart,
   User,
+  Layers3, // ADICIONADO: Ícone para a Consulta Avançada de Itens
 } from "lucide-react";
 import { auth, db } from "../api/Firebase";
 import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
@@ -212,8 +214,6 @@ export default function Dashboard() {
                   label="Fila de Trabalho"
                   path="/painel-analista"
                 />
-
-                {/* INCLUSÃO DO MÓDULO DE REMANEJAMENTO */}
                 <NavButton
                   icon={Repeat}
                   label="Remanejamento"
@@ -242,10 +242,23 @@ export default function Dashboard() {
                   label="Inventário"
                   path="/inventario"
                 />
+                {/* ADICIONADO: Novo botão de Consulta Avançada de Itens */}
+                <NavButton
+                  icon={Layers3}
+                  label="Consulta de Itens"
+                  path="/consulta-patrimonio" 
+                  moduloId="inventario"
+                />
                 <NavButton
                   icon={Package}
                   label="Sala do Patrimônio"
                   path="/estoque"
+                />
+                <NavButton
+                  icon={Truck}
+                  label="Saída/Transferência"
+                  path="/transferencia"
+                  moduloId="inventario" 
                 />
               </div>
             </div>
@@ -350,8 +363,6 @@ export default function Dashboard() {
                   variant="light"
                 />
               )}
-
-              {/* CARD DE AÇÃO RÁPIDA PARA REMANEJAMENTO NO CORPO DO DASHBOARD */}
               {temAcesso("remanejamento") && (
                 <QuickActionCard
                   title="Remanejamento"
