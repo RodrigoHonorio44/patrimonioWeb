@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./index.css"; 
 // Importamos o AuthProvider que você configurou no arquivo Firebase
-import { AuthProvider } from "./api/Firebase"; 
+import { AuthProvider } from "./services/firebase";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
