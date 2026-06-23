@@ -1,6 +1,6 @@
 import React from "react";
 import { LogOut, MessageCircle, ShieldAlert } from "lucide-react";
-import { auth } from "../api/firebase";
+import { auth } from "../services/firebase";
 import { signOut } from "firebase/auth";
 
 export default function MensagemBloqueio() {

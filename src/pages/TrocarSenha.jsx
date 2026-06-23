@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { auth, db } from "../api/firebase";
+import { auth, db } from "../services/firebase";
 import {
   updatePassword,
   reauthenticateWithCredential,

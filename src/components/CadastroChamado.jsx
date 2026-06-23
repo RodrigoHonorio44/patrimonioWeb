@@ -12,7 +12,7 @@ import {
   CheckCircle2,
   Users,
 } from "lucide-react";
-import { auth, db } from "../api/firebase";
+import { auth, db } from "../services/firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 

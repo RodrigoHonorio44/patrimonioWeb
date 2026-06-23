@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { db, auth } from "../api/firebase";
+import { db, auth } from "../services/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import {
   FiEye,

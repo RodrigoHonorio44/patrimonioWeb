@@ -5,7 +5,7 @@ import FormRemanejamento from "../components/FormRemanejamento";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { LayoutGrid } from "lucide-react";
-import { auth, db } from "../api/firebase";
+import { auth, db } from "../services/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 

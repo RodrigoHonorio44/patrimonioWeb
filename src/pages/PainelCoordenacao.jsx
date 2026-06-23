@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Stethoscope, Lock, User, Loader2, AlertCircle } from "lucide-react";
-import { auth, db } from "../api/firebase";
+import { auth, db } from "../services/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
