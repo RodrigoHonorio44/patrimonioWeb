@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
 // Corrigido para minúsculo para evitar erro de case-sensitivity
-import { auth, db } from "./api/firebase"; 
+import { auth, db } from "./api/Firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { ToastContainer, toast } from "react-toastify";
