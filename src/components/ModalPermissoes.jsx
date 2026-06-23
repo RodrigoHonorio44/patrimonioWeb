@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { db } from "../api/Firebase";
+import { db } from "../api/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { X, ShieldCheck, ShieldAlert, Save } from "lucide-react";
 import { toast } from "react-toastify";

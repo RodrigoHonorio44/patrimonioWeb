@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { auth } from "../api/Firebase";
+import { auth } from "../api/firebase";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { toast } from "react-toastify";
 

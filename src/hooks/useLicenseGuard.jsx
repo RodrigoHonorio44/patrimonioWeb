@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db, auth } from "../api/Firebase";
+import { db, auth } from "../api/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 
 export const useLicenseGuard = () => {

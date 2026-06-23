@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "../api/Firebase";
+import { db } from "../api/firebase";
 import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, 

@@ -1,6 +1,6 @@
 import React from "react";
 import { Clock, RefreshCw, MessageCircle, LogOut } from "lucide-react";
-import { auth } from "../api/Firebase";
+import { auth } from "../api/firebase";
 import { useNavigate } from "react-router-dom";
 
 export default function LicencaExpirada() {
