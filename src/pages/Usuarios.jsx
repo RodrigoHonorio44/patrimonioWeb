@@ -119,13 +119,28 @@ export default function Usuarios() {
     }
   };
 
+  // Função Unificada e Corrigida recebendo o objeto do usuário completo (u)
   const alterarNivel = async (userAlvo, novoRole) => {
     if (userAlvo.role === "root" && !isOperadorRoot) {
       return toast.error("Apenas um ROOT pode alterar outro ROOT.");
     }
     try {
-      await updateDoc(doc(db, "usuarios", userAlvo.id), { role: novoRole });
-      toast.success(`Nível alterado para ${novoRole.toUpperCase()}`);
+      const cargoLabel =
+        novoRole === "admin"
+          ? "ADMINISTRADOR"
+          : novoRole === "coordenador"
+          ? "COORDENADOR"
+          : novoRole === "analista"
+          ? "ANALISTA TI"
+          : novoRole === "chefia"
+          ? "CHEFIA"
+          : "USUÁRIO";
+
+      await updateDoc(doc(db, "usuarios", userAlvo.id), { 
+        role: novoRole,
+        cargoHospitalar: cargoLabel
+      });
+      toast.success(`Nível alterado para ${cargoLabel}`);
     } catch (err) {
       toast.error("Erro ao atualizar nível.");
     }
@@ -163,7 +178,6 @@ export default function Usuarios() {
       const cargoHospitalarFinal =
         tipo === "analista" ? "ANALISTA TI" : novoUser.cargoH || "USUÁRIO";
 
-      // Estrutura básica salva para todos
       const payloadUsuario = {
         uid: user.uid,
         nome: novoUser.nome.toLowerCase().trim(),
@@ -182,7 +196,6 @@ export default function Usuarios() {
         currentSessionId: "",
       };
 
-      // Adiciona o campo equipe apenas se for analista (conforme seu estado de dados)
       if (tipo === "analista") {
         payloadUsuario.equipe = novoUser.equipe ? novoUser.equipe.toLowerCase().trim() : "";
         payloadUsuario.permissoesExtras = {
@@ -357,10 +370,14 @@ export default function Usuarios() {
                       </td>
                       <td className="p-8">
                         <span
-                          className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                            isTargetRoot
-                              ? "bg-purple-600 text-white"
-                              : "bg-blue-50 text-blue-600 border border-blue-100"
+                          className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
+                            r === "root" || r === "admin"
+                              ? "bg-purple-100 text-purple-600"
+                              : r === "coordenador"
+                              ? "bg-orange-100 text-orange-600"
+                              : r === "analista"
+                              ? "bg-blue-100 text-blue-600"
+                              : "bg-slate-100 text-slate-500"
                           }`}
                         >
                           {u.role || "USUÁRIO"}
@@ -431,6 +448,7 @@ export default function Usuarios() {
                             <button
                               onClick={() => handleResetPassword(u.email)}
                               className="p-3 text-slate-300 hover:text-blue-600 cursor-pointer"
+                              title="Resetar Senha por E-mail"
                             >
                               <FiMail size={18} />
                             </button>
@@ -444,6 +462,7 @@ export default function Usuarios() {
                                 })
                               }
                               className="p-3 text-slate-300 hover:text-red-600 cursor-pointer"
+                              title="Remover Usuário"
                             >
                               <FiTrash2 size={18} />
                             </button>

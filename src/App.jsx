@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
-import { auth, db } from "./api/Firebase";
+// Corrigido para minúsculo para evitar erro de case-sensitivity
+import { auth, db } from "./api/firebase"; 
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { ToastContainer, toast } from "react-toastify";
@@ -11,6 +12,8 @@ import GuardiaoSessao from "./components/GuardiaoSessao";
 import { useLicenseGuard } from "./hooks/useLicenseGuard";
 import LicencaExpirada from "./pages/LicencaExpirada";
 import MensagemBloqueio from "./pages/MensagemBloqueio";
+
+// Importação das Páginas
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import DashboardBI from "./pages/DashboardBI";
@@ -23,12 +26,15 @@ import Estoque from "./pages/Estoque";
 import Usuarios from "./pages/Usuarios";
 import TrocarSenha from "./pages/TrocarSenha";
 import AdminLicencas from "./pages/AdminLicencas";
+import PainelCoordenacao from "./pages/PainelCoordenacao";
+
+// Importando componentes
 import CadastroChamado from "./components/CadastroChamado";
 import GestaoChefia from "./pages/GestaoeChefia";
 import PainelGestao from "./pages/PainelGestao";
 import FormRemanejamento from "./components/FormRemanejamento";
-// ADICIONADA A IMPORTAÇÃO DA PÁGINA (Ajuste o caminho se necessário)
 import ConsultaPatrimonio from "./pages/ConsultaPatrimonio"; 
+import SaidaEquipamento from "./pages/SaidaEquipamento"; 
 
 function App() {
   const [user, setUser] = useState(null);
@@ -177,7 +183,7 @@ function App() {
               <Route path="/bloqueado" element={<MensagemBloqueio />} />
               <Route path="*" element={<Navigate to="/bloqueado" replace />} />
             </>
-          ) : !isLicenseValid ? (
+          ) : !isLicenseValid && !["admin", "root"].includes(role) ? (
             <>
               <Route path="/expirado" element={<LicencaExpirada />} />
               <Route path="*" element={<Navigate to="/expirado" replace />} />
@@ -253,6 +259,24 @@ function App() {
                         </ProtectedRoute>
                       }
                     />
+                    <Route
+                      path="/saida-equipamento"
+                      element={
+                        <ProtectedRoute condition={isTiOrAdmin}>
+                          <SaidaEquipamento />
+                        </ProtectedRoute>
+                      }
+                    />
+
+                    {/* --- PAINEL DE COORDENAÇÃO --- */}
+                    <Route
+                      path="/coordenacao"
+                      element={
+                        <ProtectedRoute condition={role === "coordenador" || role === "admin" || role === "root"}>
+                          <PainelCoordenacao />
+                        </ProtectedRoute>
+                      }
+                    />
 
                     {/* --- GESTÃO COM ROTAS ANINHADAS --- */}
                     <Route
@@ -294,10 +318,15 @@ function App() {
                         </ProtectedRoute>
                       }
                     />
-                    {/* ADICIONADA A ROTA DA PÁGINA DE CONSULTA DE PATRIMÔNIO */}
+                    
+                    {/* CONSULTA DE PATRIMÔNIO */}
                     <Route
                       path="/consulta-patrimonio"
-                      element={<ConsultaPatrimonio />}
+                      element={
+                        <ProtectedRoute condition={isTiOrAdmin || temAcesso("inventario")}>
+                          <ConsultaPatrimonio />
+                        </ProtectedRoute>
+                      }
                     />
                     
                     <Route

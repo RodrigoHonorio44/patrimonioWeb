@@ -21,10 +21,10 @@ import {
   Users,
   Infinity,
   Clock,
-  Settings, // Adicionado para o botão de módulos
+  Settings,
 } from "lucide-react";
 import { toast } from "react-toastify";
-import ModalPermissoes from "../components/ModalPermissoes"; // Importação do Modal
+import ModalPermissoes from "../components/ModalPermissoes";
 
 export default function AdminLicencas() {
   const navigate = useNavigate();
@@ -35,8 +35,8 @@ export default function AdminLicencas() {
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("");
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const [userPermissao, setUserPermissao] = useState(null); // Estado para abrir o modal
-  const clientesPorPagina = 6;
+  const [userPermissao, setUserPermissao] = useState(null);
+  const clientesPorPagina = 10;
 
   // --- FUNÇÃO DE CÁLCULO AUTOMÁTICO ---
   const calcularDataExpiracao = (tipoPlano) => {
@@ -234,24 +234,25 @@ export default function AdminLicencas() {
           </div>
         </header>
 
-        <section className="flex-1 overflow-y-auto p-10 bg-[#F8FAFC]">
-          <div className="max-w-300 mx-auto space-y-4 pb-10">
+        {/* LISTA DE USUÁRIOS COM SCROLL */}
+        <section className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-[#f8fafc]">
+          <div className="max-w-6xl mx-auto space-y-4 pb-10">
             {clientesExibidos.map((cliente) => {
               const isVitalicio =
                 cliente.validadeLicenca?.toDate().getFullYear() > 2050;
               return (
                 <div
                   key={cliente.id}
-                  className={`bg-white p-6 rounded-4xl border-2 flex flex-col xl:flex-row items-center justify-between gap-6 transition-all ${
+                  className={`bg-white p-5 rounded-[2rem] border-2 flex flex-col xl:flex-row items-center justify-between gap-6 transition-all hover:shadow-md ${
                     cliente.statusLicenca === "bloqueada"
-                      ? "border-red-100 bg-red-50/10"
-                      : "border-slate-50 shadow-sm hover:shadow-md"
+                      ? "border-red-100 shadow-sm shadow-red-50 bg-red-50/10"
+                      : "border-white shadow-sm"
                   }`}
                 >
                   {/* INFO CLIENTE E BOTÃO DE MÓDULOS */}
                   <div className="flex items-center gap-4 w-full xl:w-1/3">
                     <div
-                      className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg shrink-0 ${
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center font-black flex-shrink-0 ${
                         cliente.statusLicenca === "bloqueada"
                           ? "bg-red-100 text-red-600"
                           : "bg-blue-600 text-white"
@@ -263,7 +264,10 @@ export default function AdminLicencas() {
                       <p className="font-black text-slate-800 uppercase italic text-sm truncate">
                         {cliente.nome}
                       </p>
-                      <div className="flex items-center gap-2 mb-2">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase truncate mb-2">
+                        {cliente.email}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
                         {isVitalicio ? (
                           <span className="flex items-center gap-1 text-[9px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-black uppercase">
                             <Infinity size={10} /> Vitalício
@@ -281,7 +285,7 @@ export default function AdminLicencas() {
                       {/* BOTÃO PARA ABRIR O MODAL DE MÓDULOS */}
                       <button
                         onClick={() => setUserPermissao(cliente)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-sm"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-sm cursor-pointer"
                       >
                         <Settings size={12} /> Travar Módulos
                       </button>
@@ -296,12 +300,10 @@ export default function AdminLicencas() {
                       </label>
                       <select
                         onChange={(e) => {
-                          const novaData = calcularDataExpiracao(
-                            e.target.value
-                          );
-                          if (novaData)
-                            document.getElementById(`dt-${cliente.id}`).value =
-                              novaData;
+                          const novaData = calcularDataExpiracao(e.target.value);
+                          if (novaData) {
+                            document.getElementById(`dt-${cliente.id}`).value = novaData;
+                          }
                         }}
                         className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-500"
                       >
@@ -323,13 +325,13 @@ export default function AdminLicencas() {
                             document.getElementById(`dt-${cliente.id}`).value
                           )
                         }
-                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all ${
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 cursor-pointer transition-all ${
                           cliente.statusLicenca !== "bloqueada"
                             ? "bg-emerald-500 text-white shadow-lg"
-                            : "text-slate-400"
+                            : "text-slate-400 hover:text-slate-600"
                         }`}
                       >
-                        <Unlock size={14} /> Ativo
+                        <Unlock size={14} /> Liberado
                       </button>
                       <button
                         onClick={() =>
@@ -339,10 +341,10 @@ export default function AdminLicencas() {
                             document.getElementById(`dt-${cliente.id}`).value
                           )
                         }
-                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all ${
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 cursor-pointer transition-all ${
                           cliente.statusLicenca === "bloqueada"
                             ? "bg-red-600 text-white shadow-lg"
-                            : "text-slate-400"
+                            : "text-slate-400 hover:text-slate-600"
                         }`}
                       >
                         <Lock size={14} /> Bloquear
@@ -353,7 +355,7 @@ export default function AdminLicencas() {
                       <input
                         type="date"
                         id={`dt-${cliente.id}`}
-                        className="bg-white border border-slate-200 focus:border-blue-500 p-2.5 rounded-xl text-[11px] font-black outline-none shadow-sm"
+                        className="bg-white border border-slate-200 focus:border-blue-500 p-2.5 rounded-xl text-[11px] font-black outline-none shadow-sm cursor-pointer"
                         defaultValue={
                           cliente.validadeLicenca
                             ?.toDate()
@@ -381,29 +383,57 @@ export default function AdminLicencas() {
           </div>
         </section>
 
-        {/* PAGINAÇÃO */}
-        <footer className="bg-white border-t border-slate-100 p-6 flex justify-between items-center px-10 shrink-0">
-          <div className="text-[11px] font-black uppercase text-slate-400">
-            Página {paginaAtual} de {totalPaginas || 1}
+        {/* FOOTER COM PAGINAÇÃO NUMÉRICA */}
+        <footer className="bg-white border-t border-slate-100 p-6 flex justify-between items-center shrink-0">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+              Total Registros
+            </span>
+            <span className="text-sm font-black text-slate-800">
+              {clientesFiltrados.length} Usuários
+            </span>
           </div>
-          <div className="flex gap-2">
+
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setPaginaAtual((p) => Math.max(p - 1, 1))}
               disabled={paginaAtual === 1}
-              className="p-2 bg-slate-50 border border-slate-200 rounded-lg disabled:opacity-30"
+              className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-blue-600 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeft size={18} />
             </button>
+
+            {/* Números das páginas */}
+            <div className="flex gap-1 hidden sm:flex">
+              {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setPaginaAtual(n)}
+                  className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${
+                    paginaAtual === n
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                      : "text-slate-400 hover:bg-slate-50"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={() =>
                 setPaginaAtual((p) => Math.min(p + 1, totalPaginas))
               }
-              disabled={paginaAtual === totalPaginas}
-              className="p-2 bg-slate-50 border border-slate-200 rounded-lg disabled:opacity-30"
+              disabled={paginaAtual === totalPaginas || totalPaginas === 0}
+              className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-blue-600 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
             >
               <ChevronRight size={18} />
             </button>
           </div>
+
+          <p className="hidden md:block text-[9px] font-black text-slate-300 uppercase tracking-[0.3em]">
+            Rodhon SaaS Manager
+          </p>
         </footer>
       </main>
 

@@ -9,10 +9,10 @@ import {
   AlertCircle,
   BarChart3,
   PlusCircle,
-  Repeat, // Ícone usado para Remanejamento
+  Repeat,
   Search,
   Package,
-  Truck, // ADICIONADO: Ícone para Saída/Transferência
+  Truck, // Ícone para Saída/Transferência
   Users,
   MessageSquarePlus,
   ChevronRight,
@@ -20,9 +20,11 @@ import {
   Key,
   PieChart,
   User,
-  Layers3, // ADICIONADO: Ícone para a Consulta Avançada de Itens
+  Layers3, // Ícone para a Consulta Avançada de Itens
 } from "lucide-react";
-import { auth, db } from "../api/Firebase";
+
+// Importação das configurações e funções do Firebase
+import { auth, db } from "../api/firebase"; 
 import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -41,6 +43,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 1. Carregar dados do perfil do usuário logado
     const loadUserData = async () => {
       const currentUser = auth.currentUser;
       if (currentUser) {
@@ -59,6 +62,7 @@ export default function Dashboard() {
 
     loadUserData();
 
+    // 2. Escutar atualizações de chamados em tempo real
     const unsubscribeChamados = onSnapshot(
       collection(db, "chamados"),
       (snapshot) => {
@@ -69,12 +73,16 @@ export default function Dashboard() {
           fechados: docs.filter((d) => d.status === "fechado").length,
           pendentes: docs.filter((d) => d.status === "pendente").length,
         });
+      },
+      (error) => {
+        console.error("Erro no Snapshot de chamados:", error);
       }
     );
 
     return () => unsubscribeChamados();
   }, []);
 
+  // Memorização de papéis/roles
   const isRoot = useMemo(
     () => userData?.role?.toLowerCase() === "root",
     [userData]
@@ -108,6 +116,7 @@ export default function Dashboard() {
     );
   }
 
+  // Componente interno para botões de navigation
   const NavButton = ({ icon: Icon, label, path, moduloId }) => {
     if (moduloId && !temAcesso(moduloId)) return null;
     const active = location.pathname === path;
@@ -122,9 +131,7 @@ export default function Dashboard() {
       >
         <Icon
           size={22}
-          className={
-            active ? "text-white" : "group-hover:scale-110 transition-transform"
-          }
+          className={active ? "text-white" : "group-hover:scale-110 transition-transform"}
         />
         {sidebarOpen && <span className="truncate">{label}</span>}
       </button>
@@ -133,6 +140,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans antialiased text-slate-900">
+      {/* SIDEBAR */}
       <aside
         className={`relative ${
           sidebarOpen ? "w-72" : "w-24"
@@ -167,18 +175,8 @@ export default function Dashboard() {
                 </p>
               )}
               <div className="space-y-1.5">
-                {isRoot && (
-                  <NavButton
-                    icon={Key}
-                    label="Licenças e SaaS"
-                    path="/admin/licencas"
-                  />
-                )}
-                <NavButton
-                  icon={Users}
-                  label="Gestão de Usuários"
-                  path="/usuarios"
-                />
+                {isRoot && <NavButton icon={Key} label="Licenças e SaaS" path="/admin/licencas" />}
+                <NavButton icon={Users} label="Gestão de Usuários" path="/usuarios" />
               </div>
             </div>
           )}
@@ -204,22 +202,9 @@ export default function Dashboard() {
                 </p>
               )}
               <div className="space-y-1.5">
-                <NavButton
-                  icon={MessageSquarePlus}
-                  label="Abrir Chamado"
-                  path="/cadastro-chamado"
-                />
-                <NavButton
-                  icon={ClipboardList}
-                  label="Fila de Trabalho"
-                  path="/painel-analista"
-                />
-                <NavButton
-                  icon={Repeat}
-                  label="Remanejamento"
-                  path="/remanejamento"
-                  moduloId="remanejamento"
-                />
+                <NavButton icon={MessageSquarePlus} label="Abrir Chamado" path="/cadastro-chamado" />
+                <NavButton icon={ClipboardList} label="Fila de Trabalho" path="/painel-analista" />
+                <NavButton icon={Repeat} label="Remanejamento" path="/remanejamento" moduloId="remanejamento" />
               </div>
             </div>
           )}
@@ -232,34 +217,11 @@ export default function Dashboard() {
                 </p>
               )}
               <div className="space-y-1.5">
-                <NavButton
-                  icon={PlusCircle}
-                  label="Novo Ativo"
-                  path="/cadastro-equipamento"
-                />
-                <NavButton
-                  icon={Search}
-                  label="Inventário"
-                  path="/inventario"
-                />
-                {/* ADICIONADO: Novo botão de Consulta Avançada de Itens */}
-                <NavButton
-                  icon={Layers3}
-                  label="Consulta de Itens"
-                  path="/consulta-patrimonio" 
-                  moduloId="inventario"
-                />
-                <NavButton
-                  icon={Package}
-                  label="Sala do Patrimônio"
-                  path="/estoque"
-                />
-                <NavButton
-                  icon={Truck}
-                  label="Saída/Transferência"
-                  path="/transferencia"
-                  moduloId="inventario" 
-                />
+                <NavButton icon={PlusCircle} label="Novo Ativo" path="/cadastro-equipamento" />
+                <NavButton icon={Search} label="Inventário" path="/inventario" />
+                <NavButton icon={Layers3} label="Consulta de Itens" path="/consulta-patrimonio" moduloId="inventario" />
+                <NavButton icon={Package} label="Sala do Patrimônio" path="/estoque" />
+                <NavButton icon={Truck} label="Saída/Transferência" path="/transferencia" moduloId="inventario" />
               </div>
             </div>
           )}
@@ -276,6 +238,7 @@ export default function Dashboard() {
         </div>
       </aside>
 
+      {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-24 bg-white border-b border-slate-100 flex items-center justify-between px-10 z-40">
           <div className="flex flex-col">
@@ -301,14 +264,14 @@ export default function Dashboard() {
                 {nomeExibicao}
               </h3>
             </div>
-            <div className="w-14 h-14 bg-linear-to-br from-blue-500 to-blue-700 rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center text-white">
+            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center text-white">
               <User size={28} strokeWidth={2.5} />
             </div>
           </div>
         </header>
 
         <section className="flex-1 overflow-y-auto p-10 bg-[#F8FAFC]">
-          <div className="max-w-400 mx-auto">
+          <div className="max-w-7xl mx-auto">
             <div className="flex justify-between items-end mb-12">
               <h1 className="text-4xl font-black text-slate-900">
                 Olá, {nomeExibicao.split(" ")[0]}!
@@ -317,30 +280,10 @@ export default function Dashboard() {
 
             {temAcesso("chamados") && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-                <StatCard
-                  title="Em Aberto"
-                  value={estatisticas.abertos}
-                  color="amber"
-                  icon={Clock}
-                />
-                <StatCard
-                  title="Aguardando"
-                  value={estatisticas.pendentes}
-                  color="rose"
-                  icon={AlertCircle}
-                />
-                <StatCard
-                  title="Concluídos"
-                  value={estatisticas.fechados}
-                  color="emerald"
-                  icon={CheckCircle}
-                />
-                <StatCard
-                  title="Histórico"
-                  value={estatisticas.total}
-                  color="blue"
-                  icon={ClipboardList}
-                />
+                <StatCard title="Em Aberto" value={estatisticas.abertos} color="amber" icon={Clock} />
+                <StatCard title="Aguardando" value={estatisticas.pendentes} color="rose" icon={AlertCircle} />
+                <StatCard title="Concluídos" value={estatisticas.fechados} color="emerald" icon={CheckCircle} />
+                <StatCard title="Histórico" value={estatisticas.total} color="blue" icon={ClipboardList} />
               </div>
             )}
 
@@ -380,7 +323,7 @@ export default function Dashboard() {
   );
 }
 
-// Subcomponentes mantidos
+// Subcomponentes
 function StatCard({ title, value, color, icon: Icon }) {
   const themes = {
     amber: "bg-amber-500 shadow-amber-100",
@@ -389,11 +332,9 @@ function StatCard({ title, value, color, icon: Icon }) {
     blue: "bg-blue-600 shadow-blue-100",
   };
   return (
-    <div className="bg-white p-7 rounded-4xl border border-slate-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden">
+    <div className="bg-white p-7 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all group overflow-hidden">
       <div className="flex justify-between items-center mb-6">
-        <div
-          className={`${themes[color]} p-3 rounded-2xl text-white shadow-lg group-hover:scale-110 transition-transform`}
-        >
+        <div className={`${themes[color]} p-3 rounded-2xl text-white shadow-lg group-hover:scale-110 transition-transform`}>
           <Icon size={20} />
         </div>
         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -412,18 +353,14 @@ function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
   return (
     <div
       onClick={onClick}
-      className={`group cursor-pointer rounded-4xl p-8 transition-all flex flex-col justify-between h-72 ${
+      className={`group cursor-pointer rounded-[2rem] p-8 transition-all flex flex-col justify-between h-72 ${
         isDark
           ? "bg-slate-900 text-white hover:bg-slate-800"
           : "bg-white border border-slate-200 text-slate-900 shadow-sm hover:border-blue-200"
       }`}
     >
       <div>
-        <div
-          className={`mb-6 inline-block p-4 rounded-2xl ${
-            isDark ? "bg-slate-800" : "bg-blue-50 text-blue-600"
-          }`}
-        >
+        <div className={`mb-6 inline-block p-4 rounded-2xl ${isDark ? "bg-slate-800" : "bg-blue-50 text-blue-600"}`}>
           <Icon size={24} />
         </div>
         <h2 className="text-xl font-black mb-2">{title}</h2>
@@ -433,10 +370,7 @@ function QuickActionCard({ title, description, icon: Icon, onClick, variant }) {
       </div>
       <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-500">
         Acessar Módulo{" "}
-        <ChevronRight
-          size={14}
-          className="group-hover:translate-x-1 transition-transform"
-        />
+        <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
       </div>
     </div>
   );
