@@ -96,7 +96,7 @@ const Inventario = () => {
     setHasSearched(false);
   };
 
-  // Lógica de Filtragem
+  // Lógica de Filtragem Corrigida (Maiúsculas/Minúsculas)
   const itensFiltrados = itens.filter((item) => {
     const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
     const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeFiltro);
@@ -104,8 +104,12 @@ const Inventario = () => {
       unidadeFiltro === "Todas" ||
       unidadeItemNorm.includes(unidadeSelecionadaNorm);
 
-    const statusItem = item.status || "Ativo";
-    const matchStatus = statusFiltro === "Todos" || statusItem === statusFiltro;
+    // Normalização do Status para o filtro funcionar com qualquer caixa de texto
+    const statusItemNorm = String(item.status || "ativo").toLowerCase().trim();
+    const statusFiltroNorm = statusFiltro.toLowerCase().trim();
+    
+    const matchStatus = 
+      statusFiltro === "Todos" || statusItemNorm === statusFiltroNorm;
 
     let matchBusca = true;
     if (buscaPatrimonio.trim() !== "") {
@@ -170,7 +174,7 @@ const Inventario = () => {
   const confirmarBaixa = async () => {
     try {
       await updateDoc(doc(db, "ativos", modalBaixa.id), {
-        status: "Baixado",
+        status: "baixado", // Salva padronizado em minúsculo
         dataBaixa: serverTimestamp(),
       });
       toast.warning("Item baixado.");
@@ -183,7 +187,6 @@ const Inventario = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
-      {/* HEADER ADICIONADO */}
       <Header />
 
       <main className="flex-grow p-4 md:p-8">
@@ -322,58 +325,64 @@ const Inventario = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {itensExibidos.map((item) => (
-                      <tr
-                        key={item.id}
-                        className="hover:bg-blue-50/50 transition-colors group"
-                      >
-                        <td className="p-4 font-black text-blue-600 italic">
-                          #{item.patrimonio || "S/P"}
-                        </td>
-                        <td className="p-4 font-bold text-slate-700 uppercase text-sm">
-                          {item.nome}
-                        </td>
-                        <td className="p-4 text-xs font-bold text-slate-500">
-                          {item.unidade} <br />
-                          <span className="font-normal opacity-60 uppercase">
-                            {item.setor}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <span
-                            className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
-                              item.status === "Ativo"
-                                ? "bg-emerald-100 text-emerald-600"
-                                : "bg-red-100 text-red-600"
-                            }`}
-                          >
-                            {item.status === "Baixado"
-                              ? "Inutilizado"
-                              : item.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-center">
-                          {item.status === "Ativo" ? (
-                            <button
-                              onClick={() =>
-                                setModalBaixa({
-                                  aberto: true,
-                                  id: item.id,
-                                  nome: item.nome,
-                                })
-                              }
-                              className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm border border-red-100"
-                            >
-                              Baixar
-                            </button>
-                          ) : (
-                            <span className="text-[10px] font-bold text-slate-400">
-                              Baixado em {formatarDataBR(item.dataBaixa)}
+                    {itensExibidos.map((item) => {
+                      // Normalização pontual para renderizar a linha perfeitamente
+                      const statusItemLower = String(item.status || "ativo").toLowerCase().trim();
+                      const isAtivo = statusItemLower === "ativo";
+
+                      return (
+                        <tr
+                          key={item.id}
+                          className="hover:bg-blue-50/50 transition-colors group"
+                        >
+                          <td className="p-4 font-black text-blue-600 italic">
+                            #{item.patrimonio || "S/P"}
+                          </td>
+                          <td className="p-4 font-bold text-slate-700 uppercase text-sm">
+                            {item.nome}
+                          </td>
+                          <td className="p-4 text-xs font-bold text-slate-500">
+                            {item.unidade} <br />
+                            <span className="font-normal opacity-60 uppercase">
+                              {item.setor}
                             </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="p-4">
+                            <span
+                              className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
+                                isAtivo
+                                  ? "bg-emerald-100 text-emerald-600"
+                                  : "bg-red-100 text-red-600"
+                              }`}
+                            >
+                              {statusItemLower === "baixado"
+                                ? "Inutilizado"
+                                : item.status}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center">
+                            {isAtivo ? (
+                              <button
+                                onClick={() =>
+                                  setModalBaixa({
+                                    aberto: true,
+                                    id: item.id,
+                                    nome: item.nome,
+                                  })
+                                }
+                                className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm border border-red-100"
+                              >
+                                Baixar
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-400">
+                                Baixado em {formatarDataBR(item.dataBaixa)}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -405,7 +414,6 @@ const Inventario = () => {
         </div>
       </main>
 
-      {/* FOOTER ADICIONADO */}
       <Footer />
 
       {/* MODAL DE CONFIRMAÇÃO */}
