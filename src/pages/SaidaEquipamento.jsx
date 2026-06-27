@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db } from '../services/firebase';
-import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp, limit } from 'firebase/firestore';
+import { collection, addDoc, query, getDocs, updateDoc, doc, serverTimestamp, limit } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { FiTruck, FiSearch, FiArrowLeft, FiPackage, FiEdit3, FiX, FiMapPin, FiUser } from 'react-icons/fi';
@@ -23,43 +23,71 @@ const SaidaEquipamento = () => {
 
     const unidades = ["Hospital Conde", "Upa de Inoã", "Upa de Santa Rita", "Samu Barroco", "Samu Ponta Negra"];
 
+    // Função centralizada para remover espaços, acentos e ignorar maiúsculas/minúsculas
+    const normalizarParaComparacao = (texto) => {
+        if (!texto) return "";
+        return texto
+            .toString()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[/\s._-]/g, "")
+            .trim();
+    };
+
     const executarBusca = async (tipo) => {
+        const termoOriginal = tipo === 'patrimonio' ? patrimonioBusca : nomeBusca;
+        if (!termoOriginal.trim()) {
+            toast.warn(`Digite um ${tipo === 'patrimonio' ? 'patrimônio' : 'nome ou setor'}.`);
+            return;
+        }
+
         setLoading(true);
         setItensEncontrados([]);
 
         try {
             const ativosRef = collection(db, "ativos");
-            let lista = [];
+            
+            // Removidos os filtros "where" engessados do Firebase para evitar bloqueios de caixa (Maiúscula/Minúscula)
+            const qGeral = query(ativosRef, limit(500));
+            const snapGeral = await getDocs(qGeral);
+            
+            const listaGeral = snapGeral.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const termoNorm = normalizarParaComparacao(termoOriginal);
 
-            if (tipo === 'patrimonio') {
-                const termo = patrimonioBusca.toUpperCase().trim();
-                if (termo === 'S/P' || termo === 'SP') {
-                    toast.info("Para itens S/P, use a busca por NOME.");
-                    setLoading(false);
-                    return;
-                }
-                const q = query(ativosRef, where("patrimonio", "==", termo), where("status", "==", "Ativo"));
-                const snap = await getDocs(q);
-                lista = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            } else {
-                const termoOriginal = nomeBusca.toLowerCase().trim();
-                if (!termoOriginal) { toast.warn("Digite o nome."); setLoading(false); return; }
-                const qGeral = query(ativosRef, where("status", "==", "Ativo"), limit(100));
-                const snapGeral = await getDocs(qGeral);
-                lista = snapGeral.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() }))
-                    .filter(item =>
-                        item.nome.toLowerCase().includes(termoOriginal) ||
-                        item.patrimonio.toLowerCase() === termoOriginal
+            // Filtragem inteligente na memória do cliente
+            const filtrados = listaGeral.filter(item => {
+                // Garante a validação do status "ativo" independente de como foi salvo
+                const statusItemNorm = String(item.status || "ativo").toLowerCase().trim();
+                if (statusItemNorm !== "ativo") return false;
+
+                const itemPatrimonioNorm = normalizarParaComparacao(item.patrimonio);
+                const itemNomeNorm = normalizarParaComparacao(item.nome);
+                const itemSetorNorm = normalizarParaComparacao(item.setor);
+
+                if (tipo === 'patrimonio') {
+                    if (termoNorm === 'sp' || termoNorm === 'spatrimonio') {
+                        toast.info("Para itens S/P, use a busca por NOME ou SETOR.");
+                        return false;
+                    }
+                    return itemPatrimonioNorm === termoNorm;
+                } else {
+                    // Busca por Nome, Setor ou Patrimônio simultaneamente
+                    return (
+                        itemNomeNorm.includes(termoNorm) ||
+                        itemSetorNorm.includes(termoNorm) ||
+                        itemPatrimonioNorm === termoNorm
                     );
-            }
+                }
+            });
 
-            if (lista.length > 0) {
-                setItensEncontrados(lista);
+            if (filtrados.length > 0) {
+                setItensEncontrados(filtrados);
             } else {
                 toast.error("Nenhum item ativo encontrado.");
             }
         } catch (error) {
+            console.error(error);
             toast.error("Erro ao buscar.");
         } finally {
             setLoading(false);
@@ -82,8 +110,10 @@ const SaidaEquipamento = () => {
         setLoading(true);
         try {
             const ativoRef = doc(db, "ativos", itemSelecionado.id);
-            const patrimonioFinal = (itemSelecionado.patrimonio === 'S/P' && novoPatrimonioParaSP)
-                ? novoPatrimonioParaSP.toUpperCase()
+            
+            // Salva o novo patrimônio convertido para minúsculo seguindo o padrão de armazenamento local
+            const patrimonioFinal = (normalizarParaComparacao(itemSelecionado.patrimonio) === 'sp' && novoPatrimonioParaSP)
+                ? novoPatrimonioParaSP.toLowerCase()
                 : itemSelecionado.patrimonio;
 
             await updateDoc(ativoRef, {
@@ -151,7 +181,7 @@ const SaidaEquipamento = () => {
                                 onChange={(e) => setPatrimonioBusca(e.target.value)}
                             />
                             <button 
-                                className="absolute right-2 p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100" 
+                                className="absolute right-2 p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100 cursor-pointer" 
                                 onClick={() => executarBusca('patrimonio')}
                             >
                                 <FiSearch />
@@ -160,17 +190,17 @@ const SaidaEquipamento = () => {
                     </div>
 
                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 mb-3">Busca por Nome ou S/P</label>
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 mb-3">Busca por Nome, Setor ou S/P</label>
                         <div className="relative flex items-center">
                             <input
                                 type="text"
                                 className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-5 pr-14 text-sm font-bold focus:ring-2 focus:ring-indigo-500 transition-all"
-                                placeholder="Ex: Monitor, Maca, SP..."
+                                placeholder="Ex: Monitor, Maca, UTI..."
                                 value={nomeBusca}
                                 onChange={(e) => setNomeBusca(e.target.value)}
                             />
                             <button 
-                                className="absolute right-2 p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100" 
+                                className="absolute right-2 p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 cursor-pointer" 
                                 onClick={() => executarBusca('nome')}
                             >
                                 <FiSearch />
@@ -203,7 +233,7 @@ const SaidaEquipamento = () => {
                                     <FiMapPin size={14} />
                                     <span className="text-xs font-bold uppercase tracking-wider">{item.unidade}</span>
                                 </div>
-                                <div className="text-[10px] text-slate-400 font-medium ml-6">{item.setor}</div>
+                                <div className="text-[10px] text-slate-400 font-medium ml-6 uppercase">{item.setor}</div>
                             </div>
                         </div>
                     ))}
@@ -220,7 +250,7 @@ const SaidaEquipamento = () => {
             </main>
 
             {/* MODAL */}
-            {showModal && (
+            {showModal && itemSelecionado && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     {/* Overlay */}
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={fecharModal}></div>
@@ -229,7 +259,7 @@ const SaidaEquipamento = () => {
                     <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
                         <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <h3 className="text-xl font-black italic text-slate-800 uppercase tracking-tight">Confirmar Saída</h3>
-                            <button className="p-2 hover:bg-white rounded-full text-slate-400 hover:text-red-500 transition-all" onClick={fecharModal}>
+                            <button className="p-2 hover:bg-white rounded-full text-slate-400 hover:text-red-500 transition-all cursor-pointer" onClick={fecharModal}>
                                 <FiX size={24} />
                             </button>
                         </div>
@@ -242,15 +272,15 @@ const SaidaEquipamento = () => {
                             </div>
 
                             <form onSubmit={handleSaida} className="space-y-6">
-                                {itemSelecionado.patrimonio === 'S/P' && (
+                                {normalizarParaComparacao(itemSelecionado.patrimonio) === 'sp' && (
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                                             <FiEdit3 className="text-blue-600" /> Novo Nº Patrimônio (Opcional)
                                         </label>
                                         <input
                                             type="text"
-                                            className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl py-4 px-5 text-sm font-bold transition-all uppercase"
-                                            placeholder="Digite o número"
+                                            className="w-full bg-slate-50 border-2 border-transparent focus:border-blue-500 rounded-2xl py-4 px-5 text-sm font-bold transition-all text-slate-700"
+                                            placeholder="Ex: hmc-001"
                                             value={novoPatrimonioParaSP}
                                             onChange={(e) => setNovoPatrimonioParaSP(e.target.value)}
                                         />
@@ -262,7 +292,7 @@ const SaidaEquipamento = () => {
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unidade de Destino</label>
                                         <select 
                                             required 
-                                            className="w-full bg-slate-50 border-none rounded-2xl py-4 px-5 text-sm font-bold focus:ring-2 focus:ring-blue-500 appearance-none"
+                                            className="w-full bg-slate-50 border-none rounded-2xl py-4 px-5 text-sm font-bold focus:ring-2 focus:ring-blue-500 appearance-none text-slate-700 cursor-pointer bg-white"
                                             onChange={(e) => setDadosSaida({ ...dadosSaida, novaUnidade: e.target.value })}
                                         >
                                             <option value="">Selecionar...</option>
@@ -275,7 +305,7 @@ const SaidaEquipamento = () => {
                                         <input
                                             type="text"
                                             required
-                                            className="w-full bg-slate-50 border-none rounded-2xl py-4 px-5 text-sm font-bold focus:ring-2 focus:ring-blue-500 transition-all"
+                                            className="w-full bg-slate-50 border-none rounded-2xl py-4 px-5 text-sm font-bold focus:ring-2 focus:ring-blue-500 transition-all text-slate-700"
                                             placeholder="Ex: UTI"
                                             onChange={(e) => setDadosSaida({ ...dadosSaida, novoSetor: e.target.value })}
                                         />
@@ -289,7 +319,7 @@ const SaidaEquipamento = () => {
                                     <input
                                         type="text"
                                         required
-                                        className="w-full bg-slate-50 border-none rounded-2xl py-4 px-5 text-sm font-bold focus:ring-2 focus:ring-blue-500 transition-all"
+                                        className="w-full bg-slate-50 border-none rounded-2xl py-4 px-5 text-sm font-bold focus:ring-2 focus:ring-blue-500 transition-all text-slate-700"
                                         placeholder="Quem recebeu o equipamento?"
                                         onChange={(e) => setDadosSaida({ ...dadosSaida, responsavelRecebimento: e.target.value })}
                                     />
@@ -298,7 +328,7 @@ const SaidaEquipamento = () => {
                                 <button 
                                     type="submit" 
                                     disabled={loading}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-[0.2em] py-5 rounded-2xl shadow-xl shadow-blue-100 transition-all active:scale-[0.98] disabled:bg-slate-300"
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-[0.2em] py-5 rounded-2xl shadow-xl shadow-blue-100 transition-all active:scale-[0.98] disabled:bg-slate-300 cursor-pointer"
                                 >
                                     {loading ? 'Processando...' : 'Finalizar Transferência'}
                                 </button>

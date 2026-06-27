@@ -4,7 +4,6 @@ import {
   collection,
   addDoc,
   query,
-  where,
   getDocs,
   updateDoc,
   doc,
@@ -18,7 +17,6 @@ import {
   FiSearch,
   FiArrowLeft,
   FiPackage,
-  FiEdit3,
   FiX,
   FiFilter,
   FiChevronLeft,
@@ -87,17 +85,23 @@ const Transferencia = () => {
     setLoading(true);
     try {
       const ativosRef = collection(db, "ativos");
-      const q = query(ativosRef, where("status", "==", "Ativo"), limit(500));
+      // Removido o where("status", "==", "Ativo") engessado para aceitar qualquer caixa de texto
+      const q = query(ativosRef, limit(500));
       const snap = await getDocs(q);
 
       const listaGeral = snap.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
+
       const termoNorm = normalizarParaComparacao(termoOriginal);
       const unidadeFiltroNorm = normalizarParaComparacao(unidadeFiltro);
 
       const filtrados = listaGeral.filter((item) => {
+        // Validação de status insensível a maiúsculas/minúsculas
+        const statusItemNorm = String(item.status || "ativo").toLowerCase().trim();
+        if (statusItemNorm !== "ativo") return false;
+
         const itemUnidadeNorm = normalizarParaComparacao(item.unidade);
         const itemPatrimonioNorm = normalizarParaComparacao(item.patrimonio);
         const itemNomeNorm = normalizarParaComparacao(item.nome);
@@ -115,8 +119,9 @@ const Transferencia = () => {
       });
 
       setItensEncontrados(filtrados);
-      if (filtrados.length === 0) toast.error("Nenhum item encontrado.");
+      if (filtrados.length === 0) toast.error("Nenhum item ativo encontrado.");
     } catch (error) {
+      console.error(error);
       toast.error("Erro na busca.");
     } finally {
       setLoading(false);
@@ -137,7 +142,7 @@ const Transferencia = () => {
       const patrimonioFinal =
         normalizarParaComparacao(itemSelecionado.patrimonio) === "sp" &&
         novoPatrimonioParaSP
-          ? novoPatrimonioParaSP.toUpperCase()
+          ? novoPatrimonioParaSP.toLowerCase() // Mantém o padrão de salvar dados em minúsculo
           : itemSelecionado.patrimonio;
 
       await updateDoc(ativoRef, {
@@ -161,6 +166,7 @@ const Transferencia = () => {
       setShowModal(false);
       setItensEncontrados([]);
       setPatrimonioBusca("");
+      setNomeBusca("");
     } catch (error) {
       toast.error("Erro ao salvar.");
     } finally {
@@ -190,7 +196,7 @@ const Transferencia = () => {
               <FiFilter /> Unidade Atual
             </label>
             <select
-              className="border border-slate-200 p-2 rounded-lg text-sm outline-blue-500"
+              className="border border-slate-200 p-2 rounded-lg text-sm outline-blue-500 bg-white cursor-pointer"
               value={unidadeFiltro}
               onChange={(e) => setUnidadeFiltro(e.target.value)}
             >
@@ -216,7 +222,7 @@ const Transferencia = () => {
                 onChange={(e) => setPatrimonioBusca(e.target.value)}
               />
               <button
-                className="bg-blue-600 text-white p-2 rounded-r-lg hover:bg-blue-700"
+                className="bg-blue-600 text-white p-2 rounded-r-lg hover:bg-blue-700 cursor-pointer"
                 onClick={() => executarBusca("patrimonio")}
               >
                 <FiSearch />
@@ -237,7 +243,7 @@ const Transferencia = () => {
                 onChange={(e) => setNomeBusca(e.target.value)}
               />
               <button
-                className="bg-indigo-600 text-white p-2 rounded-r-lg hover:bg-indigo-700"
+                className="bg-indigo-600 text-white p-2 rounded-r-lg hover:bg-indigo-700 cursor-pointer"
                 onClick={() => executarBusca("nome")}
               >
                 <FiSearch />
@@ -247,7 +253,7 @@ const Transferencia = () => {
 
           <div className="flex items-end">
             <button
-              className="w-full h-[38px] flex items-center justify-center gap-2 bg-slate-100 text-slate-600 font-bold rounded-lg hover:bg-red-50 hover:text-red-600 transition-all border border-slate-200"
+              className="w-full h-[38px] flex items-center justify-center gap-2 bg-slate-100 text-slate-600 font-bold rounded-lg hover:bg-red-50 hover:text-red-600 transition-all border border-slate-200 cursor-pointer"
               onClick={limparBusca}
             >
               <FiRotateCcw /> Limpar
@@ -272,7 +278,7 @@ const Transferencia = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800">{item.nome}</h3>
-                  <span className="text-[10px] font-black bg-slate-100 px-2 py-0.5 rounded text-slate-500">
+                  <span className="text-[10px] font-black bg-slate-100 px-2 py-0.5 rounded text-slate-500 uppercase">
                     {item.patrimonio}
                   </span>
                 </div>
@@ -293,7 +299,7 @@ const Transferencia = () => {
             <button
               disabled={paginaAtual === 1}
               onClick={() => setPaginaAtual((prev) => prev - 1)}
-              className="p-2 rounded bg-white border disabled:opacity-50"
+              className="p-2 rounded bg-white border disabled:opacity-50 cursor-pointer"
             >
               <FiChevronLeft />
             </button>
@@ -303,7 +309,7 @@ const Transferencia = () => {
             <button
               disabled={paginaAtual === totalPaginas}
               onClick={() => setPaginaAtual((prev) => prev + 1)}
-              className="p-2 rounded bg-white border disabled:opacity-50"
+              className="p-2 rounded bg-white border disabled:opacity-50 cursor-pointer"
             >
               <FiChevronRight />
             </button>
@@ -321,7 +327,7 @@ const Transferencia = () => {
               </h3>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <FiX size={24} />
               </button>
@@ -337,16 +343,15 @@ const Transferencia = () => {
             </div>
 
             <form onSubmit={handleSaida} className="space-y-4">
-              {normalizarParaComparacao(itemSelecionado.patrimonio) ===
-                "sp" && (
+              {normalizarParaComparacao(itemSelecionado.patrimonio) === "sp" && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                   <label className="text-xs font-bold text-amber-700 block mb-1">
                     Atribuir Patrimônio (Era SP)
                   </label>
                   <input
                     type="text"
-                    className="w-full p-2 border border-amber-300 rounded outline-none"
-                    placeholder="H-0000"
+                    className="w-full p-2 border border-amber-300 rounded outline-none text-slate-700"
+                    placeholder="h-0000"
                     value={novoPatrimonioParaSP}
                     onChange={(e) => setNovoPatrimonioParaSP(e.target.value)}
                     required
@@ -360,7 +365,7 @@ const Transferencia = () => {
                 </label>
                 <select
                   required
-                  className="w-full border p-2 rounded-lg outline-blue-500"
+                  className="w-full border p-2 rounded-lg outline-blue-500 bg-white text-slate-700 cursor-pointer"
                   onChange={(e) =>
                     setDadosSaida({
                       ...dadosSaida,
@@ -384,7 +389,7 @@ const Transferencia = () => {
                 <input
                   type="text"
                   required
-                  className="w-full border p-2 rounded-lg outline-blue-500"
+                  className="w-full border p-2 rounded-lg outline-blue-500 text-slate-700"
                   onChange={(e) =>
                     setDadosSaida({ ...dadosSaida, novoSetor: e.target.value })
                   }
@@ -398,7 +403,7 @@ const Transferencia = () => {
                 <input
                   type="text"
                   required
-                  className="w-full border p-2 rounded-lg outline-blue-500"
+                  className="w-full border p-2 rounded-lg outline-blue-500 text-slate-700"
                   onChange={(e) =>
                     setDadosSaida({
                       ...dadosSaida,
@@ -411,7 +416,7 @@ const Transferencia = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 cursor-pointer"
               >
                 {loading ? "Gravando..." : "Finalizar Transferência"}
               </button>
