@@ -11,14 +11,19 @@ import {
   BarChart,
   CheckCircle2,
   Users,
+  Search,
+  RotateCcw,
 } from "lucide-react";
+// Adicionado 'doc' e 'getDoc' nas importações do firebase
 import { auth, db } from "../services/firebase";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 
 export default function CadastroChamado({ isOpen = true, onClose }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [buscandoAtivo, setBuscandoAtivo] = useState(false);
   const [sucesso, setSucesso] = useState(false);
   const [protocoloGerado, setProtocoloGerado] = useState("");
 
@@ -42,12 +47,63 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
     }
   };
 
+  const handleLimparCampos = () => {
+    setPatrimonio("");
+    setUnidade("");
+    setEquipamento("");
+    setSetor("");
+    setNaoSeiPatrimonio(false);
+    toast.success("Campos limpos com sucesso!");
+  };
+
   const toggleNaoSei = () => {
     const novoEstado = !naoSeiPatrimonio;
     setNaoSeiPatrimonio(novoEstado);
     setPatrimonio(novoEstado ? "S/P" : "");
+    if (novoEstado) {
+      setUnidade("");
+      setEquipamento("");
+      setSetor("");
+    }
   };
 
+  const handleBotaoBusca = async (e) => {
+    if (e) e.preventDefault();
+
+    const tag = patrimonio.trim().toLowerCase();
+    if (!tag || tag === "s/p") return;
+
+    setBuscandoAtivo(true);
+    try {
+      const ativosRef = collection(db, "ativos");
+      const q = query(ativosRef, where("patrimonio", "==", tag));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const dados = querySnapshot.docs[0].data();
+
+        setEquipamento(dados.nome || "");
+        setSetor(dados.setor || "");
+
+        const unidadeBanco = dados.unidade || "";
+        if (unidadeBanco.toLowerCase() === "hospital conde") {
+          setUnidade("Hospital Conde");
+        } else {
+          setUnidade(unidadeBanco.toUpperCase());
+        }
+        toast.success("equipamento cadastrado");
+      } else {
+        toast.error("equipamento nao cadastrado");
+      }
+    } catch (error) {
+      console.error("Erro ao buscar dados do patrimônio:", error);
+      toast.error("Erro ao consultar o banco de dados.");
+    } finally {
+      setBuscandoAtivo(false);
+    }
+  };
+
+  // FUNÇÃO ATUALIZADA BUSCANDO DO DOCUMENTO DO USUÁRIO
   const handleNovoChamado = async (e) => {
     e.preventDefault();
     if (!unidade || !equipe) return;
@@ -58,6 +114,26 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
     )}`;
 
     try {
+      const uidExibicao = auth.currentUser.uid;
+      let nomeParaSalvar = auth.currentUser.email.split("@")[0]; // Fallback padrão
+
+      // Busca os dados do usuário direto da coleção 'usuarios' pelo UID
+      const userDocRef = doc(db, "usuarios", uidExibicao);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (userDocSnap.exists()) {
+        const dadosUsuario = userDocSnap.data();
+        if (dadosUsuario.nome) {
+          const partesNome = dadosUsuario.nome.trim().split(/\s+/);
+          if (partesNome.length > 1) {
+            // Une o Primeiro nome com o Último nome
+            nomeParaSalvar = `${partesNome[0]} ${partesNome[partesNome.length - 1]}`;
+          } else {
+            nomeParaSalvar = partesNome[0];
+          }
+        }
+      }
+
       await addDoc(collection(db, "chamados"), {
         equipe,
         equipamento,
@@ -68,19 +144,20 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
         prioridade,
         criadoEm: serverTimestamp(),
         emailSolicitante: auth.currentUser.email,
-        nome:
-          auth.currentUser.displayName || auth.currentUser.email.split("@")[0],
+        nome: nomeParaSalvar, // <--- Aqui salva o formato "Rodrigo Honorio"
         numeroOs: novaOs,
         status: "aberto",
-        userId: auth.currentUser.uid,
+        userId: uidExibicao,
         feedbackAnalista: "",
         tecnicoResponsavel: "",
       });
+
       setProtocoloGerado(novaOs);
       setSucesso(true);
+      toast.success("Chamado registrado!");
     } catch (error) {
       console.error(error);
-      alert("Erro ao enviar chamado técnico.");
+      toast.error("Erro ao enviar chamado técnico.");
     } finally {
       setLoading(false);
     }
@@ -125,16 +202,65 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
             </div>
 
             <form onSubmit={handleNovoChamado} className="space-y-4">
-              {/* UNIDADE */}
+              <div>
+                <div className="flex justify-between items-center mb-1 px-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Patrimônio / Tag
+                  </label>
+                  <button
+                    type="button"
+                    onClick={toggleNaoSei}
+                    className={`text-[9px] font-black px-2 py-1 rounded-lg transition-all ${
+                      naoSeiPatrimonio ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {naoSeiPatrimonio ? "DIGITAR" : "NÃO SEI TAG"}
+                  </button>
+                </div>
+                
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      required
+                      dynamic-input="true"
+                      readOnly={naoSeiPatrimonio}
+                      value={patrimonio}
+                      onChange={(e) => setPatrimonio(e.target.value)}
+                      placeholder="Ex: 25779"
+                      className={`w-full p-4 pl-11 border-2 rounded-2xl outline-none text-sm font-bold ${
+                        naoSeiPatrimonio
+                          ? "bg-amber-50 border-amber-200 text-slate-700"
+                          : "bg-slate-50 border-slate-50 focus:border-blue-600 text-slate-700"
+                      }`}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={buscandoAtivo || naoSeiPatrimonio}
+                    onClick={handleBotaoBusca}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-2xl flex items-center justify-center transition-all disabled:opacity-50 min-w-[52px]"
+                  >
+                    {buscandoAtivo ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleLimparCampos}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-500 px-4 rounded-2xl flex items-center justify-center transition-all min-w-[52px]"
+                  >
+                    <RotateCcw size={18} />
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-1 block">
                   Unidade
                 </label>
                 <div className="relative">
-                  <Building2
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={18}
-                  />
+                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <select
                     required
                     value={unidade}
@@ -151,16 +277,12 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
                 </div>
               </div>
 
-              {/* EQUIPE DESTINO */}
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-1 block">
                   Equipe Responsável
                 </label>
                 <div className="relative">
-                  <Users
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={18}
-                  />
+                  <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <select
                     required
                     value={equipe}
@@ -178,81 +300,50 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
                 </div>
               </div>
 
-              {/* GRID: EQUIPAMENTO E PATRIMÔNIO */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="relative flex flex-col justify-end">
-                  <Monitor
-                    className="absolute left-4 bottom-5 text-slate-400"
-                    size={16}
-                  />
-                  <input
-                    required
-                    value={equipamento}
-                    onChange={(e) => setEquipamento(e.target.value)}
-                    placeholder="Equipamento"
-                    className="w-full p-4 pl-11 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none focus:bg-white focus:border-blue-600 text-sm font-bold"
-                  />
-                </div>
                 <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <button
-                      type="button"
-                      onClick={toggleNaoSei}
-                      className={`text-[9px] font-black px-2 py-1 rounded-lg transition-all ${
-                        naoSeiPatrimonio
-                          ? "bg-amber-500 text-white"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {naoSeiPatrimonio ? "DIGITAR" : "NÃO SEI TAG"}
-                    </button>
-                  </div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-1 block">
+                    Equipamento
+                  </label>
                   <div className="relative">
-                    <Hash
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                      size={16}
-                    />
+                    <Monitor className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input
                       required
-                      dynamic-input="true"
-                      readOnly={naoSeiPatrimonio}
-                      value={patrimonio}
-                      onChange={(e) => setPatrimonio(e.target.value)}
-                      placeholder="Patrimônio/Tag"
-                      className={`w-full p-4 pl-11 border-2 rounded-2xl outline-none text-sm font-bold ${
-                        naoSeiPatrimonio
-                          ? "bg-amber-50 border-amber-200"
-                          : "bg-slate-50 border-slate-50 focus:border-blue-600"
-                      }`}
+                      value={equipamento}
+                      onChange={(e) => setEquipamento(e.target.value)}
+                      placeholder="Ex: Frigobar"
+                      className="w-full p-4 pl-11 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none focus:bg-white focus:border-blue-600 text-sm font-bold text-slate-700"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-1 block">
+                    Setor
+                  </label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      required
+                      value={setor}
+                      onChange={(e) => setSetor(e.target.value)}
+                      placeholder="Ex: Sala de Medicação"
+                      className="w-full p-4 pl-11 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none focus:bg-white focus:border-blue-600 text-sm font-bold text-slate-700"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* GRID: SETOR E PRIORIDADE */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-1 block">
+                  Prioridade
+                </label>
                 <div className="relative">
-                  <MapPin
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={18}
-                  />
-                  <input
-                    required
-                    value={setor}
-                    onChange={(e) => setSetor(e.target.value)}
-                    placeholder="Setor"
-                    className="w-full p-4 pl-11 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none focus:bg-white focus:border-blue-600 text-sm font-bold"
-                  />
-                </div>
-                <div className="relative">
-                  <BarChart
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={18}
-                  />
+                  <BarChart className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <select
                     value={prioridade}
                     onChange={(e) => setPrioridade(e.target.value)}
-                    className="w-full p-4 pl-11 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none focus:border-blue-600 appearance-none text-sm font-bold"
+                    className="w-full p-4 pl-11 bg-slate-50 border-2 border-slate-50 rounded-2xl outline-none focus:border-blue-600 appearance-none text-sm font-bold text-slate-700"
                   >
                     <option value="baixa">Baixa</option>
                     <option value="média">Média</option>
@@ -262,19 +353,21 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
                 </div>
               </div>
 
-              <div className="relative">
-                <FileText
-                  className="absolute left-4 top-4 text-slate-400"
-                  size={18}
-                />
-                <textarea
-                  required
-                  value={descricao}
-                  onChange={(e) => setDescricao(e.target.value)}
-                  placeholder="Descreva o problema detalhadamente..."
-                  rows="3"
-                  className="w-full p-4 pl-12 bg-slate-50 border-2 border-slate-50 rounded-3xl outline-none focus:bg-white focus:border-blue-600 text-sm font-medium resize-none"
-                />
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-1 block">
+                  Descrição do Problema
+                </label>
+                <div className="relative">
+                  <FileText className="absolute left-4 top-4 text-slate-400" size={18} />
+                  <textarea
+                    required
+                    value={descricao}
+                    onChange={(e) => setDescricao(e.target.value)}
+                    placeholder="Descreva o problema detalhadamente..."
+                    rows="3"
+                    className="w-full p-4 pl-12 bg-slate-50 border-2 border-slate-50 rounded-3xl outline-none focus:bg-white focus:border-blue-600 text-sm font-medium text-slate-700 resize-none"
+                  />
+                </div>
               </div>
 
               <button
