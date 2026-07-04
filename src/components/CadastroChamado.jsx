@@ -14,7 +14,6 @@ import {
   Search,
   RotateCcw,
 } from "lucide-react";
-// Adicionado 'doc' e 'getDoc' nas importações do firebase
 import { auth, db } from "../services/firebase";
 import { addDoc, collection, serverTimestamp, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
@@ -59,7 +58,7 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
   const toggleNaoSei = () => {
     const novoEstado = !naoSeiPatrimonio;
     setNaoSeiPatrimonio(novoEstado);
-    setPatrimonio(novoEstado ? "S/P" : "");
+    setPatrimonio(novoEstado ? "s/p" : "");
     if (novoEstado) {
       setUnidade("");
       setEquipamento("");
@@ -70,13 +69,23 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
   const handleBotaoBusca = async (e) => {
     if (e) e.preventDefault();
 
-    const tag = patrimonio.trim().toLowerCase();
-    if (!tag || tag === "s/p") return;
+    const tagOriginal = patrimonio.trim();
+    if (!tagOriginal || tagOriginal.toLowerCase() === "s/p") return;
 
     setBuscandoAtivo(true);
     try {
       const ativosRef = collection(db, "ativos");
-      const q = query(ativosRef, where("patrimonio", "==", tag));
+      
+      // Cria um array para termos de busca contendo a string em minúsculo
+      const termosBusca = [tagOriginal.toLowerCase()];
+      
+      // Se for puramente numérico, insere também a versão do tipo Number no array
+      if (!isNaN(tagOriginal)) {
+        termosBusca.push(Number(tagOriginal));
+      }
+
+      // Procura registros onde o patrimônio seja igual a qualquer um dos termos mapeados
+      const q = query(ativosRef, where("patrimonio", "in", termosBusca));
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
@@ -103,7 +112,6 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
     }
   };
 
-  // FUNÇÃO ATUALIZADA BUSCANDO DO DOCUMENTO DO USUÁRIO
   const handleNovoChamado = async (e) => {
     e.preventDefault();
     if (!unidade || !equipe) return;
@@ -115,9 +123,8 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
 
     try {
       const uidExibicao = auth.currentUser.uid;
-      let nomeParaSalvar = auth.currentUser.email.split("@")[0]; // Fallback padrão
+      let nomeParaSalvar = auth.currentUser.email.split("@")[0].toLowerCase();
 
-      // Busca os dados do usuário direto da coleção 'usuarios' pelo UID
       const userDocRef = doc(db, "usuarios", uidExibicao);
       const userDocSnap = await getDoc(userDocRef);
 
@@ -126,25 +133,24 @@ export default function CadastroChamado({ isOpen = true, onClose }) {
         if (dadosUsuario.nome) {
           const partesNome = dadosUsuario.nome.trim().split(/\s+/);
           if (partesNome.length > 1) {
-            // Une o Primeiro nome com o Último nome
-            nomeParaSalvar = `${partesNome[0]} ${partesNome[partesNome.length - 1]}`;
+            nomeParaSalvar = `${partesNome[0]} ${partesNome[partesNome.length - 1]}`.toLowerCase();
           } else {
-            nomeParaSalvar = partesNome[0];
+            nomeParaSalvar = partesNome[0].toLowerCase();
           }
         }
       }
 
       await addDoc(collection(db, "chamados"), {
-        equipe,
-        equipamento,
-        patrimonio,
-        setor,
-        descricao,
-        unidade,
-        prioridade,
+        equipe: equipe.toLowerCase(),
+        equipamento: equipamento.toLowerCase(),
+        patrimonio: patrimonio.trim().toLowerCase(),
+        setor: setor.toLowerCase(),
+        descricao: descricao.toLowerCase(),
+        unidade: unidade.toLowerCase(),
+        prioridade: prioridade.toLowerCase(),
         criadoEm: serverTimestamp(),
-        emailSolicitante: auth.currentUser.email,
-        nome: nomeParaSalvar, // <--- Aqui salva o formato "Rodrigo Honorio"
+        emailSolicitante: auth.currentUser.email.toLowerCase(),
+        nome: nomeParaSalvar,
         numeroOs: novaOs,
         status: "aberto",
         userId: uidExibicao,

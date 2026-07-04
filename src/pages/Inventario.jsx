@@ -3,9 +3,6 @@ import { db } from "../services/firebase";
 import {
   collection,
   getDocs,
-  doc,
-  updateDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -17,14 +14,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
-  AlertCircle,
   FilterX,
   ArrowLeft,
 } from "lucide-react";
 
-// Importação dos componentes solicitados
+// Importação dos componentes do sistema
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import ModalInventario from "../components/ModalInventario"; // Certifique-se de que o caminho do arquivo está correto
 
 const Inventario = () => {
   const [itens, setItens] = useState([]);
@@ -37,11 +34,10 @@ const Inventario = () => {
   const [buscaPatrimonio, setBuscaPatrimonio] = useState("");
 
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const [modalBaixa, setModalBaixa] = useState({
-    aberto: false,
-    id: null,
-    nome: "",
-  });
+  
+  // Estado adaptado para controlar o Novo Modal de etapas
+  const [modalAberto, setModalAberto] = useState(false);
+  const [equipamentoSelecionado, setEquipamentoSelecionado] = useState(null);
 
   const navigate = useNavigate();
   const itensPorPagina = 15;
@@ -96,7 +92,7 @@ const Inventario = () => {
     setHasSearched(false);
   };
 
-  // Lógica de Filtragem Corrigida (Maiúsculas/Minúsculas)
+  // Lógica de Filtragem Corrigida
   const itensFiltrados = itens.filter((item) => {
     const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
     const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeFiltro);
@@ -104,7 +100,6 @@ const Inventario = () => {
       unidadeFiltro === "Todas" ||
       unidadeItemNorm.includes(unidadeSelecionadaNorm);
 
-    // Normalização do Status para o filtro funcionar com qualquer caixa de texto
     const statusItemNorm = String(item.status || "ativo").toLowerCase().trim();
     const statusFiltroNorm = statusFiltro.toLowerCase().trim();
     
@@ -149,7 +144,9 @@ const Inventario = () => {
   const exportarExcelCompleto = async () => {
     if (itensFiltrados.length === 0)
       return toast.error("Não há dados para exportar.");
-    toast.info("Sincronizando...");
+    
+    toast.info("Sincronizando e gerando arquivos...");
+    
     try {
       const dadosParaEnviar = itensFiltrados.map((i) => ({
         patrimonio: i.patrimonio?.toString() || "S/P",
@@ -165,24 +162,27 @@ const Inventario = () => {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Inventario");
       XLSX.writeFile(wb, `Inventario_${unidadeFiltro}.xlsx`);
-      toast.success("Exportação concluída!");
+
+      await fetch(WEBAPP_URL_SHEETS, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(dadosParaEnviar),
+      });
+
+      toast.success("Exportação local concluída e Google Sheets atualizado!");
     } catch (error) {
-      toast.error("Erro na exportação.");
+      console.error("Erro na sincronização:", error);
+      toast.error("Erro ao atualizar a planilha online.");
     }
   };
 
-  const confirmarBaixa = async () => {
-    try {
-      await updateDoc(doc(db, "ativos", modalBaixa.id), {
-        status: "baixado", // Salva padronizado em minúsculo
-        dataBaixa: serverTimestamp(),
-      });
-      toast.warning("Item baixado.");
-      setModalBaixa({ aberto: false, id: null, nome: "" });
-      carregarDados();
-    } catch (error) {
-      toast.error("Erro ao baixar.");
-    }
+  // Função disparada pelo botão "Baixar" da tabela
+  const lidarComAberturaModal = (item) => {
+    setEquipamentoSelecionado(item);
+    setModalAberto(true);
   };
 
   return (
@@ -205,8 +205,7 @@ const Inventario = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-tight">
-                <Shield className="text-blue-600" size={28} /> Painel
-                Administrativo
+                <Shield className="text-blue-600" size={28} /> Painel Administrativo
               </h1>
               <p className="text-slate-500 text-sm font-medium">
                 Gestão centralizada de ativos.
@@ -294,22 +293,14 @@ const Inventario = () => {
           {!hasSearched ? (
             <div className="h-[400px] flex flex-col items-center justify-center text-slate-300">
               <Search size={64} className="mb-4 opacity-10" />
-              <p className="font-bold text-lg text-slate-400">
-                Pronto para buscar
-              </p>
-              <p className="text-sm">
-                Clique em Consultar para carregar os dados.
-              </p>
+              <p className="font-bold text-lg text-slate-400">Pronto para buscar</p>
+              <p className="text-sm">Clique em Consultar para carregar os dados.</p>
             </div>
           ) : itensFiltrados.length === 0 ? (
             <div className="h-[400px] flex flex-col items-center justify-center text-slate-400 text-center p-4">
               <FilterX size={48} className="mb-2 opacity-20" />
-              <p className="font-bold">
-                Nenhum item corresponde aos filtros selecionados.
-              </p>
-              <p className="text-xs italic">
-                Verifique se o Status ou a Unidade estão corretos.
-              </p>
+              <p className="font-bold">Nenhum item corresponde aos filtros selecionados.</p>
+              <p className="text-xs italic">Verifique se o Status ou a Unidade estão corretos.</p>
             </div>
           ) : (
             <>
@@ -326,7 +317,6 @@ const Inventario = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {itensExibidos.map((item) => {
-                      // Normalização pontual para renderizar a linha perfeitamente
                       const statusItemLower = String(item.status || "ativo").toLowerCase().trim();
                       const isAtivo = statusItemLower === "ativo";
 
@@ -355,21 +345,13 @@ const Inventario = () => {
                                   : "bg-red-100 text-red-600"
                               }`}
                             >
-                              {statusItemLower === "baixado"
-                                ? "Inutilizado"
-                                : item.status}
+                              {statusItemLower === "baixado" ? "Inutilizado" : item.status}
                             </span>
                           </td>
                           <td className="p-4 text-center">
                             {isAtivo ? (
                               <button
-                                onClick={() =>
-                                  setModalBaixa({
-                                    aberto: true,
-                                    id: item.id,
-                                    nome: item.nome,
-                                  })
-                                }
+                                onClick={() => lidarComAberturaModal(item)}
                                 className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm border border-red-100"
                               >
                                 Baixar
@@ -416,37 +398,16 @@ const Inventario = () => {
 
       <Footer />
 
-      {/* MODAL DE CONFIRMAÇÃO */}
-      {modalBaixa.aberto && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200 border border-slate-100">
-            <AlertCircle className="text-red-500 mx-auto mb-4" size={48} />
-            <h3 className="text-xl font-black text-center mb-2 italic tracking-tighter uppercase">
-              Confirmar Baixa?
-            </h3>
-            <p className="text-slate-500 text-center mb-8 text-sm italic font-medium">
-              Item:{" "}
-              <span className="text-slate-900 font-bold">
-                {modalBaixa.nome}
-              </span>
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setModalBaixa({ aberto: false })}
-                className="flex-1 bg-slate-100 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest text-slate-600 hover:bg-slate-200 cursor-pointer"
-              >
-                Sair
-              </button>
-              <button
-                onClick={confirmarBaixa}
-                className="flex-1 bg-red-600 text-white py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-700 cursor-pointer transition-all"
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* RENDERIZAÇÃO DO NOVO MODAL DE ETAPAS DE BAIXA */}
+      <ModalInventario
+        isOpen={modalAberto}
+        equipamento={equipamentoSelecionado}
+        onClose={() => {
+          setModalAberto(false);
+          setEquipamentoSelecionado(null);
+        }}
+        onAtualizar={carregarDados}
+      />
     </div>
   );
 };

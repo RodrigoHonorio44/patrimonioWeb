@@ -46,10 +46,8 @@ const CadastroEquipamento = () => {
 
           if (docSnap.exists()) {
             const data = docSnap.data();
-            // Padroniza o role para evitar erros de digitação (ex: Admin vs admin)
             const role = data.role?.toLowerCase().trim() || "";
 
-            // ATUALIZAÇÃO: Incluído 'root' na lista de permissões permitidas
             const cargosAutorizados = [
               "root",
               "adm",
@@ -95,29 +93,36 @@ const CadastroEquipamento = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const idToast = toast.loading("Registrando no sistema...");
+    const idToast = toast.loading("Registrando no estoque central...");
 
     try {
-      await addDoc(collection(db, "ativos"), {
-        ...formData,
-        patrimonio: formData.patrimonio.toUpperCase(),
+      // Alterado para salvar na coleção "estoque" com os dados normalizados em minúsculo
+      await addDoc(collection(db, "estoque"), {
+        nome: formData.nome.toLowerCase().trim(),
+        setor: formData.setor.toLowerCase().trim(),
+        observacoes: formData.observacoes.toLowerCase().trim(),
+        patrimonio: formData.patrimonio.toUpperCase().trim(),
+        unidade: formData.unidade,
+        estado: formData.estado.toLowerCase().trim(),
         quantidade: Number(formData.quantidade),
-        status: "Ativo",
+        tipo: "equipamento",
+        categoriaItem: formData.tipo,
+        status: "ativo",
         criadoEm: serverTimestamp(),
         cadastradoPor: nomeUsuario,
       });
 
       toast.update(idToast, {
-        render: "Patrimônio registrado com sucesso!",
+        render: "Item adicionado ao estoque com sucesso!",
         type: "success",
         isLoading: false,
         autoClose: 3000,
       });
 
-      // Limpa apenas os campos variáveis após sucesso
+      // Limpa os campos variáveis
       setFormData({ ...formData, patrimonio: "", nome: "", observacoes: "" });
     } catch (error) {
-      console.error("Erro ao salvar:", error);
+      console.error("Erro ao salvar no estoque:", error);
       toast.update(idToast, {
         render: "Erro ao salvar no banco de dados",
         type: "error",
@@ -149,10 +154,10 @@ const CadastroEquipamento = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-800">
-              Novo Patrimônio
+              Novo Item no Estoque
             </h1>
             <p className="text-slate-500 text-sm">
-              Cadastro de entrada de ativos no sistema
+              Cadastro de entrada de ativos no estoque central
             </p>
           </div>
         </div>
@@ -174,7 +179,7 @@ const CadastroEquipamento = () => {
               <input
                 type="text"
                 required
-                placeholder="Ex: HMC-1234"
+                placeholder="Ex: HMC-1234 ou S/P"
                 className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all"
                 value={formData.patrimonio}
                 onChange={(e) =>
@@ -184,14 +189,14 @@ const CadastroEquipamento = () => {
             </div>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
-                <FiMapPin className="text-blue-500" /> Unidade Destino
+                <FiMapPin className="text-blue-500" /> Unidade Atual
               </label>
               <select
                 required
                 className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
                 value={formData.unidade}
                 onChange={(e) =>
-                  setFormData({ ...formData, unidade: e.target.value })
+                  setFormData({ ...formData, unidadedestino: e.target.value, unidade: e.target.value })
                 }
               >
                 <option value="">Selecione a Unidade...</option>
@@ -217,6 +222,7 @@ const CadastroEquipamento = () => {
                 }
               >
                 <option value="Mobiliário">Mobiliário</option>
+                <option value="Bem durável">Bem durável</option>
                 <option value="Refrigeração">Refrigeração</option>
                 <option value="Informática">Informática</option>
                 <option value="Equip. Médico">Equipamento Médico</option>
@@ -230,7 +236,7 @@ const CadastroEquipamento = () => {
               <input
                 type="text"
                 required
-                placeholder="Ex: Recepção / Sala 02"
+                placeholder="Ex: Sala Patrimonio"
                 className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all"
                 value={formData.setor}
                 onChange={(e) =>
@@ -315,7 +321,7 @@ const CadastroEquipamento = () => {
               <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <>
-                <FiSave className="text-xl" /> Finalizar Registro de Patrimônio
+                <FiSave className="text-xl" /> Finalizar Registro no Estoque
               </>
             )}
           </button>

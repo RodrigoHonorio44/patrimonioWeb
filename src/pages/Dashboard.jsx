@@ -21,6 +21,7 @@ import {
   PieChart,
   User,
   Layers3, // Ícone para a Consulta Avançada de Itens
+  FileText, // Novo ícone para o Laudo de Inviabilidade
 } from "lucide-react";
 
 // Importação das configurações e funções do Firebase
@@ -65,7 +66,7 @@ export default function Dashboard() {
     // 2. Escutar atualizações de chamados em tempo real
     const unsubscribeChamados = onSnapshot(
       collection(db, "chamados"),
-      (snapshot) => {
+      snapshot => {
         const docs = snapshot.docs.map((d) => d.data());
         setEstatisticas({
           total: docs.length,
@@ -205,6 +206,8 @@ export default function Dashboard() {
                 <NavButton icon={MessageSquarePlus} label="Abrir Chamado" path="/cadastro-chamado" />
                 <NavButton icon={ClipboardList} label="Fila de Trabalho" path="/painel-analista" />
                 <NavButton icon={Repeat} label="Remanejamento" path="/remanejamento" moduloId="remanejamento" />
+                {/* CORREÇÃO: Vinculado individualmente à trava de laudos */}
+                <NavButton icon={FileText} label="Laudo Técnico" path="/laudo-inviabilidade" moduloId="laudos" />
               </div>
             </div>
           )}
@@ -265,6 +268,7 @@ export default function Dashboard() {
               </h3>
             </div>
             <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center text-white">
+              <img src="" alt="" />
               <User size={28} strokeWidth={2.5} />
             </div>
           </div>
@@ -306,12 +310,13 @@ export default function Dashboard() {
                   variant="light"
                 />
               )}
-              {temAcesso("remanejamento") && (
+              {/* CORREÇÃO: Modificado de temAcesso("chamados") para temAcesso("laudos") */}
+              {temAcesso("laudos") && (
                 <QuickActionCard
-                  title="Remanejamento"
-                  description="Movimentar equipamentos entre setores ou unidades."
-                  icon={Repeat}
-                  onClick={() => navigate("/remanejamento")}
+                  title="Laudos emitidos"
+                  description="Gerencie e emita laudos de inviabilidade técnica para descarte de ativos."
+                  icon={FileText}
+                  onClick={() => navigate("/laudo-inviabilidade")}
                   variant="light"
                 />
               )}

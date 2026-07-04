@@ -22,7 +22,11 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiRotateCcw,
+  FiPrinter,
+  FiCheckCircle,
 } from "react-icons/fi";
+// IMPORTANTE: Importando a função de impressão que configuramos
+import { abrirVisualizacaoTermo } from "../components/ImpressaoTransferencia";
 
 const Transferencia = () => {
   const [patrimonioBusca, setPatrimonioBusca] = useState("");
@@ -33,6 +37,9 @@ const Transferencia = () => {
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [novoPatrimonioParaSP, setNovoPatrimonioParaSP] = useState("");
+
+  // NOVO: Estado para controlar se o usuário já gerou a impressão
+  const [termoVisualizado, setTermoVisualizado] = useState(false);
 
   const [paginaAtual, setPaginaAtual] = useState(1);
   const itensPorPagina = 12;
@@ -85,20 +92,32 @@ const Transferencia = () => {
     setLoading(true);
     try {
       const ativosRef = collection(db, "ativos");
-      // Removido o where("status", "==", "Ativo") engessado para aceitar qualquer caixa de texto
-      const q = query(ativosRef, limit(500));
-      const snap = await getDocs(q);
+      let listaGeral = [];
 
-      const listaGeral = snap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      // SE FOR BUSCA POR PATRIMÔNIO: Remove o limite inicial para buscar o registro no escopo completo
+      if (tipo === "patrimonio") {
+        const qPatrimonio = query(ativosRef);
+        const snapPatrimonio = await getDocs(qPatrimonio);
+        
+        listaGeral = snapPatrimonio.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      } else {
+        // SE FOR BUSCA POR NOME/SETOR: Aumenta o limite seguro de paginação para evitar que itens sumam
+        const qGeral = query(ativosRef, limit(2000));
+        const snapGeral = await getDocs(qGeral);
+        
+        listaGeral = snapGeral.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+      }
 
       const termoNorm = normalizarParaComparacao(termoOriginal);
       const unidadeFiltroNorm = normalizarParaComparacao(unidadeFiltro);
 
       const filtrados = listaGeral.filter((item) => {
-        // Validação de status insensível a maiúsculas/minúsculas
         const statusItemNorm = String(item.status || "ativo").toLowerCase().trim();
         if (statusItemNorm !== "ativo") return false;
 
@@ -119,7 +138,11 @@ const Transferencia = () => {
       });
 
       setItensEncontrados(filtrados);
-      if (filtrados.length === 0) toast.error("Nenhum item ativo encontrado.");
+      setPaginaAtual(1);
+      
+      if (filtrados.length === 0) {
+        toast.error("Nenhum item ativo encontrado.");
+      }
     } catch (error) {
       console.error(error);
       toast.error("Erro na busca.");
@@ -134,6 +157,39 @@ const Transferencia = () => {
     paginaAtual * itensPorPagina
   );
 
+  const lidarComVisualizacao = () => {
+    if (!dadosSaida.novaUnidade || !dadosSaida.novoSetor || !dadosSaida.responsavelRecebimento) {
+      toast.warn("Por favor, preencha todos os campos antes de visualizar.");
+      return;
+    }
+
+    if (normalizarParaComparacao(itemSelecionado.patrimonio) === "sp" && !novoPatrimonioParaSP) {
+      toast.warn("Por favor, atribua um novo número de patrimônio.");
+      return;
+    }
+
+    const patrimonioFinal =
+      normalizarParaComparacao(itemSelecionado.patrimonio) === "sp" && novoPatrimonioParaSP
+        ? novoPatrimonioParaSP
+        : itemSelecionado.patrimonio;
+
+    const dadosCompletosParaTermo = {
+      ativoId: itemSelecionado.id,
+      patrimonio: patrimonioFinal,
+      nomeEquipamento: itemSelecionado.nome,
+      unidadeOrigem: itemSelecionado.unidade,
+      setorOrigem: itemSelecionado.setor,
+      unidadeDestino: dadosSaida.novaUnidade,
+      setorDestino: dadosSaida.novoSetor,
+      responsavelRecebimento: dadosSaida.responsavelRecebimento,
+      motivo: dadosSaida.motivo,
+    };
+
+    abrirVisualizacaoTermo(dadosCompletosParaTermo);
+    setTermoVisualizado(true);
+    toast.info("Documento de conferência aberto na nova aba!");
+  };
+
   const handleSaida = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -142,32 +198,44 @@ const Transferencia = () => {
       const patrimonioFinal =
         normalizarParaComparacao(itemSelecionado.patrimonio) === "sp" &&
         novoPatrimonioParaSP
-          ? novoPatrimonioParaSP.toLowerCase() // Mantém o padrão de salvar dados em minúsculo
-          : itemSelecionado.patrimonio;
+          ? novoPatrimonioParaSP.toLowerCase()
+          : itemSelecionado.patrimonio.toLowerCase();
 
       await updateDoc(ativoRef, {
         unidade: dadosSaida.novaUnidade,
-        setor: dadosSaida.novoSetor,
+        setor: dadosSaida.novoSetor.toLowerCase(),
         patrimonio: patrimonioFinal,
         ultimaMovimentacao: serverTimestamp(),
       });
 
       await addDoc(collection(db, "saidaEquipamento"), {
-        ...dadosSaida,
         ativoId: itemSelecionado.id,
         patrimonio: patrimonioFinal,
-        nomeEquipamento: itemSelecionado.nome,
+        nomeEquipamento: itemSelecionado.nome.toLowerCase(),
         unidadeOrigem: itemSelecionado.unidade,
-        setorOrigem: itemSelecionado.setor,
+        setorOrigem: itemSelecionado.setor.toLowerCase(),
+        unidadeDestino: dadosSaida.novaUnidade,
+        setorDestino: dadosSaida.novoSetor.toLowerCase(),
+        responsavelRecebimento: dadosSaida.responsavelRecebimento.toLowerCase(),
+        motivo: dadosSaida.motivo,
         dataSaida: serverTimestamp(),
       });
 
-      toast.success("Transferência realizada!");
+      toast.success("Transferência salva com sucesso no sistema!");
       setShowModal(false);
+      setTermoVisualizado(false);
       setItensEncontrados([]);
       setPatrimonioBusca("");
       setNomeBusca("");
+      setNovoPatrimonioParaSP("");
+      setDadosSaida({
+        novaUnidade: "",
+        novoSetor: "",
+        motivo: "Transferência",
+        responsavelRecebimento: "",
+      });
     } catch (error) {
+      console.error(error);
       toast.error("Erro ao salvar.");
     } finally {
       setLoading(false);
@@ -268,6 +336,7 @@ const Transferencia = () => {
               key={item.id}
               onClick={() => {
                 setItemSelecionado(item);
+                setTermoVisualizado(false);
                 setShowModal(true);
               }}
               className="bg-white p-4 rounded-xl border border-slate-200 hover:border-blue-400 cursor-pointer transition-all hover:shadow-md group"
@@ -326,7 +395,10 @@ const Transferencia = () => {
                 Confirmar Saída
               </h3>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false);
+                  setTermoVisualizado(false);
+                }}
                 className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <FiX size={24} />
@@ -350,7 +422,8 @@ const Transferencia = () => {
                   </label>
                   <input
                     type="text"
-                    className="w-full p-2 border border-amber-300 rounded outline-none text-slate-700"
+                    disabled={termoVisualizado}
+                    className="w-full p-2 border border-amber-300 rounded outline-none text-slate-700 disabled:bg-slate-100"
                     placeholder="h-0000"
                     value={novoPatrimonioParaSP}
                     onChange={(e) => setNovoPatrimonioParaSP(e.target.value)}
@@ -365,7 +438,9 @@ const Transferencia = () => {
                 </label>
                 <select
                   required
-                  className="w-full border p-2 rounded-lg outline-blue-500 bg-white text-slate-700 cursor-pointer"
+                  disabled={termoVisualizado}
+                  value={dadosSaida.novaUnidade}
+                  className="w-full border p-2 rounded-lg outline-blue-500 bg-white text-slate-700 cursor-pointer disabled:bg-slate-100"
                   onChange={(e) =>
                     setDadosSaida({
                       ...dadosSaida,
@@ -389,7 +464,9 @@ const Transferencia = () => {
                 <input
                   type="text"
                   required
-                  className="w-full border p-2 rounded-lg outline-blue-500 text-slate-700"
+                  disabled={termoVisualizado}
+                  value={dadosSaida.novoSetor}
+                  className="w-full border p-2 rounded-lg outline-blue-500 text-slate-700 disabled:bg-slate-100"
                   onChange={(e) =>
                     setDadosSaida({ ...dadosSaida, novoSetor: e.target.value })
                   }
@@ -403,7 +480,9 @@ const Transferencia = () => {
                 <input
                   type="text"
                   required
-                  className="w-full border p-2 rounded-lg outline-blue-500 text-slate-700"
+                  disabled={termoVisualizado}
+                  value={dadosSaida.responsavelRecebimento}
+                  className="w-full border p-2 rounded-lg outline-blue-500 text-slate-700 disabled:bg-slate-100"
                   onChange={(e) =>
                     setDadosSaida({
                       ...dadosSaida,
@@ -413,13 +492,34 @@ const Transferencia = () => {
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 cursor-pointer"
-              >
-                {loading ? "Gravando..." : "Finalizar Transferência"}
-              </button>
+              {/* FLUXO DINÂMICO DE BOTÕES */}
+              {!termoVisualizado ? (
+                <button
+                  type="button"
+                  onClick={lidarComVisualizacao}
+                  className="w-full h-12 flex items-center justify-center gap-2 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-all shadow-lg shadow-amber-100 cursor-pointer"
+                >
+                  <FiPrinter size={16} /> Visualizar Documento de Impressão
+                </button>
+              ) : (
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full h-12 flex items-center justify-center gap-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 cursor-pointer disabled:bg-slate-300"
+                  >
+                    <FiCheckCircle size={16} /> {loading ? "Gravando..." : "Confirmar e Salvar Transferência"}
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setTermoVisualizado(false)}
+                    className="w-full py-2 text-slate-500 hover:text-slate-800 text-xs font-bold transition-all text-center cursor-pointer"
+                  >
+                    ← Editar informações preenchidas
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </div>

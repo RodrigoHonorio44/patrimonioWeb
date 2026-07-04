@@ -573,28 +573,29 @@ const PainelAnalista = () => {
                                   </button>
                                 )}
 
-                                {status === "em atendimento" && isDono && (
-                                  <div className="flex gap-1">
-                                    <button
-                                      onClick={() => {
-                                        setChamadoSelecionado(item);
-                                        setMostrarModalFinalizar(true);
-                                      }}
-                                      className="bg-emerald-500 text-white p-2.5 rounded-xl hover:bg-emerald-600 shadow-md"
-                                    >
-                                      <FiCheck size={18} />
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setChamadoSelecionado(item);
-                                        setMostrarModalPausar(true);
-                                      }}
-                                      className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
-                                    >
-                                      <FiPauseCircle size={18} />
-                                    </button>
-                                  </div>
-                                )}
+                              {status === "em atendimento" && isDono && (
+  <div className="flex gap-1">
+    <button
+      onClick={() => {
+        setChamadoSelecionado(item);
+        setPatrimonio(item.patrimonio || ""); // <-- ADICIONE ESTA LINHA
+        setMostrarModalFinalizar(true);
+      }}
+      className="bg-emerald-500 text-white p-2.5 rounded-xl hover:bg-emerald-600 shadow-md"
+    >
+      <FiCheck size={18} />
+    </button>
+    <button
+      onClick={() => {
+        setChamadoSelecionado(item);
+        setMostrarModalPausar(true);
+      }}
+      className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
+    >
+      <FiPauseCircle size={18} />
+    </button>
+  </div>
+)}
                               </>
                             )}
 

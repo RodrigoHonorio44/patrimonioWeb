@@ -11,6 +11,46 @@ const ImprimirAnalista = ({ chamado, isRemaneja, formatarDataHora }) => {
       className="hidden p-8 text-black bg-white uppercase"
     >
       <div className="border-[4px] border-black p-6">
+        
+        {/* FAIXA OFICIAL DE LOGOS DE PONTA A PONTA */}
+        <div className="w-full flex justify-between items-center pb-4 mb-4 border-b-2 border-black/20 select-none print:flex">
+          {/* Logo 1: Hospital Conde Modesto Leal */}
+          <div className="flex-1 flex justify-start">
+            <img 
+              src="/Imagem1.png" 
+              alt="Hospital Municipal Conde Modesto Leal" 
+              className="h-12 object-contain print:block" 
+            />
+          </div>
+          
+          {/* Logo 2: Avante Social */}
+          <div className="flex-1 flex justify-center">
+            <img 
+              src="/Imagem2.png" 
+              alt="Avante Social" 
+              className="h-12 object-contain print:block" 
+            />
+          </div>
+          
+          {/* Logo 3: Secretaria de Saúde */}
+          <div className="flex-1 flex justify-center">
+            <img 
+              src="/Imagem3.png" 
+              alt="Secretaria de Saúde" 
+              className="h-8 object-contain print:block" 
+            />
+          </div>
+          
+          {/* Logo 4: Prefeitura de Maricá */}
+          <div className="flex-1 flex justify-end">
+            <img 
+              src="/Imagem4.png" 
+              alt="Prefeitura de Maricá" 
+              className="h-12 object-contain print:block" 
+            />
+          </div>
+        </div>
+
         {/* CABEÇALHO */}
         <div className="flex justify-between border-b-4 border-black pb-4 mb-4 items-center">
           <h1 className="text-3xl font-black">
@@ -27,7 +67,7 @@ const ImprimirAnalista = ({ chamado, isRemaneja, formatarDataHora }) => {
         {/* INFORMAÇÕES PRINCIPAIS */}
         <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-[12px] font-bold mb-6">
           <p className="border-b border-black/20 pb-1">
-            SOLICITANTE: <span className="font-black">{chamado.nome}</span>
+            SOLICITANTE : <span className="font-black">{chamado.nome}</span>
           </p>
           <p className="border-b border-black/20 pb-1">
             UNIDADE: <span className="font-black">{chamado.unidade}</span>

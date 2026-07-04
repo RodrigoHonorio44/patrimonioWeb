@@ -17,31 +17,40 @@ import {
   ArrowLeft,
   RefreshCw,
   Truck,
-  Tag,
-  User,
-  MapPin,
   AlertTriangle,
-  ClipboardList,
-  ChevronRight,
+  Plus,
+  Trash2,
+  Eye,
+  Printer,
+  X,
 } from "lucide-react";
 
 const Estoque = () => {
-  const [itensAtivos, setItensAtivos] = useState([]);
+  const [itensEstoque, setItensEstoque] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processando, setProcessando] = useState(false);
 
-  const [itemSelecionado, setItemSelecionado] = useState(null);
-  const [novoPatrimonioParaSP, setNovoPatrimonioParaSP] = useState("");
-  const [quantidadeParaRetirar, setQuantidadeParaRetirar] = useState(1);
+  // Estados do Carrinho/Lote
+  const [loteSaida, setLoteSaida] = useState([]);
+  const [itemParaAdicionar, setItemParaAdicionar] = useState(null);
+  const [patrimonioInput, setPatrimonioInput] = useState("");
+  const [qtdInput, setQtdInput] = useState(1);
 
-  const navigate = useNavigate();
+  // Estado do Modal de Preview do Documento
+  const [mostrarPreview, setMostrarPreview] = useState(false);
 
+  // Nova opção: Responsável desconhecido no momento do envio
+  const [naoSabeResponsavel, setNaoSabeResponsavel] = useState(false);
+
+  // Dados comuns de Destino
   const [dadosSaida, setDadosSaida] = useState({
     novaUnidade: "",
     novoSetor: "",
     responsavelRecebimento: "",
     motivo: "Transferência",
   });
+
+  const navigate = useNavigate();
 
   const unidades = [
     "Hospital Conde",
@@ -52,23 +61,19 @@ const Estoque = () => {
     "SAMU Centro",
   ];
 
-  const carregarEstoquePatrimonio = async () => {
+  const carregarEstoque = async () => {
     setLoading(true);
     try {
-      const ativosRef = collection(db, "ativos");
-      const q = query(
-        ativosRef,
-        where("setor", "in", ["patrimonio", "Patrimonio", "PATRIMONIO"]),
-        where("status", "==", "Ativo")
-      );
-
+      const estoqueRef = collection(db, "estoque");
+      const q = query(estoqueRef, where("status", "==", "ativo"));
       const querySnapshot = await getDocs(q);
       const lista = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      setItensAtivos(lista);
+      setItensEstoque(lista);
     } catch (error) {
+      console.error(error);
       toast.error("Erro ao carregar itens do estoque.");
     } finally {
       setLoading(false);
@@ -76,81 +81,142 @@ const Estoque = () => {
   };
 
   useEffect(() => {
-    carregarEstoquePatrimonio();
+    carregarEstoque();
   }, []);
 
-  const handleSaida = async (e) => {
+  const adicionarAoLote = (e) => {
     e.preventDefault();
+    if (!itemParaAdicionar) return;
+
+    const qtdDisponivel = Number(itemParaAdicionar.quantidade || 1);
+    const qtdSolicitada = Number(qtdInput);
+
+    if (qtdSolicitada > qtdDisponivel) {
+      toast.error(`Quantidade indisponível! Estoque atual: ${qtdDisponivel}`);
+      return;
+    }
+
+    const patrimonioFinal = itemParaAdicionar.patrimonio?.toUpperCase() === "S/P" 
+      ? patrimonioInput.toLowerCase().trim() 
+      : itemParaAdicionar.patrimonio.toLowerCase().trim();
+
+    if (!patrimonioFinal) {
+      toast.error("Insira um número de patrimônio válido.");
+      return;
+    }
+
+    const jaExiste = loteSaida.some(item => item.patrimonioMapeado === patrimonioFinal);
+    if (jaExiste) {
+      toast.error("Este número de patrimônio já foi adicionado ao lote!");
+      return;
+    }
+
+    const novoItemLote = {
+      ...itemParaAdicionar,
+      quantidadeMovimentada: qtdSolicitada,
+      patrimonioMapeado: patrimonioFinal,
+    };
+
+    setLoteSaida([...loteSaida, novoItemLote]);
+    setItemParaAdicionar(null);
+    setPatrimonioInput("");
+    setQtdInput(1);
+    toast.success("Item adicionado ao lote!");
+  };
+
+  const removerDoLote = (index) => {
+    const novaLista = [...loteSaida];
+    novaLista.splice(index, 1);
+    setLoteSaida(novaLista);
+  };
+
+  const efetivarTransferenciaESalvar = async () => {
+    if (loteSaida.length === 0) return;
     setProcessando(true);
 
-    const ativoRef = doc(db, "ativos", itemSelecionado.id);
-    const qtdSolicitada = Number(quantidadeParaRetirar);
+    const responsavelFinal = naoSabeResponsavel 
+      ? "responsável pelo setor" 
+      : dadosSaida.responsavelRecebimento.toLowerCase().trim();
 
     try {
       await runTransaction(db, async (transaction) => {
-        const sfDoc = await transaction.get(ativoRef);
-        if (!sfDoc.exists()) throw new Error("O item não existe no banco.");
+        for (const item of loteSaida) {
+          const estoqueItemRef = doc(db, "estoque", item.id);
+          const sfDoc = await transaction.get(estoqueItemRef);
+          
+          if (!sfDoc.exists()) {
+            throw new Error(`O item ${item.nome} não existe mais no estoque.`);
+          }
 
-        const dadosOriginais = sfDoc.data();
-        const qtdAtual = Number(dadosOriginais.quantidade || 1);
+          const dadosOriginais = sfDoc.data();
+          const qtdAtual = Number(dadosOriginais.quantidade || 1);
+          const qtdSolicitada = item.quantidadeMovimentada;
 
-        if (qtdSolicitada > qtdAtual)
-          throw new Error(`Estoque insuficiente! Disponível: ${qtdAtual}`);
+          if (qtdSolicitada > qtdAtual) {
+            throw new Error(`Estoque insuficiente para ${item.nome}!`);
+          }
 
-        const isSP = dadosOriginais.patrimonio?.toUpperCase() === "S/P";
-        const patrimonioFinal =
-          isSP && novoPatrimonioParaSP
-            ? novoPatrimonioParaSP.toUpperCase().trim()
-            : dadosOriginais.patrimonio;
-
-        if (isSP && qtdSolicitada < qtdAtual) {
-          // SAÍDA PARCIAL (Desmembramento)
-          transaction.update(ativoRef, {
-            quantidade: increment(-qtdSolicitada),
-            ultimaMovimentacao: serverTimestamp(),
-          });
+          if (qtdSolicitada < qtdAtual) {
+            transaction.update(estoqueItemRef, {
+              quantidade: increment(-qtdSolicitada),
+              ultimaMovimentacao: serverTimestamp(),
+            });
+          } else {
+            transaction.update(estoqueItemRef, {
+              status: "movimentado",
+              quantidade: 0,
+              ultimaMovimentacao: serverTimestamp(),
+            });
+          }
 
           const novoAtivoRef = doc(collection(db, "ativos"));
           transaction.set(novoAtivoRef, {
-            ...dadosOriginais,
+            nome: item.nome.toLowerCase().trim(),
+            categoriaItem: item.categoriaItem || item.tipo || "Mobiliário",
+            tipo: "equipamento",
+            estado: item.estado,
+            observacoes: item.observacoes || "",
+            cadastradoPor: item.cadastradoPor || "",
+            criadoEm: item.criadoEm || serverTimestamp(),
             id: novoAtivoRef.id,
             quantidade: qtdSolicitada,
-            patrimonio: patrimonioFinal,
+            patrimonio: item.patrimonioMapeado,
             unidade: dadosSaida.novaUnidade,
             setor: dadosSaida.novoSetor.toLowerCase().trim(),
+            status: "Ativo",
             ultimaMovimentacao: serverTimestamp(),
-            dataCadastro: serverTimestamp(),
           });
-        } else {
-          // SAÍDA TOTAL
-          transaction.update(ativoRef, {
-            unidade: dadosSaida.novaUnidade,
-            setor: dadosSaida.novoSetor.toLowerCase().trim(),
-            patrimonio: patrimonioFinal,
-            quantidade: isSP ? qtdSolicitada : qtdAtual,
-            ultimaMovimentacao: serverTimestamp(),
+
+          const logsRef = collection(db, "saidaEquipamento");
+          transaction.set(doc(logsRef), {
+            estoqueId: item.id,
+            patrimonio: item.patrimonioMapeado,
+            nomeEquipamento: item.nome.toLowerCase().trim(),
+            unidadeOrigem: item.unidade || "Estoque Central",
+            setorOrigem: item.setor || "Patrimônio",
+            unidadeDestino: dadosSaida.novaUnidade,
+            setorDestino: dadosSaida.novoSetor.toLowerCase().trim(),
+            quantidadeRetirada: qtdSolicitada,
+            responsavelRecebimento: responsavelFinal,
+            motivo: dadosSaida.motivo,
+            dataSaida: serverTimestamp(),
           });
         }
-
-        const logsRef = collection(db, "saidaEquipamento");
-        transaction.set(doc(logsRef), {
-          ativoId: itemSelecionado.id,
-          patrimonio: patrimonioFinal,
-          nomeEquipamento: itemSelecionado.nome,
-          unidadeOrigem: itemSelecionado.unidade,
-          setorOrigem: itemSelecionado.setor,
-          unidadeDestino: dadosSaida.novaUnidade,
-          setorDestino: dadosSaida.novoSetor,
-          quantidadeRetirada: qtdSolicitada,
-          responsavelRecebimento: dadosSaida.responsavelRecebimento,
-          motivo: dadosSaida.motivo,
-          dataSaida: serverTimestamp(),
-        });
       });
 
-      toast.success("Movimentação concluída com sucesso!");
-      fecharModal();
-      carregarEstoquePatrimonio();
+      toast.success("Transferência concluída com sucesso!");
+      window.print();
+
+      setLoteSaida([]);
+      setMostrarPreview(false);
+      setNaoSabeResponsavel(false);
+      setDadosSaida({
+        novaUnidade: "",
+        novoSetor: "",
+        responsavelRecebimento: "",
+        motivo: "Transferência",
+      });
+      carregarEstoque();
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -158,278 +224,371 @@ const Estoque = () => {
     }
   };
 
-  const fecharModal = () => {
-    setItemSelecionado(null);
-    setNovoPatrimonioParaSP("");
-    setQuantidadeParaRetirar(1);
-    setDadosSaida({
-      novaUnidade: "",
-      novoSetor: "",
-      responsavelRecebimento: "",
-      motivo: "Transferência",
-    });
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
-      {/* Header */}
-      <header className="max-w-7xl mx-auto mb-8">
-        <button
-          onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-sm transition-colors mb-4 group"
-        >
-          <ArrowLeft
-            size={18}
-            className="group-hover:-translate-x-1 transition-transform"
-          />
-          Voltar ao Dashboard
-        </button>
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-tight">
-              <Box className="text-blue-600" size={28} /> Sala do Patrimônio
-            </h1>
-            <p className="text-slate-500 text-sm font-medium italic">
-              Gerencie o estoque central e realize distribuições para as
-              unidades.
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans print:bg-white print:p-0">
+      
+      {/* Interface Normal (Escondida ao Imprimir) */}
+      <div className="print:hidden">
+        <header className="max-w-7xl mx-auto mb-8">
           <button
-            onClick={carregarEstoquePatrimonio}
-            className="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-slate-50 transition-all shadow-sm"
+            onClick={() => navigate("/dashboard")}
+            className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold text-sm transition-colors mb-4 group"
           >
-            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
-            Atualizar Estoque
+            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+            Voltar ao Dashboard
           </button>
-        </div>
-      </header>
 
-      {/* Tabela de Itens no Patrimônio */}
-      <div className="max-w-7xl mx-auto bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <th className="p-4">Equipamento</th>
-                <th className="p-4">Patrimônio</th>
-                <th className="p-4">Estado</th>
-                <th className="p-4 text-center">Quantidade</th>
-                <th className="p-4">Ação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan="5"
-                    className="p-10 text-center text-slate-400 font-bold"
-                  >
-                    Carregando estoque...
-                  </td>
-                </tr>
-              ) : itensAtivos.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="5"
-                    className="p-10 text-center text-slate-400 font-bold"
-                  >
-                    Nenhum item disponível no Patrimônio.
-                  </td>
-                </tr>
-              ) : (
-                itensAtivos.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-blue-50/50 transition-colors group"
-                  >
-                    <td className="p-4 font-bold text-slate-700">
-                      {item.nome}
-                    </td>
-                    <td className="p-4">
-                      <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg font-mono text-xs font-bold uppercase">
-                        {item.patrimonio || "S/P"}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span
-                        className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase ${
-                          item.estado === "Novo"
-                            ? "bg-emerald-100 text-emerald-600"
-                            : "bg-blue-100 text-blue-600"
-                        }`}
-                      >
-                        {item.estado}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center font-black text-slate-600">
-                      {item.quantidade || 1}
-                    </td>
-                    <td className="p-4">
-                      <button
-                        onClick={() => setItemSelecionado(item)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-100"
-                      >
-                        Dar Saída <ChevronRight size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2 uppercase tracking-tight">
+                <Box className="text-blue-600" size={28} /> Central do Estoque e Distribuição
+              </h1>
+            </div>
+            <button
+              onClick={carregarEstoque}
+              className="bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-slate-50 transition-all shadow-sm"
+            >
+              <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+              Atualizar Estoque
+            </button>
+          </div>
+        </header>
 
-      {/* Modal de Movimentação */}
-      {itemSelecionado && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-[32px] p-8 max-w-lg w-full shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-                <Truck size={24} />
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Tabela de Itens Disponíveis */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+                <h2 className="font-black text-slate-700 uppercase text-xs tracking-wider">Disponíveis no Estoque</h2>
               </div>
-              <div>
-                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
-                  Movimentar Ativo
-                </h3>
-                <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">
-                  {itemSelecionado.nome}
-                </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      <th className="p-4">Equipamento</th>
+                      <th className="p-4">Patrimônio Base</th>
+                      <th className="p-4">Qtd. Disp.</th>
+                      <th className="p-4">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {loading ? (
+                      <tr>
+                        <td colSpan="4" className="p-10 text-center text-slate-400 font-bold">Carregando...</td>
+                      </tr>
+                    ) : (
+                      itensEstoque.map((item) => (
+                        <tr key={item.id} className="hover:bg-blue-50/40 transition-colors">
+                          <td className="p-4 font-bold text-slate-700 capitalize">{item.nome}</td>
+                          <td className="p-4">
+                            <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg font-mono text-xs font-bold uppercase">
+                              {item.patrimonio || "S/P"}
+                            </span>
+                          </td>
+                          <td className="p-4 font-black text-slate-600">{item.quantidade || 1}</td>
+                          <td className="p-4">
+                            <button
+                              onClick={() => {
+                                setItemParaAdicionar(item);
+                                setQtdInput(1);
+                                setPatrimonioInput(item.patrimonio?.toUpperCase() === "S/P" ? "" : item.patrimonio);
+                              }}
+                              className="bg-slate-100 text-slate-700 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                            >
+                              <Plus size={14} /> Preparar Saída
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
+          </div>
 
-            <form onSubmit={handleSaida} className="space-y-5">
-              {/* Alerta de S/P */}
-              {itemSelecionado.patrimonio?.toUpperCase() === "S/P" && (
-                <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl space-y-3">
-                  <div className="flex items-center gap-2 text-amber-600 font-bold text-xs uppercase">
-                    <AlertTriangle size={16} /> Identificação Necessária
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">
-                        Novo Patrimônio
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full bg-white border-none rounded-xl p-2 text-sm font-bold focus:ring-2 focus:ring-amber-500"
-                        value={novoPatrimonioParaSP}
-                        onChange={(e) =>
-                          setNovoPatrimonioParaSP(e.target.value)
-                        }
-                        required
-                      />
-                    </div>
-                    {Number(itemSelecionado.quantidade) > 1 && (
-                      <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">
-                          Quantidade
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max={itemSelecionado.quantidade}
-                          className="w-full bg-white border-none rounded-xl p-2 text-sm font-bold focus:ring-2 focus:ring-amber-500"
-                          value={quantidadeParaRetirar}
-                          onChange={(e) =>
-                            setQuantidadeParaRetirar(e.target.value)
-                          }
-                          required
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+          {/* Painel do Lote de Distribuição */}
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-6">
+              <div className="border-b border-slate-100 pb-4">
+                <h2 className="font-black text-slate-800 uppercase text-sm tracking-tight flex items-center gap-2">
+                  <Truck size={18} className="text-blue-600" /> Lote de Distribuição
+                </h2>
+              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block flex items-center gap-1">
-                    <MapPin size={12} /> Unidade Destino
-                  </label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Unidade Destino</label>
                   <select
-                    required
-                    className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none"
                     value={dadosSaida.novaUnidade}
-                    onChange={(e) =>
-                      setDadosSaida({
-                        ...dadosSaida,
-                        novaUnidade: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setDadosSaida({ ...dadosSaida, novaUnidade: e.target.value })}
                   >
-                    <option value="">Selecione...</option>
-                    {unidades.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
+                    <option value="">Selecione a Unidade...</option>
+                    {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
+
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block flex items-center gap-1">
-                    <Tag size={12} /> Setor Destino
-                  </label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Setor Destino</label>
                   <input
                     type="text"
-                    required
-                    placeholder="Ex: Sala 01"
-                    className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: Sala de Medicação"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none"
                     value={dadosSaida.novoSetor}
-                    onChange={(e) =>
-                      setDadosSaida({
-                        ...dadosSaida,
-                        novoSetor: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setDadosSaida({ ...dadosSaida, novoSetor: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável pelo Recebimento</label>
+                    <label className="flex items-center gap-1 text-[10px] font-bold text-blue-600 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="rounded border-slate-300 focus:ring-blue-500"
+                        checked={naoSabeResponsavel}
+                        onChange={(e) => {
+                          setNaoSabeResponsavel(e.target.checked);
+                          if (e.target.checked) {
+                            setDadosSaida(prev => ({ ...prev, responsavelRecebimento: "" }));
+                          }
+                        }}
+                      />
+                      Deixar em branco
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    disabled={naoSabeResponsavel}
+                    placeholder={naoSabeResponsavel ? "Assinatura do Responsável (preencher na entrega)" : "Quem vai assinar o documento"}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    value={dadosSaida.responsavelRecebimento}
+                    onChange={(e) => setDadosSaida({ ...dadosSaida, responsavelRecebimento: e.target.value })}
                   />
                 </div>
               </div>
 
+              <hr className="border-slate-100" />
+
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block flex items-center gap-1">
-                  <User size={12} /> Responsável pelo Recebimento
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Nome completo"
-                  className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500"
-                  value={dadosSaida.responsavelRecebimento}
-                  onChange={(e) =>
-                    setDadosSaida({
-                      ...dadosSaida,
-                      responsavelRecebimento: e.target.value,
-                    })
-                  }
-                />
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Equipamentos no Lote ({loteSaida.length})</h3>
+                {loteSaida.length === 0 ? (
+                  <div className="text-center p-6 bg-slate-50 rounded-2xl text-xs font-bold text-slate-400 border border-dashed border-slate-200">
+                    Nenhum item adicionado ao lote.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="max-h-60 overflow-y-auto pr-1 space-y-2">
+                      {loteSaida.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                          <div>
+                            <p className="text-xs font-bold text-slate-700 capitalize">{item.nome}</p>
+                            <p className="text-[10px] font-mono font-bold text-blue-600 uppercase">Pat: {item.patrimonioMapeado}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="bg-blue-100 text-blue-700 font-black px-2 py-0.5 rounded-md text-xs">x{item.quantidadeMovimentada}</span>
+                            <button onClick={() => removerDoLote(index)} className="text-red-500 hover:text-red-700 p-1">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!dadosSaida.novaUnidade || !dadosSaida.novoSetor || (!naoSabeResponsavel && !dadosSaida.responsavelRecebimento)}
+                      onClick={() => setMostrarPreview(true)}
+                      className="w-full bg-slate-800 text-white font-bold py-3 rounded-2xl hover:bg-slate-900 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-wider mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Eye size={16} /> Visualizar Termo Antes de Salvar
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MODAL 1: Configurar patrimônio individual */}
+      {itemParaAdicionar && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 print:hidden">
+          <div className="bg-white rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-slate-800 uppercase text-sm">Configurar Patrimônio</h3>
+              <button onClick={() => setItemParaAdicionar(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={adicionarAoLote} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">TAG Patrimônio Final</label>
+                  {itemParaAdicionar.patrimonio?.toUpperCase() === "S/P" ? (
+                    <input
+                      type="text"
+                      className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                      value={patrimonioInput}
+                      onChange={(e) => setPatrimonioInput(e.target.value)}
+                      required
+                      placeholder="Insira a Tag"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      disabled
+                      className="w-full bg-slate-100 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-500 cursor-not-allowed uppercase"
+                      value={itemParaAdicionar.patrimonio}
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Qtd</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={itemParaAdicionar.quantidade}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none"
+                    value={qtdInput}
+                    onChange={(e) => setQtdInput(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={fecharModal}
-                  className="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-2xl hover:bg-slate-200 transition-all"
+                  onClick={() => setItemParaAdicionar(null)}
+                  className="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl text-xs"
                 >
-                  Sair
+                  Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={processando}
-                  className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-blue-700 shadow-md"
                 >
-                  {processando ? (
-                    <RefreshCw className="animate-spin" size={18} />
-                  ) : (
-                    "Confirmar Saída"
-                  )}
+                  Confirmar no Lote
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* MODAL 2: PREVIEW DO DOCUMENTO A4 (Oficial de Impressão) */}
+      {mostrarPreview && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-6 overflow-y-auto print:absolute print:inset-0 print:bg-white print:p-0 print:shadow-none">
+          
+          <div className="bg-white w-full max-w-[800px] min-h-[1050px] shadow-2xl p-12 flex flex-col justify-between font-serif text-slate-900 mx-auto rounded-[24px] print:rounded-none print:shadow-none print:p-4">
+            
+            {/* Controles do Menu de Preview Superior */}
+            <div className="flex justify-between items-center bg-slate-100 border border-slate-200 p-4 rounded-2xl mb-8 font-sans print:hidden">
+              <div className="flex items-center gap-2 text-amber-600 font-bold text-xs uppercase">
+                <AlertTriangle size={16} /> Tela de Conferência Prévia (Preview)
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setMostrarPreview(false)}
+                  className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-50"
+                >
+                  Voltar e Corrigir
+                </button>
+                <button
+                  onClick={efetivarTransferenciaESalvar}
+                  disabled={processando}
+                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 flex items-center gap-1.5 shadow-md"
+                >
+                  {processando ? <RefreshCw className="animate-spin" size={14} /> : <Printer size={14} />}
+                  Salvar e Imprimir!
+                </button>
+              </div>
+            </div>
+
+            {/* Documento Físico */}
+            <div>
+              {/* SEÇÃO CORRIGIDA: Limitação de largura dos 4 logos para evitar estouro da margem */}
+              <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-slate-200 w-full">
+                <img src="/Imagem1.png" alt="Logo 1" className="h-12 w-auto max-w-[22%] object-contain" />
+                <img src="/Imagem2.png" alt="Logo 2" className="h-12 w-auto max-w-[22%] object-contain" />
+                <img src="/Imagem3.png" alt="Logo 3" className="h-12 w-auto max-w-[22%] object-contain" />
+                <img src="/Imagem4.png" alt="Logo 4" className="h-12 w-auto max-w-[22%] object-contain" />
+              </div>
+
+              <div className="text-center space-y-2 border-b-2 border-slate-800 pb-6 mb-8 font-sans">
+                <h2 className="text-xl font-black uppercase tracking-wide">Termo de Transferência e Responsabilidade Patrimonial</h2>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Controle de Distribuição de Insumos e Ativos</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-y-4 text-sm mb-8 font-sans border border-slate-200 p-4 rounded-xl bg-slate-50/50">
+                <div><strong>Unidade de Origem:</strong> Almoxarifado Central / Patrimônio</div>
+                <div><strong>Unidade de Destino:</strong> {dadosSaida.novaUnidade}</div>
+                <div className="capitalize"><strong>Setor de Destino:</strong> {dadosSaida.novoSetor}</div>
+                <div><strong>Data de Emissão:</strong> {new Date().toLocaleDateString("pt-BR")}</div>
+                <div className="col-span-2 border-t border-slate-200 pt-2 capitalize">
+                  <strong>Responsável pelo Recebimento:</strong> {naoSabeResponsavel ? "Responsável pelo Setor (A preencher no local)" : dadosSaida.responsavelRecebimento}
+                </div>
+              </div>
+
+              <div className="text-sm leading-relaxed text-justify mb-8 space-y-4">
+                <p>
+                  Declaramos para os devidos fins de controle técnico e administrativo que os itens listados abaixo foram conferidos, testados e transferidos da Central de Estoque para o respectivo setor de destino indicado neste documento.
+                </p>
+                <p>
+                  O servidor/responsável abaixo assinado assume total compromisso pela guarda, conservação e zelo dos referidos bens patrimoniais, devendo comunicar imediatamente qualquer avaria, defeito técnico ou necessidade de movimentação futura ao setor de patrimônio.
+                </p>
+              </div>
+
+              <table className="w-full text-left border-collapse border border-slate-300 text-xs font-sans">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800 uppercase">
+                    <th className="p-3 border border-slate-300">Item / Equipamento</th>
+                    <th className="p-3 border border-slate-300 text-center">Nº Patrimônio (TAG)</th>
+                    <th className="p-3 border border-slate-300 text-center">Estado</th>
+                    <th className="p-3 border border-slate-300 text-center">Qtd.</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {loteSaida.map((item, index) => (
+                    <tr key={index} className="capitalize">
+                      <td className="p-3 border border-slate-300 font-medium">{item.nome}</td>
+                      <td className="p-3 border border-slate-300 font-mono text-center uppercase">{item.patrimonioMapeado}</td>
+                      <td className="p-3 border border-slate-300 text-center uppercase">{item.estado}</td>
+                      <td className="p-3 border border-slate-300 text-center font-bold">{item.quantidadeMovimentada}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Rodapé de Assinaturas Inteligente */}
+            <div className="mt-20 pt-12 font-sans">
+              <div className="grid grid-cols-2 gap-12 text-center text-xs">
+                <div className="space-y-1">
+                  <div className="border-t border-slate-400 w-full mx-auto pt-2"></div>
+                  <p className="font-bold text-slate-700">Responsável pelo Envio</p>
+                  <p className="text-[10px] text-slate-400 uppercase">Setor de Patrimônio</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="border-t border-slate-400 w-full mx-auto pt-2"></div>
+                  <p className="font-bold text-slate-700 capitalize">
+                    {naoSabeResponsavel ? "Assinatura do Responsável" : dadosSaida.responsavelRecebimento}
+                  </p>
+                  <p className="text-[10px] text-slate-400 uppercase">
+                    {naoSabeResponsavel ? "Recebedor (Nome por Extenso / Matrícula)" : "Assinatura e Carimbo"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

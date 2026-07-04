@@ -27,6 +27,7 @@ import Usuarios from "./pages/Usuarios";
 import TrocarSenha from "./pages/TrocarSenha";
 import AdminLicencas from "./pages/AdminLicencas";
 import PainelCoordenacao from "./pages/PainelCoordenacao";
+import Laudos from "./pages/Laudos"; // Importação da nova página de Laudos Técnicos
 
 // Importando componentes
 import CadastroChamado from "./components/CadastroChamado";
@@ -222,7 +223,7 @@ function App() {
                     <Route
                       path="/painel-analista"
                       element={
-                        <ProtectedRoute condition={isTiOrAdmin}>
+                        <ProtectedRoute condition={isTiOrAdmin || temAcesso("chamados")}>
                           <PainelAnalista />
                         </ProtectedRoute>
                       }
@@ -230,7 +231,7 @@ function App() {
                     <Route
                       path="/cadastro-equipamento"
                       element={
-                        <ProtectedRoute condition={isTiOrAdmin}>
+                        <ProtectedRoute condition={isTiOrAdmin || temAcesso("inventario")}>
                           <CadastroEquipamento />
                         </ProtectedRoute>
                       }
@@ -238,7 +239,7 @@ function App() {
                     <Route
                       path="/estoque"
                       element={
-                        <ProtectedRoute condition={isTiOrAdmin}>
+                        <ProtectedRoute condition={isTiOrAdmin || temAcesso("inventario")}>
                           <Estoque />
                         </ProtectedRoute>
                       }
@@ -246,7 +247,7 @@ function App() {
                     <Route
                       path="/inventario"
                       element={
-                        <ProtectedRoute condition={isTiOrAdmin}>
+                        <ProtectedRoute condition={isTiOrAdmin || temAcesso("inventario")}>
                           <Inventario />
                         </ProtectedRoute>
                       }
@@ -254,7 +255,7 @@ function App() {
                     <Route
                       path="/transferencia"
                       element={
-                        <ProtectedRoute condition={isTiOrAdmin}>
+                        <ProtectedRoute condition={isTiOrAdmin || temAcesso("inventario")}>
                           <Transferencia />
                         </ProtectedRoute>
                       }
@@ -262,8 +263,18 @@ function App() {
                     <Route
                       path="/saida-equipamento"
                       element={
-                        <ProtectedRoute condition={isTiOrAdmin}>
+                        <ProtectedRoute condition={isTiOrAdmin || temAcesso("inventario")}>
                           <SaidaEquipamento />
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    {/* ROTA COMPLEMENTAR PARA O LAUDO TÉCNICO DE INVIABILIDADE */}
+                    <Route
+                      path="/laudo-inviabilidade"
+                      element={
+                        <ProtectedRoute condition={role === "root" || temAcesso("laudos")}>
+                          <Laudos />
                         </ProtectedRoute>
                       }
                     />
@@ -295,7 +306,7 @@ function App() {
                     <Route
                       path="/home"
                       element={
-                        <ProtectedRoute condition={isUsuarioComum}>
+                        <ProtectedRoute condition={isUsuarioComum || isTiOrAdmin || isGestao}>
                           <Home />
                         </ProtectedRoute>
                       }

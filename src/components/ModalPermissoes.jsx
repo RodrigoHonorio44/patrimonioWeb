@@ -28,7 +28,7 @@ export default function ModalPermissoes({ usuario, aoFechar }) {
   const [permissoes, setPermissoes] = useState(inicializarPermissoes);
   const [salvando, setSalvando] = useState(false);
 
-  // LISTA DE MÓDULOS ATUALIZADA
+  // LISTA DE MÓDULOS ATUALIZADA COM O MÓDULO DE LAUDOS ISOLADO
   const modulosDisponiveis = [
     {
       id: "dashboard_bi",
@@ -38,17 +38,22 @@ export default function ModalPermissoes({ usuario, aoFechar }) {
     {
       id: "chamados",
       nome: "Gestão de Chamados",
-      desc: "Acesso à fila e suporte",
+      desc: "Acesso à fila de suporte e atendimento de chamados",
     },
     {
-      id: "remanejamento", // NOVO MÓDULO ADICIONADO
+      id: "laudos",
+      nome: "Laudos Técnicos",
+      desc: "Emissão e pareceres de laudos de inviabilidade técnica",
+    },
+    {
+      id: "remanejamento",
       nome: "Remanejamento",
       desc: "Operação de troca de ativos/setores",
     },
     {
       id: "inventario",
       nome: "Inventário / Patrimônio",
-      desc: "Controle de ativos",
+      desc: "Controle de ativos e consulta de patrimônio",
     },
     {
       id: "financeiro",
