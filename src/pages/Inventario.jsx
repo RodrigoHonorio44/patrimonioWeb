@@ -21,7 +21,7 @@ import {
 // Importação dos componentes do sistema
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import ModalInventario from "../components/ModalInventario"; // Certifique-se de que o caminho do arquivo está correto
+import ModalInventario from "../components/ModalInventario";
 
 const Inventario = () => {
   const [itens, setItens] = useState([]);
@@ -58,7 +58,7 @@ const Inventario = () => {
 
   const carregarDados = async (e) => {
     if (e) e.preventDefault();
-    setLoading(true);
+    loading ? null : setLoading(true);
     setHasSearched(true);
     setPaginaAtual(1);
 
@@ -92,7 +92,7 @@ const Inventario = () => {
     setHasSearched(false);
   };
 
-  // Lógica de Filtragem Corrigida
+  // LÓGICA DE FILTRAGEM CORRIGIDA PARA CORRESPONDER EXATAMENTE À SUA ENTRADA DO BANCO
   const itensFiltrados = itens.filter((item) => {
     const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
     const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeFiltro);
@@ -100,11 +100,21 @@ const Inventario = () => {
       unidadeFiltro === "Todas" ||
       unidadeItemNorm.includes(unidadeSelecionadaNorm);
 
-    const statusItemNorm = String(item.status || "ativo").toLowerCase().trim();
-    const statusFiltroNorm = statusFiltro.toLowerCase().trim();
+    const statusItemNorm = String(item.status || "operante").toLowerCase().trim();
     
-    const matchStatus = 
-      statusFiltro === "Todos" || statusItemNorm === statusFiltroNorm;
+    let matchStatus = false;
+    if (statusFiltro === "Todos") {
+      matchStatus = true;
+    } else if (statusFiltro === "Ativo") {
+      // Considera Ativo caso seja "ativo" ou "operante"
+      matchStatus = statusItemNorm === "ativo" || statusItemNorm === "operante";
+    } else if (statusFiltro === "Baixado") {
+      // CORREÇÃO AQUI: Agora aceita explicitamente "inutilizado" vindo da aprovação do laudo
+      matchStatus = 
+        statusItemNorm === "baixado" || 
+        statusItemNorm === "inutilizado" || 
+        statusItemNorm === "inutilizados";
+    }
 
     let matchBusca = true;
     if (buscaPatrimonio.trim() !== "") {
@@ -179,7 +189,6 @@ const Inventario = () => {
     }
   };
 
-  // Função disparada pelo botão "Baixar" da tabela
   const lidarComAberturaModal = (item) => {
     setEquipamentoSelecionado(item);
     setModalAberto(true);
@@ -211,16 +220,10 @@ const Inventario = () => {
                 Gestão centralizada de ativos.
               </p>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={limparFiltros}
-                className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-slate-50 transition-all cursor-pointer"
-              >
-                <FilterX size={18} /> Limpar
-              </button>
+            <div>
               <button
                 onClick={exportarExcelCompleto}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-lg shadow-emerald-100 cursor-pointer"
+                className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all shadow-lg shadow-emerald-100 cursor-pointer"
               >
                 <Database size={18} /> Exportar Excel
               </button>
@@ -228,8 +231,8 @@ const Inventario = () => {
           </div>
         </header>
 
-        {/* FILTROS */}
-        <div className="max-w-7xl mx-auto bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-8 grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+        {/* FILTROS E BOTÕES DE AÇÃO */}
+        <div className="max-w-7xl mx-auto bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-8 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
               Unidade
@@ -274,18 +277,31 @@ const Inventario = () => {
               onChange={(e) => setBuscaPatrimonio(e.target.value)}
             />
           </div>
-          <button
-            onClick={carregarDados}
-            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-100 cursor-pointer"
-          >
-            {loading ? (
-              <RefreshCw className="animate-spin" size={20} />
-            ) : (
-              <>
-                <Search size={20} /> Consultar
-              </>
-            )}
-          </button>
+          
+          <div className="flex gap-2 w-full">
+            <button
+              type="button"
+              onClick={limparFiltros}
+              className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-600 p-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-200"
+              title="Limpar filtros"
+            >
+              <FilterX size={20} />
+              <span className="hidden lg:inline">Limpar</span>
+            </button>
+
+            <button
+              onClick={carregarDados}
+              className="w-2/3 flex-grow bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-100 cursor-pointer whitespace-nowrap"
+            >
+              {loading ? (
+                <RefreshCw className="animate-spin" size={20} />
+              ) : (
+                <>
+                  <Search size={20} /> Consultar
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* TABELA / RESULTADOS */}
@@ -317,8 +333,12 @@ const Inventario = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {itensExibidos.map((item) => {
-                      const statusItemLower = String(item.status || "ativo").toLowerCase().trim();
-                      const isAtivo = statusItemLower === "ativo";
+                      const statusItemLower = String(item.status || "operante").toLowerCase().trim();
+                      const isAtivo = statusItemLower === "ativo" || statusItemLower === "operante";
+                      const isBaixado = 
+                        statusItemLower === "baixado" || 
+                        statusItemLower === "inutilizado" || 
+                        statusItemLower === "inutilizados";
 
                       return (
                         <tr
@@ -345,7 +365,7 @@ const Inventario = () => {
                                   : "bg-red-100 text-red-600"
                               }`}
                             >
-                              {statusItemLower === "baixado" ? "Inutilizado" : item.status}
+                              {isBaixado ? "Inutilizado" : isAtivo ? "Operante" : item.status}
                             </span>
                           </td>
                           <td className="p-4 text-center">
@@ -384,7 +404,7 @@ const Inventario = () => {
                   </button>
                   <button
                     disabled={paginaAtual === totalPaginas}
-                    onClick={() => setPaginaAtual((p) => p + 1)}
+                    onClick={() => setPaginaAtual((p) => p - 1)}
                     className="p-2 bg-white rounded-lg border border-slate-200 disabled:opacity-30 cursor-pointer transition-colors hover:text-blue-600"
                   >
                     <ChevronRight size={18} />
@@ -398,7 +418,6 @@ const Inventario = () => {
 
       <Footer />
 
-      {/* RENDERIZAÇÃO DO NOVO MODAL DE ETAPAS DE BAIXA */}
       <ModalInventario
         isOpen={modalAberto}
         equipamento={equipamentoSelecionado}
