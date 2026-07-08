@@ -17,16 +17,15 @@ import {
   FiSearch,
   FiArrowLeft,
   FiPackage,
-  FiX,
   FiFilter,
   FiChevronLeft,
   FiChevronRight,
   FiRotateCcw,
-  FiPrinter,
-  FiCheckCircle,
 } from "react-icons/fi";
 // IMPORTANTE: Importando a função de impressão que configuramos
 import { abrirVisualizacaoTermo } from "../components/ImpressaoTransferencia";
+// Importando o novo Modal separado
+import ModalTransferencia from "../components/ModalTransferencia";
 
 const Transferencia = () => {
   const [patrimonioBusca, setPatrimonioBusca] = useState("");
@@ -38,7 +37,7 @@ const Transferencia = () => {
   const [loading, setLoading] = useState(false);
   const [novoPatrimonioParaSP, setNovoPatrimonioParaSP] = useState("");
 
-  // NOVO: Estado para controlar se o usuário já gerou a impressão
+  // Estado para controlar se o usuário já gerou a impressão
   const [termoVisualizado, setTermoVisualizado] = useState(false);
 
   const [paginaAtual, setPaginaAtual] = useState(1);
@@ -46,9 +45,13 @@ const Transferencia = () => {
 
   const [dadosSaida, setDadosSaida] = useState({
     novaUnidade: "",
-    novoSetor: "",
+    novoSetor: "", // Representará o Nome do Paciente se for residencial
     motivo: "Transferência",
     responsavelRecebimento: "",
+    pacienteEndereco: "",
+    pacienteTelefone: "",
+    pacienteIdentidade: "",
+    pacienteCpf: "",
   });
 
   const unidades = [
@@ -58,6 +61,7 @@ const Transferencia = () => {
     "SAMU BARROCO",
     "SAMU PONTA NEGRA",
     "SAMU CENTRO",
+    "Residência do Paciente",
   ];
 
   const normalizarParaComparacao = (texto) => {
@@ -94,7 +98,6 @@ const Transferencia = () => {
       const ativosRef = collection(db, "ativos");
       let listaGeral = [];
 
-      // SE FOR BUSCA POR PATRIMÔNIO: Remove o limite inicial para buscar o registro no escopo completo
       if (tipo === "patrimonio") {
         const qPatrimonio = query(ativosRef);
         const snapPatrimonio = await getDocs(qPatrimonio);
@@ -104,7 +107,6 @@ const Transferencia = () => {
           ...doc.data(),
         }));
       } else {
-        // SE FOR BUSCA POR NOME/SETOR: Aumenta o limite seguro de paginação para evitar que itens sumam
         const qGeral = query(ativosRef, limit(2000));
         const snapGeral = await getDocs(qGeral);
         
@@ -119,7 +121,7 @@ const Transferencia = () => {
 
       const filtrados = listaGeral.filter((item) => {
         const statusItemNorm = String(item.status || "ativo").toLowerCase().trim();
-        if (statusItemNorm !== "ativo") return false;
+        if (statusItemNorm !== "ativo" && statusItemNorm !== "em_uso_residencial") return false;
 
         const itemUnidadeNorm = normalizarParaComparacao(item.unidade);
         const itemPatrimonioNorm = normalizarParaComparacao(item.patrimonio);
@@ -158,8 +160,15 @@ const Transferencia = () => {
   );
 
   const lidarComVisualizacao = () => {
+    const isResidencial = dadosSaida.novaUnidade === "Residência do Paciente";
+
     if (!dadosSaida.novaUnidade || !dadosSaida.novoSetor || !dadosSaida.responsavelRecebimento) {
-      toast.warn("Por favor, preencha todos os campos antes de visualizar.");
+      toast.warn("Por favor, preencha todos os campos obrigatórios antes de visualizar.");
+      return;
+    }
+
+    if (isResidencial && (!dadosSaida.pacienteEndereco || !dadosSaida.pacienteCpf)) {
+      toast.warn("Endereço e CPF do paciente são obrigatórios para uso residencial.");
       return;
     }
 
@@ -182,7 +191,12 @@ const Transferencia = () => {
       unidadeDestino: dadosSaida.novaUnidade,
       setorDestino: dadosSaida.novoSetor,
       responsavelRecebimento: dadosSaida.responsavelRecebimento,
-      motivo: dadosSaida.motivo,
+      motivo: isResidencial ? "Internação Domiciliar (Home Care)" : dadosSaida.motivo,
+      pacienteEndereco: dadosSaida.pacienteEndereco,
+      pacienteTelefone: dadosSaida.pacienteTelefone,
+      pacienteIdentidade: dadosSaida.pacienteIdentidade,
+      pacienteCpf: dadosSaida.pacienteCpf,
+      isResidencial: isResidencial
     };
 
     abrirVisualizacaoTermo(dadosCompletosParaTermo);
@@ -193,6 +207,8 @@ const Transferencia = () => {
   const handleSaida = async (e) => {
     e.preventDefault();
     setLoading(true);
+    const isResidencial = dadosSaida.novaUnidade === "Residência do Paciente";
+
     try {
       const ativoRef = doc(db, "ativos", itemSelecionado.id);
       const patrimonioFinal =
@@ -201,14 +217,17 @@ const Transferencia = () => {
           ? novoPatrimonioParaSP.toLowerCase()
           : itemSelecionado.patrimonio.toLowerCase();
 
+      // 1. Atualizar documento original na coleção "ativos"
       await updateDoc(ativoRef, {
         unidade: dadosSaida.novaUnidade,
         setor: dadosSaida.novoSetor.toLowerCase(),
         patrimonio: patrimonioFinal,
+        status: isResidencial ? "em_uso_residencial" : "ativo",
         ultimaMovimentacao: serverTimestamp(),
       });
 
-      await addDoc(collection(db, "saidaEquipamento"), {
+      // 2. Adicionar histórico de movimentação em "saidaEquipamento"
+      const payloadSaida = {
         ativoId: itemSelecionado.id,
         patrimonio: patrimonioFinal,
         nomeEquipamento: itemSelecionado.nome.toLowerCase(),
@@ -217,9 +236,41 @@ const Transferencia = () => {
         unidadeDestino: dadosSaida.novaUnidade,
         setorDestino: dadosSaida.novoSetor.toLowerCase(),
         responsavelRecebimento: dadosSaida.responsavelRecebimento.toLowerCase(),
-        motivo: dadosSaida.motivo,
+        motivo: isResidencial ? "home care" : dadosSaida.motivo.toLowerCase(),
         dataSaida: serverTimestamp(),
-      });
+      };
+
+      if (isResidencial) {
+        payloadSaida.pacienteDetails = {
+          endereco: dadosSaida.pacienteEndereco.toLowerCase(),
+          telefone: dadosSaida.pacienteTelefone,
+          identidade: dadosSaida.pacienteIdentidade,
+          cpf: dadosSaida.pacienteCpf,
+        };
+      }
+
+      await addDoc(collection(db, "saidaEquipamento"), payloadSaida);
+
+      // 3. Se for residencial, salvar também na coleção dedicada "equipamento_com_paciente"
+      if (isResidencial) {
+        await addDoc(collection(db, "equipamento_com_paciente"), {
+          equipamentoId: itemSelecionado.id,
+          equipamentoNome: itemSelecionado.nome.toLowerCase(),
+          patrimonio: patrimonioFinal,
+          unidadeOrigem: itemSelecionado.unidade,
+          setorOrigem: itemSelecionado.setor.toLowerCase(),
+          dataEntrega: serverTimestamp(),
+          statusVinculo: "ativo",
+          paciente: {
+            nome: dadosSaida.novoSetor.toLowerCase(),
+            endereco: dadosSaida.pacienteEndereco.toLowerCase(),
+            telefone: dadosSaida.pacienteTelefone,
+            identidade: dadosSaida.pacienteIdentidade,
+            cpf: dadosSaida.pacienteCpf,
+            responsavelRecebimento: dadosSaida.responsavelRecebimento.toLowerCase()
+          },
+        });
+      }
 
       toast.success("Transferência salva com sucesso no sistema!");
       setShowModal(false);
@@ -233,10 +284,14 @@ const Transferencia = () => {
         novoSetor: "",
         motivo: "Transferência",
         responsavelRecebimento: "",
+        pacienteEndereco: "",
+        pacienteTelefone: "",
+        pacienteIdentidade: "",
+        pacienteCpf: "",
       });
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao salvar.");
+      toast.error("Erro ao salvar a transferência.");
     } finally {
       setLoading(false);
     }
@@ -350,6 +405,11 @@ const Transferencia = () => {
                   <span className="text-[10px] font-black bg-slate-100 px-2 py-0.5 rounded text-slate-500 uppercase">
                     {item.patrimonio}
                   </span>
+                  {item.status === "em_uso_residencial" && (
+                    <span className="ml-2 text-[10px] font-black bg-amber-100 px-2 py-0.5 rounded text-amber-700 uppercase">
+                      Home Care
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-50 text-xs text-slate-500">
@@ -386,144 +446,26 @@ const Transferencia = () => {
         )}
       </div>
 
-      {/* MODAL */}
-      {showModal && itemSelecionado && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-4 pb-4 border-b">
-              <h3 className="font-bold text-lg text-slate-800">
-                Confirmar Saída
-              </h3>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setTermoVisualizado(false);
-                }}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <FiX size={24} />
-              </button>
-            </div>
-
-            <div className="bg-blue-50 p-3 rounded-lg mb-4 text-sm">
-              <p className="text-blue-800">
-                Item: <strong>{itemSelecionado.nome}</strong>
-              </p>
-              <p className="text-blue-600 text-xs">
-                Origem: {itemSelecionado.unidade} ({itemSelecionado.setor})
-              </p>
-            </div>
-
-            <form onSubmit={handleSaida} className="space-y-4">
-              {normalizarParaComparacao(itemSelecionado.patrimonio) === "sp" && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <label className="text-xs font-bold text-amber-700 block mb-1">
-                    Atribuir Patrimônio (Era SP)
-                  </label>
-                  <input
-                    type="text"
-                    disabled={termoVisualizado}
-                    className="w-full p-2 border border-amber-300 rounded outline-none text-slate-700 disabled:bg-slate-100"
-                    placeholder="h-0000"
-                    value={novoPatrimonioParaSP}
-                    onChange={(e) => setNovoPatrimonioParaSP(e.target.value)}
-                    required
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">
-                  Unidade de Destino
-                </label>
-                <select
-                  required
-                  disabled={termoVisualizado}
-                  value={dadosSaida.novaUnidade}
-                  className="w-full border p-2 rounded-lg outline-blue-500 bg-white text-slate-700 cursor-pointer disabled:bg-slate-100"
-                  onChange={(e) =>
-                    setDadosSaida({
-                      ...dadosSaida,
-                      novaUnidade: e.target.value,
-                    })
-                  }
-                >
-                  <option value="">Selecione...</option>
-                  {unidades.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">
-                  Novo Setor
-                </label>
-                <input
-                  type="text"
-                  required
-                  disabled={termoVisualizado}
-                  value={dadosSaida.novoSetor}
-                  className="w-full border p-2 rounded-lg outline-blue-500 text-slate-700 disabled:bg-slate-100"
-                  onChange={(e) =>
-                    setDadosSaida({ ...dadosSaida, novoSetor: e.target.value })
-                  }
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">
-                  Responsável pelo Recebimento
-                </label>
-                <input
-                  type="text"
-                  required
-                  disabled={termoVisualizado}
-                  value={dadosSaida.responsavelRecebimento}
-                  className="w-full border p-2 rounded-lg outline-blue-500 text-slate-700 disabled:bg-slate-100"
-                  onChange={(e) =>
-                    setDadosSaida({
-                      ...dadosSaida,
-                      responsavelRecebimento: e.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              {/* FLUXO DINÂMICO DE BOTÕES */}
-              {!termoVisualizado ? (
-                <button
-                  type="button"
-                  onClick={lidarComVisualizacao}
-                  className="w-full h-12 flex items-center justify-center gap-2 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-all shadow-lg shadow-amber-100 cursor-pointer"
-                >
-                  <FiPrinter size={16} /> Visualizar Documento de Impressão
-                </button>
-              ) : (
-                <div className="space-y-2 pt-2">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full h-12 flex items-center justify-center gap-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 cursor-pointer disabled:bg-slate-300"
-                  >
-                    <FiCheckCircle size={16} /> {loading ? "Gravando..." : "Confirmar e Salvar Transferência"}
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setTermoVisualizado(false)}
-                    className="w-full py-2 text-slate-500 hover:text-slate-800 text-xs font-bold transition-all text-center cursor-pointer"
-                  >
-                    ← Editar informações preenchidas
-                  </button>
-                </div>
-              )}
-            </form>
-          </div>
-        </div>
-      )}
+      {/* COMPONENTE DO MODAL EXTERNALIZADO */}
+      <ModalTransferencia
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          setTermoVisualizado(false);
+        }}
+        itemSelecionado={itemSelecionado}
+        dadosSaida={dadosSaida}
+        setDadosSaida={setDadosSaida}
+        novoPatrimonioParaSP={novoPatrimonioParaSP}
+        setNovoPatrimonioParaSP={setNovoPatrimonioParaSP}
+        termoVisualizado={termoVisualizado}
+        setTermoVisualizado={setTermoVisualizado}
+        lidarComVisualizacao={lidarComVisualizacao}
+        handleSaida={handleSaida}
+        loading={loading}
+        unidades={unidades}
+        normalizarParaComparacao={normalizarParaComparacao}
+      />
     </div>
   );
 };
