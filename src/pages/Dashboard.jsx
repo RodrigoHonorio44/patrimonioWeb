@@ -22,6 +22,7 @@ import {
   User,
   Layers3, // Ícone para a Consulta Avançada de Itens
   FileText, // Novo ícone para o Laudo de Inviabilidade
+  Barcode, // NOVO ÍCONE: Para o gerador de etiquetas de patrimônio
 } from "lucide-react";
 
 // Importação das configurações e funções do Firebase
@@ -206,13 +207,13 @@ export default function Dashboard() {
                 <NavButton icon={MessageSquarePlus} label="Abrir Chamado" path="/cadastro-chamado" />
                 <NavButton icon={ClipboardList} label="Fila de Trabalho" path="/painel-analista" />
                 <NavButton icon={Repeat} label="Remanejamento" path="/remanejamento" moduloId="remanejamento" />
-                {/* CORREÇÃO: Vinculado individualmente à trava de laudos */}
                 <NavButton icon={FileText} label="Laudo Técnico" path="/laudo-inviabilidade" moduloId="laudos" />
               </div>
             </div>
           )}
 
-          {temAcesso("inventario") && (
+          {/* AJUSTADO: Se o usuário tiver acesso ao inventário OU liberação de etiquetas, renderiza o bloco */}
+          {(temAcesso("inventario") || temAcesso("etiquetas")) && (
             <div>
               {sidebarOpen && (
                 <p className="px-4 text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">
@@ -220,11 +221,14 @@ export default function Dashboard() {
                 </p>
               )}
               <div className="space-y-1.5">
-                <NavButton icon={PlusCircle} label="Novo Ativo" path="/cadastro-equipamento" />
-                <NavButton icon={Search} label="Inventário" path="/inventario" />
+                <NavButton icon={PlusCircle} label="Novo Ativo" path="/cadastro-equipamento" moduloId="inventario" />
+                <NavButton icon={Search} label="Inventário" path="/inventario" moduloId="inventario" />
                 <NavButton icon={Layers3} label="Consulta de Itens" path="/consulta-patrimonio" moduloId="inventario" />
-                <NavButton icon={Package} label="Sala do Patrimônio" path="/estoque" />
+                <NavButton icon={Package} label="Sala do Patrimônio" path="/estoque" moduloId="inventario" />
                 <NavButton icon={Truck} label="Saída/Transferência" path="/transferencia" moduloId="inventario" />
+                
+                {/* NOVO NAVBUTTON: Emissão de Etiquetas com trava individual para 'etiquetas' (liberado se root ou com permissão extra) */}
+                <NavButton icon={Barcode} label="Gerar Etiquetas" path="/emissao-etiquetas" moduloId="etiquetas" />
               </div>
             </div>
           )}
@@ -310,13 +314,23 @@ export default function Dashboard() {
                   variant="light"
                 />
               )}
-              {/* CORREÇÃO: Modificado de temAcesso("chamados") para temAcesso("laudos") */}
               {temAcesso("laudos") && (
                 <QuickActionCard
                   title="Laudos emitidos"
                   description="Gerencie e emita laudos de inviabilidade técnica para descarte de ativos."
                   icon={FileText}
                   onClick={() => navigate("/laudo-inviabilidade")}
+                  variant="light"
+                />
+              )}
+              
+              {/* NOVO CARD DE ATALHO RÁPIDO NA HOME: Liberado se tiver permissão de 'etiquetas' */}
+              {temAcesso("etiquetas") && (
+                <QuickActionCard
+                  title="Emissão de Etiquetas"
+                  description="Gere e imprima etiquetas industriais com códigos de barras sequenciais."
+                  icon={Barcode}
+                  onClick={() => navigate("/emissao-etiquetas")}
                   variant="light"
                 />
               )}

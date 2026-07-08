@@ -28,6 +28,7 @@ import TrocarSenha from "./pages/TrocarSenha";
 import AdminLicencas from "./pages/AdminLicencas";
 import PainelCoordenacao from "./pages/PainelCoordenacao";
 import Laudos from "./pages/Laudos"; // Importação da nova página de Laudos Técnicos
+import TelaEtiquetas from "./pages/TelaEtiquetas"; // IMPORTAÇÃO: Nova tela de geração de etiquetas industriais
 
 // Importando componentes
 import CadastroChamado from "./components/CadastroChamado";
@@ -275,6 +276,16 @@ function App() {
                       element={
                         <ProtectedRoute condition={role === "root" || temAcesso("laudos")}>
                           <Laudos />
+                        </ProtectedRoute>
+                      }
+                    />
+
+                    {/* NOVA ROTA: Emissão de Etiquetas Industriais (Acesso livre para Root ou via permissão 'etiquetas') */}
+                    <Route
+                      path="/emissao-etiquetas"
+                      element={
+                        <ProtectedRoute condition={role === "root" || temAcesso("etiquetas")}>
+                          <TelaEtiquetas />
                         </ProtectedRoute>
                       }
                     />

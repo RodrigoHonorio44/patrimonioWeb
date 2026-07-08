@@ -22,6 +22,7 @@ import {
   Infinity,
   Clock,
   Settings,
+  Barcode, // ADICIONADO: Ícone para representar visualmente o módulo de etiquetas
 } from "lucide-react";
 import { toast } from "react-toastify";
 import ModalPermissoes from "../components/ModalPermissoes";
@@ -407,6 +408,7 @@ export default function AdminLicencas() {
             <div className="flex gap-1 hidden sm:flex">
               {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((n) => (
                 <button
+                  network-id={n}
                   key={n}
                   onClick={() => setPaginaAtual(n)}
                   className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${

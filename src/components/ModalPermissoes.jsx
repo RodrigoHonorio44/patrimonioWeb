@@ -28,7 +28,7 @@ export default function ModalPermissoes({ usuario, aoFechar }) {
   const [permissoes, setPermissoes] = useState(inicializarPermissoes);
   const [salvando, setSalvando] = useState(false);
 
-  // LISTA DE MÓDULOS ATUALIZADA COM O MÓDULO DE LAUDOS ISOLADO
+  // LISTA DE MÓDULOS ATUALIZADA
   const modulosDisponiveis = [
     {
       id: "dashboard_bi",
@@ -54,6 +54,12 @@ export default function ModalPermissoes({ usuario, aoFechar }) {
       id: "inventario",
       nome: "Inventário / Patrimônio",
       desc: "Controle de ativos e consulta de patrimônio",
+    },
+    {
+      // 🚀 NOVO MÓDULO ADICIONADO:
+      id: "etiquetas",
+      nome: "Etiquetas de Patrimônio",
+      desc: "Geração de layout de identificação física e sequenciais unificados",
     },
     {
       id: "financeiro",
