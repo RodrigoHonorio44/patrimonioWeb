@@ -23,6 +23,7 @@ import {
   Eye,
   Printer,
   X,
+  ClipboardList,
 } from "lucide-react";
 
 const Estoque = () => {
@@ -47,7 +48,7 @@ const Estoque = () => {
     novaUnidade: "",
     novoSetor: "",
     responsavelRecebimento: "",
-    motivo: "Transferência",
+    motivo: "Transferência Regular (Reforço/Expansão)",
   });
 
   const navigate = useNavigate();
@@ -59,6 +60,14 @@ const Estoque = () => {
     "SAMU Barroco",
     "SAMU Ponta Negra",
     "SAMU Centro",
+  ];
+
+  const motivosSaida = [
+    { value: "Transferência Regular (Reforço/Expansão)", label: "Transferência Regular (Reforço/Expansão)" },
+    { value: "Substituição por Rasgo/Avaria", label: "Substituição por Rasgo/Avaria" },
+    { value: "Substituição por Infecção/Contaminação", label: "Substituição por Infecção/Contaminação (Descarte Sanitário)" },
+    { value: "Substituição por Defeito Técnico/Mecânico", label: "Substituição por Defeito Técnico/Mecânico" },
+    { value: "Empréstimo Temporário", label: "Empréstimo Temporário" },
   ];
 
   const carregarEstoque = async () => {
@@ -96,9 +105,9 @@ const Estoque = () => {
       return;
     }
 
-    const patrimonioFinal = itemParaAdicionar.patrimonio?.toUpperCase() === "S/P" 
-      ? patrimonioInput.toLowerCase().trim() 
-      : itemParaAdicionar.patrimonio.toLowerCase().trim();
+    const patrimonioFinal = itemParaAdicionar.patrimonio === "S/P" 
+      ? patrimonioInput.trim() 
+      : itemParaAdicionar.patrimonio.trim();
 
     if (!patrimonioFinal) {
       toast.error("Insira um número de patrimônio válido.");
@@ -136,7 +145,7 @@ const Estoque = () => {
 
     const responsavelFinal = naoSabeResponsavel 
       ? "responsável pelo setor" 
-      : dadosSaida.responsavelRecebimento.toLowerCase().trim();
+      : dadosSaida.responsavelRecebimento.trim();
 
     try {
       await runTransaction(db, async (transaction) => {
@@ -171,7 +180,7 @@ const Estoque = () => {
 
           const novoAtivoRef = doc(collection(db, "ativos"));
           transaction.set(novoAtivoRef, {
-            nome: item.nome.toLowerCase().trim(),
+            nome: item.nome.trim(),
             categoriaItem: item.categoriaItem || item.tipo || "Mobiliário",
             tipo: "equipamento",
             estado: item.estado,
@@ -182,7 +191,7 @@ const Estoque = () => {
             quantidade: qtdSolicitada,
             patrimonio: item.patrimonioMapeado,
             unidade: dadosSaida.novaUnidade,
-            setor: dadosSaida.novoSetor.toLowerCase().trim(),
+            setor: dadosSaida.novoSetor.trim(),
             status: "Ativo",
             ultimaMovimentacao: serverTimestamp(),
           });
@@ -191,11 +200,11 @@ const Estoque = () => {
           transaction.set(doc(logsRef), {
             estoqueId: item.id,
             patrimonio: item.patrimonioMapeado,
-            nomeEquipamento: item.nome.toLowerCase().trim(),
-            unidadeOrigem: item.unidade || "Estoque Central",
+            nomeEquipamento: item.nome.trim(),
+            unidadeOrigem: item.unidade || "Almoxarifado Central",
             setorOrigem: item.setor || "Patrimônio",
             unidadeDestino: dadosSaida.novaUnidade,
-            setorDestino: dadosSaida.novoSetor.toLowerCase().trim(),
+            setorDestino: dadosSaida.novoSetor.trim(),
             quantidadeRetirada: qtdSolicitada,
             responsavelRecebimento: responsavelFinal,
             motivo: dadosSaida.motivo,
@@ -214,7 +223,7 @@ const Estoque = () => {
         novaUnidade: "",
         novoSetor: "",
         responsavelRecebimento: "",
-        motivo: "Transferência",
+        motivo: "Transferência Regular (Reforço/Expansão)",
       });
       carregarEstoque();
     } catch (error) {
@@ -280,9 +289,9 @@ const Estoque = () => {
                     ) : (
                       itensEstoque.map((item) => (
                         <tr key={item.id} className="hover:bg-blue-50/40 transition-colors">
-                          <td className="p-4 font-bold text-slate-700 capitalize">{item.nome}</td>
+                          <td className="p-4 font-bold text-slate-700">{item.nome}</td>
                           <td className="p-4">
-                            <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg font-mono text-xs font-bold uppercase">
+                            <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg font-mono text-xs font-bold">
                               {item.patrimonio || "S/P"}
                             </span>
                           </td>
@@ -292,7 +301,7 @@ const Estoque = () => {
                               onClick={() => {
                                 setItemParaAdicionar(item);
                                 setQtdInput(1);
-                                setPatrimonioInput(item.patrimonio?.toUpperCase() === "S/P" ? "" : item.patrimonio);
+                                setPatrimonioInput(item.patrimonio === "S/P" ? "" : item.patrimonio);
                               }}
                               className="bg-slate-100 text-slate-700 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
                             >
@@ -368,6 +377,22 @@ const Estoque = () => {
                     onChange={(e) => setDadosSaida({ ...dadosSaida, responsavelRecebimento: e.target.value })}
                   />
                 </div>
+
+                {/* NOVO CAMPO: Motivo Detalhado da Movimentação */}
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                    Motivo da Saída / Troca
+                  </label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none border-l-4 border-l-blue-500"
+                    value={dadosSaida.motivo}
+                    onChange={(e) => setDadosSaida({ ...dadosSaida, motivo: e.target.value })}
+                  >
+                    {motivosSaida.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <hr className="border-slate-100" />
@@ -384,8 +409,8 @@ const Estoque = () => {
                       {loteSaida.map((item, index) => (
                         <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
                           <div>
-                            <p className="text-xs font-bold text-slate-700 capitalize">{item.nome}</p>
-                            <p className="text-[10px] font-mono font-bold text-blue-600 uppercase">Pat: {item.patrimonioMapeado}</p>
+                            <p className="text-xs font-bold text-slate-700"> {item.nome}</p>
+                            <p className="text-[10px] font-mono font-bold text-blue-600">Pat: {item.patrimonioMapeado}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="bg-blue-100 text-blue-700 font-black px-2 py-0.5 rounded-md text-xs">x{item.quantidadeMovimentada}</span>
@@ -428,10 +453,10 @@ const Estoque = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">TAG Patrimônio Final</label>
-                  {itemParaAdicionar.patrimonio?.toUpperCase() === "S/P" ? (
+                  {itemParaAdicionar.patrimonio === "S/P" ? (
                     <input
                       type="text"
-                      className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                      className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none"
                       value={patrimonioInput}
                       onChange={(e) => setPatrimonioInput(e.target.value)}
                       required
@@ -441,7 +466,7 @@ const Estoque = () => {
                     <input
                       type="text"
                       disabled
-                      className="w-full bg-slate-100 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-500 cursor-not-allowed uppercase"
+                      className="w-full bg-slate-100 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-500 cursor-not-allowed"
                       value={itemParaAdicionar.patrimonio}
                     />
                   )}
@@ -480,112 +505,120 @@ const Estoque = () => {
         </div>
       )}
 
-      {/* MODAL 2: PREVIEW DO DOCUMENTO A4 (Oficial de Impressão) */}
+      {/* MODAL 2: Preview do Documento */}
       {mostrarPreview && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-6 overflow-y-auto print:absolute print:inset-0 print:bg-white print:p-0 print:shadow-none">
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex justify-center z-50 p-0 md:p-4 overflow-y-auto items-start print:absolute print:inset-0 print:bg-white print:p-0 print:shadow-none">
           
-          <div className="bg-white w-full max-w-[800px] min-h-[1050px] shadow-2xl p-12 flex flex-col justify-between font-serif text-slate-900 mx-auto rounded-[24px] print:rounded-none print:shadow-none print:p-4">
+          <div className="w-full max-w-[840px] flex flex-col my-0 md:my-4 print:my-0">
             
-            {/* Controles do Menu de Preview Superior */}
-            <div className="flex justify-between items-center bg-slate-100 border border-slate-200 p-4 rounded-2xl mb-8 font-sans print:hidden">
-              <div className="flex items-center gap-2 text-amber-600 font-bold text-xs uppercase">
-                <AlertTriangle size={16} /> Tela de Conferência Prévia (Preview)
+            {/* Menu de Controle Superior - STICKY */}
+            <div className="sticky top-0 z-50 flex flex-col sm:flex-row justify-between items-center bg-slate-900 text-white p-4 rounded-b-xl md:rounded-t-3xl border-b border-slate-800 font-sans print:hidden gap-3 shadow-lg">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                <AlertTriangle size={16} className="shrink-0" /> Modo de Conferência e Conferência Prévia
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => setMostrarPreview(false)}
-                  className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-50"
+                  className="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs font-bold transition-all"
                 >
-                  Voltar e Corrigir
+                  Voltar e Editar
                 </button>
                 <button
                   onClick={efetivarTransferenciaESalvar}
                   disabled={processando}
-                  className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 flex items-center gap-1.5 shadow-md"
+                  className="flex-1 sm:flex-initial bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all"
                 >
                   {processando ? <RefreshCw className="animate-spin" size={14} /> : <Printer size={14} />}
-                  Salvar e Imprimir!
+                  Salvar e Imprimir
                 </button>
               </div>
             </div>
 
-            {/* Documento Físico */}
-            <div>
-              {/* SEÇÃO CORRIGIDA: Limitação de largura dos 4 logos para evitar estouro da margem */}
-              <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-slate-200 w-full">
-                <img src="/Imagem1.png" alt="Logo 1" className="h-12 w-auto max-w-[22%] object-contain" />
-                <img src="/Imagem2.png" alt="Logo 2" className="h-12 w-auto max-w-[22%] object-contain" />
-                <img src="/Imagem3.png" alt="Logo 3" className="h-12 w-auto max-w-[22%] object-contain" />
-                <img src="/Imagem4.png" alt="Logo 4" className="h-12 w-auto max-w-[22%] object-contain" />
-              </div>
-
-              <div className="text-center space-y-2 border-b-2 border-slate-800 pb-6 mb-8 font-sans">
-                <h2 className="text-xl font-black uppercase tracking-wide">Termo de Transferência e Responsabilidade Patrimonial</h2>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Controle de Distribuição de Insumos e Ativos</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-y-4 text-sm mb-8 font-sans border border-slate-200 p-4 rounded-xl bg-slate-50/50">
-                <div><strong>Unidade de Origem:</strong> Almoxarifado Central / Patrimônio</div>
-                <div><strong>Unidade de Destino:</strong> {dadosSaida.novaUnidade}</div>
-                <div className="capitalize"><strong>Setor de Destino:</strong> {dadosSaida.novoSetor}</div>
-                <div><strong>Data de Emissão:</strong> {new Date().toLocaleDateString("pt-BR")}</div>
-                <div className="col-span-2 border-t border-slate-200 pt-2 capitalize">
-                  <strong>Responsável pelo Recebimento:</strong> {naoSabeResponsavel ? "Responsável pelo Setor (A preencher no local)" : dadosSaida.responsavelRecebimento}
+            {/* Documento Físico A4 Estilizado */}
+            <div className="bg-white w-full min-h-[1050px] shadow-2xl p-6 md:p-12 flex flex-col justify-between font-serif text-slate-900 rounded-b-3xl print:rounded-none print:shadow-none print:p-4 bg-white">
+              
+              <div>
+                {/* Imagens do cabeçalho */}
+                <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-slate-200 w-full">
+                  <img src="/Imagem1.png" alt="Logo 1" className="h-12 w-auto max-w-[22%] object-contain" />
+                  <img src="/Imagem2.png" alt="Logo 2" className="h-12 w-auto max-w-[22%] object-contain" />
+                  <img src="/Imagem3.png" alt="Logo 3" className="h-12 w-auto max-w-[22%] object-contain" />
+                  <img src="/Imagem4.png" alt="Logo 4" className="h-12 w-auto max-w-[22%] object-contain" />
                 </div>
-              </div>
 
-              <div className="text-sm leading-relaxed text-justify mb-8 space-y-4">
-                <p>
-                  Declaramos para os devidos fins de controle técnico e administrativo que os itens listados abaixo foram conferidos, testados e transferidos da Central de Estoque para o respectivo setor de destino indicado neste documento.
-                </p>
-                <p>
-                  O servidor/responsável abaixo assinado assume total compromisso pela guarda, conservação e zelo dos referidos bens patrimoniais, devendo comunicar imediatamente qualquer avaria, defeito técnico ou necessidade de movimentação futura ao setor de patrimônio.
-                </p>
-              </div>
+                <div className="text-center space-y-2 border-b-2 border-slate-800 pb-6 mb-8 font-sans">
+                  <h2 className="text-xl font-black uppercase tracking-wide">Termo de Transferência e Responsabilidade Patrimonial</h2>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Controle de Distribuição de Insumos e Ativos</p>
+                </div>
 
-              <table className="w-full text-left border-collapse border border-slate-300 text-xs font-sans">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800 uppercase">
-                    <th className="p-3 border border-slate-300">Item / Equipamento</th>
-                    <th className="p-3 border border-slate-300 text-center">Nº Patrimônio (TAG)</th>
-                    <th className="p-3 border border-slate-300 text-center">Estado</th>
-                    <th className="p-3 border border-slate-300 text-center">Qtd.</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {loteSaida.map((item, index) => (
-                    <tr key={index} className="capitalize">
-                      <td className="p-3 border border-slate-300 font-medium">{item.nome}</td>
-                      <td className="p-3 border border-slate-300 font-mono text-center uppercase">{item.patrimonioMapeado}</td>
-                      <td className="p-3 border border-slate-300 text-center uppercase">{item.estado}</td>
-                      <td className="p-3 border border-slate-300 text-center font-bold">{item.quantidadeMovimentada}</td>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-4 text-sm mb-8 font-sans border border-slate-200 p-4 rounded-xl bg-slate-50/50">
+                  <div><strong>Unidade de Origem:</strong> Almoxarifado Central / Patrimônio</div>
+                  <div><strong>Unidade de Destino:</strong> {dadosSaida.novaUnidade}</div>
+                  <div><strong>Setor de Destino:</strong> {dadosSaida.novoSetor}</div>
+                  <div><strong>Data de Emissão:</strong> {new Date().toLocaleDateString("pt-BR")}</div>
+                  {/* EXIBIÇÃO DO MOTIVO NO DOCUMENTO IMPRESSO */}
+                  <div className="sm:col-span-2 border-t border-dashed border-slate-200 pt-2 text-slate-700">
+                    <strong>Motivo do Fornecimento:</strong> <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold text-xs uppercase font-sans">{dadosSaida.motivo}</span>
+                  </div>
+                  <div className="sm:col-span-2 border-t border-slate-200 pt-2">
+                    <strong>Responsável pelo Recebimento:</strong> {naoSabeResponsavel ? "Responsável pelo Setor (A preencher no local)" : dadosSaida.responsavelRecebimento}
+                  </div>
+                </div>
+
+                <div className="text-sm leading-relaxed text-justify mb-8 space-y-4">
+                  <p>
+                    Declaramos para os devidos fins de controle técnico e administrativo que os itens listados abaixo foram conferidos, testados e transferidos da Central de Estoque para o respectivo setor de destino indicado neste documento.
+                  </p>
+                  <p>
+                    O servidor/responsável abaixo assinado assume total compromisso pela guarda, conservação e zelo dos referidos bens patrimoniais, devendo comunicar imediatamente qualquer avaria, defeito técnico ou necessidade de movimentação futura ao setor de patrimônio.
+                  </p>
+                </div>
+
+                <table className="w-full text-left border-collapse border border-slate-300 text-xs font-sans">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800 uppercase">
+                      <th className="p-3 border border-slate-300">Item / Equipamento</th>
+                      <th className="p-3 border border-slate-300 text-center">Nº Patrimônio (TAG)</th>
+                      <th className="p-3 border border-slate-300 text-center">Estado</th>
+                      <th className="p-3 border border-slate-300 text-center">Qtd.</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {loteSaida.map((item, index) => (
+                      <tr key={index}>
+                        <td className="p-3 border border-slate-300 font-medium">{item.nome}</td>
+                        <td className="p-3 border border-slate-300 font-mono text-center">{item.patrimonioMapeado}</td>
+                        <td className="p-3 border border-slate-300 text-center">{item.estado}</td>
+                        <td className="p-3 border border-slate-300 text-center font-bold">{item.quantidadeMovimentada}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-            {/* Rodapé de Assinaturas Inteligente */}
-            <div className="mt-20 pt-12 font-sans">
-              <div className="grid grid-cols-2 gap-12 text-center text-xs">
-                <div className="space-y-1">
-                  <div className="border-t border-slate-400 w-full mx-auto pt-2"></div>
-                  <p className="font-bold text-slate-700">Responsável pelo Envio</p>
-                  <p className="text-[10px] text-slate-400 uppercase">Setor de Patrimônio</p>
-                </div>
-                <div className="space-y-1">
-                  <div className="border-t border-slate-400 w-full mx-auto pt-2"></div>
-                  <p className="font-bold text-slate-700 capitalize">
-                    {naoSabeResponsavel ? "Assinatura do Responsável" : dadosSaida.responsavelRecebimento}
-                  </p>
-                  <p className="text-[10px] text-slate-400 uppercase">
-                    {naoSabeResponsavel ? "Recebedor (Nome por Extenso / Matrícula)" : "Assinatura e Carimbo"}
-                  </p>
+              {/* Assinaturas */}
+              <div className="mt-20 pt-12 font-sans">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-12 text-center text-xs">
+                  <div className="space-y-1">
+                    <div className="border-t border-slate-400 w-full mx-auto pt-2"></div>
+                    <p className="font-bold text-slate-700">Responsável pelo Envio</p>
+                    <p className="text-[10px] text-slate-400 uppercase">Setor de Patrimônio</p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="border-t border-slate-400 w-full mx-auto pt-2"></div>
+                    <p className="font-bold text-slate-700">
+                      {naoSabeResponsavel ? "Assinatura do Responsável" : dadosSaida.responsavelRecebimento}
+                    </p>
+                    <p className="text-[10px] text-slate-400 uppercase">
+                      {naoSabeResponsavel ? "Recebedor (Nome por Extenso / Matrícula)" : "Assinatura e Carimbo"}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
+            </div>
           </div>
+
         </div>
       )}
 
