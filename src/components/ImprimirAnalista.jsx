@@ -86,6 +86,19 @@ const ImprimirAnalista = ({ chamado, isRemaneja, formatarDataHora }) => {
             </span>
           </p>
 
+          <p className="border-b border-black/20 pb-1">
+            EQUIPAMENTO:{" "}
+            <span className="font-black">
+              {chamado.equipamento || "________________"}
+            </span>
+          </p>
+          <p className="border-b border-black/20 pb-1">
+            PATRIMÔNIO:{" "}
+            <span className="font-black">
+              {chamado.patrimonio || "________________"}
+            </span>
+          </p>
+
           {/* CAMPOS ESPECÍFICOS DE REMANEJAMENTO */}
           {rem ? (
             <>
@@ -101,17 +114,10 @@ const ImprimirAnalista = ({ chamado, isRemaneja, formatarDataHora }) => {
               </p>
             </>
           ) : (
-            <p className="border-b border-black/20 pb-1">
+            <p className="border-b border-black/20 pb-1 col-span-2">
               SETOR: <span className="font-black">{chamado.setor}</span>
             </p>
           )}
-
-          <p className="border-b border-black/20 pb-1">
-            PATRIMÔNIO:{" "}
-            <span className="font-black">
-              {chamado.patrimonio || "________________"}
-            </span>
-          </p>
         </div>
 
         {/* DESCRIÇÃO DO PROBLEMA */}

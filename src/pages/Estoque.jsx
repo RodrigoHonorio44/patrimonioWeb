@@ -23,7 +23,6 @@ import {
   Eye,
   Printer,
   X,
-  ClipboardList,
 } from "lucide-react";
 
 const Estoque = () => {
@@ -54,6 +53,7 @@ const Estoque = () => {
   const navigate = useNavigate();
 
   const unidades = [
+    "Estoque Central",
     "Hospital Conde",
     "UPA de Inoã",
     "UPA de Santa Rita",
@@ -178,24 +178,28 @@ const Estoque = () => {
             });
           }
 
-          const novoAtivoRef = doc(collection(db, "ativos"));
-          transaction.set(novoAtivoRef, {
-            nome: item.nome.trim(),
-            categoriaItem: item.categoriaItem || item.tipo || "Mobiliário",
-            tipo: "equipamento",
-            estado: item.estado,
-            observacoes: item.observacoes || "",
-            cadastradoPor: item.cadastradoPor || "",
-            criadoEm: item.criadoEm || serverTimestamp(),
-            id: novoAtivoRef.id,
-            quantidade: qtdSolicitada,
-            patrimonio: item.patrimonioMapeado,
-            unidade: dadosSaida.novaUnidade,
-            setor: dadosSaida.novoSetor.trim(),
-            status: "Ativo",
-            ultimaMovimentacao: serverTimestamp(),
-          });
+          // TRAVA: Só envia e cria o registro na coleção 'ativos' se NÃO for "Bem durável"
+          if (item.categoriaItem !== "Bem durável") {
+            const novoAtivoRef = doc(collection(db, "ativos"));
+            transaction.set(novoAtivoRef, {
+              nome: item.nome.trim(),
+              categoriaItem: item.categoriaItem || item.tipo || "Mobiliário",
+              tipo: item.tipo || "equipamento",
+              estado: item.estado,
+              observacoes: item.observacoes || "",
+              cadastradoPor: item.cadastradoPor || "",
+              criadoEm: item.criadoEm || serverTimestamp(),
+              id: novoAtivoRef.id,
+              quantidade: qtdSolicitada,
+              patrimonio: item.patrimonioMapeado,
+              unidade: dadosSaida.novaUnidade,
+              setor: dadosSaida.novoSetor.trim(),
+              status: "Ativo",
+              ultimaMovimentacao: serverTimestamp(),
+            });
+          }
 
+          // O Log de saída continua rodando normalmente para todos os tipos de itens
           const logsRef = collection(db, "saidaEquipamento");
           transaction.set(doc(logsRef), {
             estoqueId: item.id,
@@ -232,6 +236,8 @@ const Estoque = () => {
       setProcessando(false);
     }
   };
+
+  const isEstoque = dadosSaida.novaUnidade === "Estoque Central";
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans print:bg-white print:p-0">
@@ -332,7 +338,14 @@ const Estoque = () => {
                   <select
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none"
                     value={dadosSaida.novaUnidade}
-                    onChange={(e) => setDadosSaida({ ...dadosSaida, novaUnidade: e.target.value })}
+                    onChange={(e) => {
+                      const selecionado = e.target.value;
+                      setDadosSaida({ 
+                        ...dadosSaida, 
+                        novaUnidade: selecionado,
+                        novoSetor: selecionado === "Estoque Central" ? "equipamento usado" : ""
+                      });
+                    }}
                   >
                     <option value="">Selecione a Unidade...</option>
                     {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -340,10 +353,12 @@ const Estoque = () => {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Setor Destino</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                    {isEstoque ? "Classificação no Estoque" : "Setor Destino"}
+                  </label>
                   <input
                     type="text"
-                    placeholder="Ex: Sala de Medicação"
+                    placeholder={isEstoque ? "Ex: equipamento usado, reserva" : "Ex: Sala de Medicação"}
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none"
                     value={dadosSaida.novoSetor}
                     onChange={(e) => setDadosSaida({ ...dadosSaida, novoSetor: e.target.value })}
@@ -378,7 +393,6 @@ const Estoque = () => {
                   />
                 </div>
 
-                {/* NOVO CAMPO: Motivo Detalhado da Movimentação */}
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
                     Motivo da Saída / Troca
@@ -535,7 +549,7 @@ const Estoque = () => {
             </div>
 
             {/* Documento Físico A4 Estilizado */}
-            <div className="bg-white w-full min-h-[1050px] shadow-2xl p-6 md:p-12 flex flex-col justify-between font-serif text-slate-900 rounded-b-3xl print:rounded-none print:shadow-none print:p-4 bg-white">
+            <div className="bg-white w-full min-h-[1050px] shadow-2xl p-6 md:p-12 flex flex-col justify-between font-serif text-slate-900 rounded-b-3xl print:rounded-none print:shadow-none print:p-4">
               
               <div>
                 {/* Imagens do cabeçalho */}
@@ -554,9 +568,8 @@ const Estoque = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-4 text-sm mb-8 font-sans border border-slate-200 p-4 rounded-xl bg-slate-50/50">
                   <div><strong>Unidade de Origem:</strong> Almoxarifado Central / Patrimônio</div>
                   <div><strong>Unidade de Destino:</strong> {dadosSaida.novaUnidade}</div>
-                  <div><strong>Setor de Destino:</strong> {dadosSaida.novoSetor}</div>
+                  <div><strong>{isEstoque ? "Classificação no Estoque:" : "Setor de Destino:"}</strong> {dadosSaida.novoSetor}</div>
                   <div><strong>Data de Emissão:</strong> {new Date().toLocaleDateString("pt-BR")}</div>
-                  {/* EXIBIÇÃO DO MOTIVO NO DOCUMENTO IMPRESSO */}
                   <div className="sm:col-span-2 border-t border-dashed border-slate-200 pt-2 text-slate-700">
                     <strong>Motivo do Fornecimento:</strong> <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold text-xs uppercase font-sans">{dadosSaida.motivo}</span>
                   </div>

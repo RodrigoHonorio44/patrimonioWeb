@@ -20,6 +20,7 @@ const ModalTransferencia = ({
   if (!isOpen || !itemSelecionado) return null;
 
   const isResidencial = dadosSaida.novaUnidade === "Residência do Paciente";
+  const isEstoque = dadosSaida.novaUnidade === "Estoque Central";
 
   // Máscaras aplicadas estritamente com base em números
   const aplicarMascaraTelefone = (valor) => {
@@ -42,7 +43,6 @@ const ModalTransferencia = ({
   };
 
   const aplicarMascaraRG = (valor) => {
-    // Mantém apenas números e limita o tamanho padrão de RG
     return valor.replace(/\D/g, "").substring(0, 12);
   };
 
@@ -98,20 +98,25 @@ const ModalTransferencia = ({
               disabled={termoVisualizado}
               value={dadosSaida.novaUnidade}
               className="w-full border p-2 rounded-lg outline-blue-500 bg-white text-slate-700 cursor-pointer disabled:bg-slate-100"
-              onChange={(e) =>
+              onChange={(e) => {
+                const selecionado = e.target.value;
                 setDadosSaida({
                   ...dadosSaida,
-                  novaUnidade: e.target.value,
-                  novoSetor: "", // limpa se mudar de tipo
-                })
-              }
+                  novaUnidade: selecionado,
+                  // Sugere automaticamente "equipamento usado" se o destino for o estoque
+                  novoSetor: selecionado === "Estoque Central" ? "equipamento usado" : "", 
+                });
+              }}
             >
               <option value="">Selecione...</option>
-              {unidades.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
+              <option value="Estoque Central">Estoque Central</option>
+              {unidades
+                .filter((u) => u !== "Estoque Central")
+                .map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -215,12 +220,13 @@ const ModalTransferencia = ({
           ) : (
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase">
-                Novo Setor
+                {isEstoque ? "Classificação no Estoque" : "Novo Setor"}
               </label>
               <input
                 type="text"
                 required
                 disabled={termoVisualizado}
+                placeholder={isEstoque ? "Ex: equipamento usado, reserva" : "Digite o setor"}
                 value={dadosSaida.novoSetor}
                 className="w-full border p-2 rounded-lg outline-blue-500 text-slate-700 disabled:bg-slate-100"
                 onChange={(e) =>

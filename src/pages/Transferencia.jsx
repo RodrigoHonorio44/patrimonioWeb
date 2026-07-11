@@ -26,6 +26,8 @@ import {
 import { abrirVisualizacaoTermo } from "../components/ImpressaoTransferencia";
 // Importando o novo Modal separado
 import ModalTransferencia from "../components/ModalTransferencia";
+// Importando o termo de desmobilização/retirada para impressão física
+import TermoRetiradaResidencia from "../components/TermoRetiradaResidencia";
 
 const Transferencia = () => {
   const [patrimonioBusca, setPatrimonioBusca] = useState("");
@@ -39,6 +41,9 @@ const Transferencia = () => {
 
   // Estado para controlar se o usuário já gerou a impressão
   const [termoVisualizado, setTermoVisualizado] = useState(false);
+  
+  // Estado para armazenar os dados do documento de retirada residencial (impressão direta)
+  const [dadosParaImpressaoRetirada, setDadosParaImpressaoRetirada] = useState(null);
 
   const [paginaAtual, setPaginaAtual] = useState(1);
   const itensPorPagina = 12;
@@ -84,7 +89,7 @@ const Transferencia = () => {
     toast.info("Busca resetada");
   };
 
-  const executarBusca = async (tipo) => {
+  const ejecutarBusca = async (tipo) => {
     const termoOriginal = tipo === "patrimonio" ? patrimonioBusca : nomeBusca;
     if (!termoOriginal.trim()) {
       toast.warn(
@@ -161,6 +166,7 @@ const Transferencia = () => {
 
   const lidarComVisualizacao = () => {
     const isResidencial = dadosSaida.novaUnidade === "Residência do Paciente";
+    const isVindoDeResidencial = itemSelecionado?.status === "em_uso_residencial";
 
     if (!dadosSaida.novaUnidade || !dadosSaida.novoSetor || !dadosSaida.responsavelRecebimento) {
       toast.warn("Por favor, preencha todos os campos obrigatórios antes de visualizar.");
@@ -182,6 +188,34 @@ const Transferencia = () => {
         ? novoPatrimonioParaSP
         : itemSelecionado.patrimonio;
 
+    // FLUXO A: Se o item ESTÁ VINDO da Residência (Desmobilização / Recolhimento)
+    if (isVindoDeResidencial) {
+      setDadosParaImpressaoRetirada({
+        patrimonio: patrimonioFinal,
+        nomeEquipamento: itemSelecionado.nome,
+        unidadeOrigem: itemSelecionado.unidade,
+        setorOrigem: itemSelecionado.setor, // O setor antigo guardava o nome do paciente
+        nomePaciente: itemSelecionado.setor,
+        unidadeDestino: dadosSaida.novaUnidade,
+        setorDestino: dadosSaida.novoSetor,
+        responsavelRecebimento: dadosSaida.responsavelRecebimento,
+      });
+
+      // Timeout seguro para o React renderizar o HTML oculto antes de chamar o driver de impressão
+      setTimeout(() => {
+        const areaPrint = document.getElementById("area-impressao-retirada");
+        if (areaPrint) {
+          areaPrint.classList.remove("hidden");
+          window.print();
+          areaPrint.classList.add("hidden");
+          setTermoVisualizado(true);
+          toast.success("Termo de Retirada enviado para a impressora!");
+        }
+      }, 250);
+      return;
+    }
+
+    // FLUXO B: Envio padrão ou Saída para Home Care (Usa a nova aba configurada)
     const dadosCompletosParaTermo = {
       ativoId: itemSelecionado.id,
       patrimonio: patrimonioFinal,
@@ -201,7 +235,7 @@ const Transferencia = () => {
 
     abrirVisualizacaoTermo(dadosCompletosParaTermo);
     setTermoVisualizado(true);
-    toast.info("Documento de conferência aberto na nova aba!");
+    toast.info("Documento de transferência aberto na nova aba!");
   };
 
   const handleSaida = async (e) => {
@@ -279,6 +313,7 @@ const Transferencia = () => {
       setPatrimonioBusca("");
       setNomeBusca("");
       setNovoPatrimonioParaSP("");
+      setDadosParaImpressaoRetirada(null);
       setDadosSaida({
         novaUnidade: "",
         novoSetor: "",
@@ -346,7 +381,7 @@ const Transferencia = () => {
               />
               <button
                 className="bg-blue-600 text-white p-2 rounded-r-lg hover:bg-blue-700 cursor-pointer"
-                onClick={() => executarBusca("patrimonio")}
+                onClick={() => ejecutarBusca("patrimonio")}
               >
                 <FiSearch />
               </button>
@@ -367,7 +402,7 @@ const Transferencia = () => {
               />
               <button
                 className="bg-indigo-600 text-white p-2 rounded-r-lg hover:bg-indigo-700 cursor-pointer"
-                onClick={() => executarBusca("nome")}
+                onClick={() => ejecutarBusca("nome")}
               >
                 <FiSearch />
               </button>
@@ -437,7 +472,7 @@ const Transferencia = () => {
             </span>
             <button
               disabled={paginaAtual === totalPaginas}
-              onClick={() => setPaginaAtual((prev) => prev + 1)}
+              onClick={() => setPaginaAtual((prev) => prev - 1)}
               className="p-2 rounded bg-white border disabled:opacity-50 cursor-pointer"
             >
               <FiChevronRight />
@@ -466,6 +501,9 @@ const Transferencia = () => {
         unidades={unidades}
         normalizarParaComparacao={normalizarParaComparacao}
       />
+
+      {/* COMPONENTE INVISÍVEL PARA IMPRESSÃO DA RETIRADA RESIDENCIAL */}
+      <TermoRetiradaResidencia dados={dadosParaImpressaoRetirada} />
     </div>
   );
 };

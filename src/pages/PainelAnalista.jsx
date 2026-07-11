@@ -18,6 +18,7 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ModalDetalhesAnalista from "../components/ModalDetalhesAnalista";
 import ImprimirAnalista from "../components/ImprimirAnalista";
+import ModalFilaAnalista from "../components/ModalFilaAnalista"; // Importando o novo componente
 
 import {
   FiPauseCircle,
@@ -76,12 +77,12 @@ const PainelAnalista = () => {
       userData?.nome ||
       user?.displayName ||
       user?.email?.split("@")[0] ||
-      "Analista"
+      "analista"
     );
   }, [userData, user]);
 
   const formatarDataHora = (timestamp) => {
-    if (!timestamp) return "N/A";
+    if (!timestamp) return "n/a";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleString("pt-BR");
   };
@@ -91,7 +92,7 @@ const PainelAnalista = () => {
     setPaginaAtual(1);
   };
 
-  const limpiarBusca = () => {
+  const limparBusca = () => {
     setInputValue("");
     setTermoBusca("");
     setPaginaAtual(1);
@@ -139,11 +140,11 @@ const PainelAnalista = () => {
     try {
       await updateDoc(doc(db, "chamados", chamado.id), {
         status: "em atendimento",
-        tecnicoResponsavel: analistaNome,
+        tecnicoResponsavel: analistaNome.toLowerCase(),
         tecnicoId: user.uid,
         iniciadoEm: serverTimestamp(),
         logSeguranca: jaTemTecnico
-          ? `Assumido por Admin: ${analistaNome}`
+          ? `assumido por admin: ${analistaNome}`.toLowerCase()
           : null,
       });
       toast.info(
@@ -232,13 +233,13 @@ const PainelAnalista = () => {
         tipo: "CHAMADOS_POWERBI",
         dados: [
           {
-            OS: item.numeroOs || "S/N",
+            OS: item.numeroOs || "s/n",
             Data: formatarDataHora(item.criadoEm),
             Solicitante: item.nome || "Não informado",
             Unidade: item.unidade || "Não informada",
             Descricao: item.problema || item.descricao || "Sem descrição",
             Status: "FECHADO",
-            Patrimonio: item.patrimonio || "N/A",
+            Patrimonio: item.patrimonio || "n/a",
             Parecer_Tecnico: item.feedbackAnalista || "Sem parecer",
             Finalizado_Por: item.tecnicoResponsavel || analistaNome,
             Finalizado_Em: formatarDataHora(item.finalizadoEm),
@@ -272,14 +273,12 @@ const PainelAnalista = () => {
     }
   };
 
-  {/* FILTRO DE SEGURANÇA POR EQUIPE EXECUTADO NO USEMEMO */}
   const chamadosFiltrados = useMemo(() => {
     const busca = termoBusca.toLowerCase().trim();
     const isAdminOuRoot = ["root", "admin"].includes(userData?.role?.toLowerCase());
     const equipeUsuario = userData?.equipe?.toLowerCase().trim();
 
     return chamados.filter((c) => {
-      // 1. Regra de Nível de Acesso (Se não for Admin/Root, só vê a própria equipe)
       if (!isAdminOuRoot) {
         const equipeChamado = c.equipe?.toLowerCase().trim();
         if (!equipeUsuario || equipeChamado !== equipeUsuario) {
@@ -287,12 +286,12 @@ const PainelAnalista = () => {
         }
       }
 
-      // 2. Regra de Busca Textual
       const matchesBusca =
         c.numeroOs?.toString().includes(busca) ||
         c.nome?.toLowerCase().includes(busca) ||
         c.unidade?.toLowerCase().includes(busca) ||
         c.patrimonio?.toLowerCase().includes(busca) ||
+        c.equipamento?.toLowerCase().includes(busca) ||
         c.equipe?.toLowerCase().includes(busca);
 
       return busca ? matchesBusca : c.status?.toLowerCase() !== "arquivado";
@@ -378,7 +377,9 @@ const PainelAnalista = () => {
                   <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     Detalhes
                   </th>
-                  {/* INCLUSÃO DA COLUNA EQUIPE NO CABEÇALHO */}
+                  <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                    Equipamento
+                  </th>
                   <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
                     Equipe
                   </th>
@@ -397,7 +398,7 @@ const PainelAnalista = () => {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan="6"
+                      colSpan="7"
                       className="p-10 text-center text-slate-400 font-bold uppercase animate-pulse"
                     >
                       Carregando chamados...
@@ -472,7 +473,11 @@ const PainelAnalista = () => {
                             </span>
                           </div>
                         </td>
-                        {/* EXIBIÇÃO DO CAMPO EQUIPE NA LINHA DA TABELA */}
+                        <td className="p-5 text-center">
+                          <span className="text-xs font-extrabold uppercase text-slate-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 tracking-wide max-w-[180px] inline-block truncate">
+                            {item.equipamento || "Não Informado"}
+                          </span>
+                        </td>
                         <td className="p-5 text-center">
                           <span className="text-xs font-bold uppercase text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
                             {item.equipe || "Não Definida"}
@@ -508,7 +513,6 @@ const PainelAnalista = () => {
                         </td>
                         <td className="p-5">
                           <div className="flex gap-2 justify-center items-center">
-                            {/* BOTÃO VISUALIZAR */}
                             <button
                               onClick={() => {
                                 setChamadoSelecionado(item);
@@ -520,7 +524,6 @@ const PainelAnalista = () => {
                               <FiEye size={18} />
                             </button>
 
-                            {/* BOTÃO IMPRIMIR */}
                             <button
                               onClick={() => {
                                 setChamadoSelecionado(item);
@@ -573,29 +576,29 @@ const PainelAnalista = () => {
                                   </button>
                                 )}
 
-                              {status === "em atendimento" && isDono && (
-  <div className="flex gap-1">
-    <button
-      onClick={() => {
-        setChamadoSelecionado(item);
-        setPatrimonio(item.patrimonio || ""); // <-- ADICIONE ESTA LINHA
-        setMostrarModalFinalizar(true);
-      }}
-      className="bg-emerald-500 text-white p-2.5 rounded-xl hover:bg-emerald-600 shadow-md"
-    >
-      <FiCheck size={18} />
-    </button>
-    <button
-      onClick={() => {
-        setChamadoSelecionado(item);
-        setMostrarModalPausar(true);
-      }}
-      className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
-    >
-      <FiPauseCircle size={18} />
-    </button>
-  </div>
-)}
+                                {status === "em atendimento" && isDono && (
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={() => {
+                                        setChamadoSelecionado(item);
+                                        setPatrimonio(item.patrimonio || "");
+                                        setMostrarModalFinalizar(true);
+                                      }}
+                                      className="bg-emerald-500 text-white p-2.5 rounded-xl hover:bg-emerald-600 shadow-md"
+                                    >
+                                      <FiCheck size={18} />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setChamadoSelecionado(item);
+                                        setMostrarModalPausar(true);
+                                      }}
+                                      className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
+                                    >
+                                      <FiPauseCircle size={18} />
+                                    </button>
+                                  </div>
+                                )}
                               </>
                             )}
 
@@ -674,111 +677,25 @@ const PainelAnalista = () => {
         formatarDataHora={formatarDataHora}
       />
 
-      {/* MODAL FINALIZAR */}
-      {mostrarModalFinalizar && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-4xl p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase italic">
-              Finalizar OS
-            </h2>
-            <form onSubmit={handleFinalizarChamado} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">
-                  Patrimônio
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={patrimonio}
-                  onChange={(e) => setPatrimonio(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Ex: pat-12345"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">
-                  Parecer Técnico
-                </label>
-                <textarea
-                  value={parecerTecnico}
-                  onChange={(e) => setParecerTecnico(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-32 outline-none font-medium focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Descreva a solução técnica aplicada..."
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setMostrarModalFinalizar(false)}
-                  className="flex-1 py-4 font-black uppercase text-xs text-slate-400"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-emerald-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg active:scale-95"
-                >
-                  Concluir OS
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* CHAMADA UNIFICADA DO NOVO COMPONENTE DE MODAIS EXTRAÍDOS */}
+      <ModalFilaAnalista
+        mostrarModalFinalizar={mostrarModalFinalizar}
+        setMostrarModalFinalizar={setMostrarModalFinalizar}
+        mostrarModalPausar={mostrarModalPausar}
+        setMostrarModalPausar={setMostrarModalPausar}
+        handleFinalizarChamado={handleFinalizarChamado}
+        handlePausarSLA={handlePausarSLA}
+        patrimonio={patrimonio}
+        setPatrimonio={setPatrimonio}
+        parecerTecnico={parecerTecnico}
+        setParecerTecnico={setParecerTecnico}
+        motivoPausa={motivoPausa}
+        setMotivoPausa={setMotivoPausa}
+        detalhePausa={detalhePausa}
+        setDetalhePausa={setDetalhePausa}
+      />
 
-      {/* MODAL PAUSAR */}
-      {mostrarModalPausar && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-4xl p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase">
-              Pausar SLA
-            </h2>
-            <form onSubmit={handlePausarSLA} className="space-y-4">
-              <select
-                required
-                value={motivoPausa}
-                onChange={(e) => setMotivoPausa(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                <option value="">Selecione o motivo...</option>
-                <option value="Aguardando Peça">Aguardando Peça</option>
-                <option value="Recolhido para Oficina">
-                  Recolhido para Oficina
-                </option>
-                <option value="Aguardando Retorno Usuário">
-                  Aguardando Retorno Usuário
-                </option>
-                <option value="Serviço Externo">Serviço Externo</option>
-              </select>
-              <textarea
-                value={detalhePausa}
-                onChange={(e) => setDetalhePausa(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-24 outline-none focus:ring-2 focus:ring-amber-500"
-                placeholder="Detalhes adicionais..."
-              />
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setMostrarModalPausar(false)}
-                  className="flex-1 text-slate-400 font-black uppercase text-xs"
-                >
-                  Sair
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-amber-500 py-4 rounded-2xl text-white font-black uppercase text-xs shadow-lg active:scale-95"
-                >
-                  Confirmar Pausa
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <div className="no-print">
-        <Footer />
-      </div>
+      <Footer />
     </div>
   );
 };

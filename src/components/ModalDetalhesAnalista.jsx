@@ -46,16 +46,19 @@ const ModalDetalhesAnalista = ({ chamado, isRemaneja, onClose, isOpen }) => {
         <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
           {/* Grid Principal */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            {/* Solicitante */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              <p className="text-sm/none font-black text-slate-400 uppercase tracking-widest mb-1">
                 Solicitante
               </p>
               <p className="font-bold text-slate-700 uppercase break-words">
                 {chamado.nome}
               </p>
             </div>
+            
+            {/* Unidade / Local */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              <p className="text-sm/none font-black text-slate-400 uppercase tracking-widest mb-1">
                 Unidade / Local
               </p>
               <p className="font-bold text-slate-700 uppercase break-words">
@@ -64,10 +67,11 @@ const ModalDetalhesAnalista = ({ chamado, isRemaneja, onClose, isOpen }) => {
             </div>
           </div>
 
-          {/* Seção de Localização/Patrimônio */}
+          {/* Seção de Localização/Patrimônio/Equipamento */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            {/* Setor */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+              <p className="text-sm/none font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
                 <FiMapPin size={10} /> {rem ? "Setor de Origem" : "Setor"}
               </p>
               <p className="font-bold text-slate-700 uppercase break-words">
@@ -75,9 +79,20 @@ const ModalDetalhesAnalista = ({ chamado, isRemaneja, onClose, isOpen }) => {
               </p>
             </div>
 
+            {/* Equipamento (Adicionado dinamicamente conforme cadastrado) */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <p className="text-sm/none font-black text-slate-400 uppercase tracking-widest mb-1">
+                Equipamento
+              </p>
+              <p className="font-black text-blue-600 uppercase break-words">
+                {chamado.equipamento || "Não informado"}
+              </p>
+            </div>
+
+            {/* Setor de Destino ou Patrimônio */}
             {rem ? (
-              <div className="bg-orange-50 p-4 rounded-2xl border border-orange-200">
-                <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest">
+              <div className="bg-orange-50 p-4 rounded-2xl border border-orange-200 md:col-span-2">
+                <p className="text-sm/none font-black text-orange-500 uppercase tracking-widest mb-1">
                   Setor de Destino
                 </p>
                 <p className="font-bold text-orange-700 uppercase break-words">
@@ -85,8 +100,8 @@ const ModalDetalhesAnalista = ({ chamado, isRemaneja, onClose, isOpen }) => {
                 </p>
               </div>
             ) : (
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 md:col-span-2">
+                <p className="text-sm/none font-black text-slate-400 uppercase tracking-widest mb-1">
                   Patrimônio
                 </p>
                 <p className="font-bold text-slate-700 uppercase">
@@ -102,9 +117,7 @@ const ModalDetalhesAnalista = ({ chamado, isRemaneja, onClose, isOpen }) => {
               Descrição do Problema
             </p>
             <p className="font-bold text-slate-700 text-sm leading-relaxed whitespace-pre-wrap uppercase">
-              {chamado.problema ||
-                chamado.descricao ||
-                "Sem detalhes adicionais."}
+              {chamado.descricao || chamado.problema || "Sem detalhes adicionais."}
             </p>
           </div>
 
@@ -123,7 +136,7 @@ const ModalDetalhesAnalista = ({ chamado, isRemaneja, onClose, isOpen }) => {
                   {chamado.motivoPausa}
                 </p>
                 {chamado.detalhePausa && (
-                  <p className="text-xs text-amber-700 italic mt-1 leading-tight">
+                  <p className="text-xs text-amber-700 italic mt-1 leading-tight uppercase">
                     {chamado.detalhePausa}
                   </p>
                 )}
@@ -162,7 +175,7 @@ const ModalDetalhesAnalista = ({ chamado, isRemaneja, onClose, isOpen }) => {
         </div>
       </div>
 
-      {/* ESTILO CORRIGIDO - Removido o atributo 'jsx' que causava erro */}
+      {/* ESTILO SCROLLBAR */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
