@@ -23,6 +23,7 @@ import {
   Layers3, // Ícone para a Consulta Avançada de Itens
   FileText, // Novo ícone para o Laudo de Inviabilidade
   Barcode, // NOVO ÍCONE: Para o gerador de etiquetas de patrimônio
+  Calendar,
 } from "lucide-react";
 
 // Importação das configurações e funções do Firebase
@@ -35,12 +36,16 @@ export default function Dashboard() {
   const location = useLocation();
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [estatisticas, setEstatisticas] = useState({
-    abertos: 0,
-    fechados: 0,
-    total: 0,
-    pendentes: 0,
+  
+  // Define o mês e ano atual por padrão (Formato: YYYY-MM)
+  const [mesFiltro, setMesFiltro] = useState(() => {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+    return `${ano}-${mes}`;
   });
+
+  const [chamadosBrutos, setChamadosBrutos] = useState([]);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -69,12 +74,7 @@ export default function Dashboard() {
       collection(db, "chamados"),
       snapshot => {
         const docs = snapshot.docs.map((d) => d.data());
-        setEstatisticas({
-          total: docs.length,
-          abertos: docs.filter((d) => d.status === "aberto").length,
-          fechados: docs.filter((d) => d.status === "fechado").length,
-          pendentes: docs.filter((d) => d.status === "pendente").length,
-        });
+        setChamadosBrutos(docs);
       },
       (error) => {
         console.error("Erro no Snapshot de chamados:", error);
@@ -83,6 +83,67 @@ export default function Dashboard() {
 
     return () => unsubscribeChamados();
   }, []);
+
+  // 3. Processamento das Estatísticas Filtradas por Mês/Ano (ATUALIZADO)
+  const estatisticas = useMemo(() => {
+    if (!mesFiltro) {
+      return { abertos: 0, fechados: 0, total: 0, pendentes: 0 };
+    }
+
+    const [anoAlvo, mesAlvo] = mesFiltro.split("-"); // Ex: "2026", "07"
+
+    // 1. Filtra os chamados usando o Timestamp do Firebase campo criadoEm
+    const chamadosFiltrados = chamadosBrutos.filter((chamado) => {
+      const criadoEm = chamado.criadoEm;
+      if (!criadoEm) return false;
+
+      let dataObjeto;
+
+      // Se for um Timestamp nativo do Firebase, roda .toDate()
+      if (typeof criadoEm.toDate === "function") {
+        dataObjeto = criadoEm.toDate();
+      } 
+      // Se vier como segundos puros do timestamp
+      else if (criadoEm.seconds) {
+        dataObjeto = new Date(criadoEm.seconds * 1000);
+      } 
+      // Fallback para strings de data comuns, se houver
+      else {
+        dataObjeto = new Date(criadoEm);
+      }
+
+      if (isNaN(dataObjeto.getTime())) return false;
+
+      const anoChamado = String(dataObjeto.getFullYear());
+      const mesChamado = String(dataObjeto.getMonth() + 1).padStart(2, "0");
+
+      return anoChamado === anoAlvo && mesChamado === mesAlvo;
+    });
+
+    // 2. Contagens baseadas nos status reais do Firebase (Indiferente a maiúsculas)
+    const abertos = chamadosFiltrados.filter(d => {
+      const st = (d.status || "").toLowerCase().trim();
+      return st === "aberto";
+    }).length;
+
+    const pendentes = chamadosFiltrados.filter(d => {
+      const st = (d.status || "").toLowerCase().trim();
+      return st === "pendente" || st === "aguardando" || st === "em espera";
+    }).length;
+    
+    // ATUALIZAÇÃO IMPORTANTE: Inclui chamados com status "arquivado" como Concluídos
+    const fechados = chamadosFiltrados.filter(d => {
+      const st = (d.status || "").toLowerCase().trim();
+      return st === "fechado" || st === "arquivado" || st === "baixado" || st === "finalizado";
+    }).length;
+
+    return {
+      total: chamadosFiltrados.length,
+      abertos,
+      pendentes,
+      fechados
+    };
+  }, [chamadosBrutos, mesFiltro]);
 
   // Memorização de papéis/roles
   const isRoot = useMemo(
@@ -103,7 +164,7 @@ export default function Dashboard() {
 
   const canManageUsers = isRoot || isAdmin;
   const nomeExibicao = userData?.nome || "Analista";
-  const unidadeExibicao = userData?.unidade || "SISTEMA";
+  const unidadExibicao = userData?.unidade || "SISTEMA";
 
   if (loading) {
     return (
@@ -212,7 +273,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* AJUSTADO: Se o usuário tiver acesso ao inventário OU liberação de etiquetas, renderiza o bloco */}
           {(temAcesso("inventario") || temAcesso("etiquetas")) && (
             <div>
               {sidebarOpen && (
@@ -226,8 +286,6 @@ export default function Dashboard() {
                 <NavButton icon={Layers3} label="Consulta de Itens" path="/consulta-patrimonio" moduloId="inventario" />
                 <NavButton icon={Package} label="Sala do Patrimônio" path="/estoque" moduloId="inventario" />
                 <NavButton icon={Truck} label="Saída/Transferência" path="/transferencia" moduloId="inventario" />
-                
-                {/* NOVO NAVBUTTON: Emissão de Etiquetas com trava individual para 'etiquetas' (liberado se root ou com permissão extra) */}
                 <NavButton icon={Barcode} label="Gerar Etiquetas" path="/emissao-etiquetas" moduloId="etiquetas" />
               </div>
             </div>
@@ -261,7 +319,7 @@ export default function Dashboard() {
             <div className="flex flex-col items-end">
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-tighter">
-                  {unidadeExibicao}
+                  {unidadExibicao}
                 </span>
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                   Usuário
@@ -272,7 +330,6 @@ export default function Dashboard() {
               </h3>
             </div>
             <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center text-white">
-              <img src="" alt="" />
               <User size={28} strokeWidth={2.5} />
             </div>
           </div>
@@ -280,10 +337,23 @@ export default function Dashboard() {
 
         <section className="flex-1 overflow-y-auto p-10 bg-[#F8FAFC]">
           <div className="max-w-7xl mx-auto">
-            <div className="flex justify-between items-end mb-12">
+            {/* SEÇÃO DO TÍTULO E SELETOR DE MÊS/ANO */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-12">
               <h1 className="text-4xl font-black text-slate-900">
                 Olá, {nomeExibicao.split(" ")[0]}!
               </h1>
+              
+              {/* SELETOR DE FILTRAGEM RÁPIDA */}
+              <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm">
+                <Calendar size={16} className="text-blue-600" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1">Período:</span>
+                <input
+                  type="month"
+                  value={mesFiltro}
+                  onChange={(e) => setMesFiltro(e.target.value)}
+                  className="bg-transparent font-bold text-slate-700 text-sm focus:outline-none cursor-pointer"
+                />
+              </div>
             </div>
 
             {temAcesso("chamados") && (
@@ -323,8 +393,6 @@ export default function Dashboard() {
                   variant="light"
                 />
               )}
-              
-              {/* NOVO CARD DE ATALHO RÁPIDO NA HOME: Liberado se tiver permissão de 'etiquetas' */}
               {temAcesso("etiquetas") && (
                 <QuickActionCard
                   title="Emissão de Etiquetas"
