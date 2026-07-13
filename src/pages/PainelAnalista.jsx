@@ -16,8 +16,10 @@ import { toast } from "react-toastify";
 
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import ModalDetalhesAnalista from "../components/ModalDetalhesAnalista";
 import ImprimirAnalista from "../components/ImprimirAnalista";
+
+// IMPORTANDO O NOVO COMPONENTE UNIFICADO DE MODAIS
+import ModalFilaAnalista from "../components/ModalFilaAnalista";
 
 import {
   FiPauseCircle,
@@ -52,13 +54,15 @@ const PainelAnalista = () => {
   const [paginaAtual, setPaginaAtual] = useState(1);
   const itensPorPagina = 12;
 
-  const [mostrarModalFinalizar, setMostrarModalFinalizar] = useState(false);
-  const [mostrarModalPausar, setMostrarModalPausar] = useState(false);
-  const [mostrarModalVer, setMostrarModalVer] = useState(false);
-
+  // CONTROLE DO MODAL UNIFICADO
+  const [mostrarModal, setMostrarModal] = useState(false);
+  const [tipoModal, setTipoModal] = useState(""); // "visualizar", "finalizar" ou "pausar"
   const [chamadoSelecionado, setChamadoSelecionado] = useState(null);
-  const [parecerTecnico, setParecerTecnico] = useState("");
+
+  // ESTADOS DOS CAMPOS DOS MODAIS (Texto livre localmente, normalizado ao salvar)
+  const [equipamento, setEquipamento] = useState("");
   const [patrimonio, setPatrimonio] = useState("");
+  const [parecerTecnico, setParecerTecnico] = useState("");
   const [motivoPausa, setMotivoPausa] = useState("");
   const [detalhePausa, setDetalhePausa] = useState("");
 
@@ -97,6 +101,7 @@ const PainelAnalista = () => {
     setPaginaAtual(1);
   };
 
+  // Carrega os dados do usuário logado
   useEffect(() => {
     if (!user) return;
     const fetchUserData = async () => {
@@ -110,6 +115,7 @@ const PainelAnalista = () => {
     fetchUserData();
   }, [user]);
 
+  // Listener em tempo real dos chamados do Firebase
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -143,7 +149,7 @@ const PainelAnalista = () => {
         tecnicoId: user.uid,
         iniciadoEm: serverTimestamp(),
         logSeguranca: jaTemTecnico
-          ? `assumido por admin: ${analistaNome}`
+          ? `assumido por admin: ${analistaNome}`.toLowerCase()
           : null,
       });
       toast.info(
@@ -176,16 +182,27 @@ const PainelAnalista = () => {
   const handleFinalizarChamado = async (e) => {
     e.preventDefault();
     if (!patrimonio.trim()) return toast.error("Informe o patrimônio.");
+    
     try {
-      await updateDoc(doc(db, "chamados", chamadoSelecionado.id), {
+      const novosDados = {
         status: "fechado",
         feedbackAnalista: parecerTecnico.trim().toLowerCase(),
         patrimonio: patrimonio.trim().toLowerCase(),
         finalizadoEm: serverTimestamp(),
-      });
-      setMostrarModalFinalizar(false);
+      };
+
+      // Se o usuário editou o nome do equipamento, atualiza também em lowercase
+      if (equipamento.trim()) {
+        novosDados.equipamento = equipamento.trim().toLowerCase();
+      }
+
+      await updateDoc(doc(db, "chamados", chamadoSelecionado.id), novosDados);
+      
+      setMostrarModal(false);
+      setTipoModal("");
       setParecerTecnico("");
       setPatrimonio("");
+      setEquipamento("");
       toast.success("OS Finalizada com sucesso!");
     } catch (err) {
       toast.error("Erro ao finalizar.");
@@ -202,7 +219,8 @@ const PainelAnalista = () => {
         detalhePausa: detalhePausa.trim().toLowerCase(),
         pausadoEm: serverTimestamp(),
       });
-      setMostrarModalPausar(false);
+      setMostrarModal(false);
+      setTipoModal("");
       setMotivoPausa("");
       setDetalhePausa("");
       toast.warning("SLA Pausado.");
@@ -303,6 +321,33 @@ const PainelAnalista = () => {
     const inicio = (paginaAtual - 1) * itensPorPagina;
     return chamadosFiltrados.slice(inicio, inicio + itensPorPagina);
   }, [chamadosFiltrados, paginaAtual]);
+
+  const abrirModalUnificado = (tipo, chamado) => {
+    setChamadoSelecionado(chamado);
+    setTipoModal(tipo);
+    setMostrarModal(true);
+
+    // Inicializa os campos caso já existam dados no chamado (mantendo estado flexível)
+    if (tipo === "finalizar") {
+      setEquipamento(chamado.equipamento || "");
+      setPatrimonio(chamado.patrimonio || "");
+      setParecerTecnico(chamado.feedbackAnalista || "");
+    } else if (tipo === "pausar") {
+      setMotivoPausa(chamado.motivoPausa || "");
+      setDetalhePausa(chamado.detalhePausa || "");
+    }
+  };
+
+  const fecharModalUnificado = () => {
+    setMostrarModal(false);
+    setTipoModal("");
+    setChamadoSelecionado(null);
+    setEquipamento("");
+    setPatrimonio("");
+    setParecerTecnico("");
+    setMotivoPausa("");
+    setDetalhePausa("");
+  };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans antialiased">
@@ -513,10 +558,7 @@ const PainelAnalista = () => {
                         <td className="p-5">
                           <div className="flex gap-2 justify-center items-center">
                             <button
-                              onClick={() => {
-                                setChamadoSelecionado(item);
-                                setMostrarModalVer(true);
-                              }}
+                              onClick={() => abrirModalUnificado("visualizar", item)}
                               className="p-2.5 bg-slate-100 text-slate-500 rounded-xl hover:text-blue-600 transition-colors"
                               title="Ver Detalhes"
                             >
@@ -578,21 +620,16 @@ const PainelAnalista = () => {
                                 {status === "em atendimento" && isDono && (
                                   <div className="flex gap-1">
                                     <button
-                                      onClick={() => {
-                                        setChamadoSelecionado(item);
-                                        setPatrimonio(item.patrimonio || "");
-                                        setMostrarModalFinalizar(true);
-                                      }}
+                                      onClick={() => abrirModalUnificado("finalizar", item)}
                                       className="bg-emerald-500 text-white p-2.5 rounded-xl hover:bg-emerald-600 shadow-md"
+                                      title="Finalizar OS"
                                     >
                                       <FiCheck size={18} />
                                     </button>
                                     <button
-                                      onClick={() => {
-                                        setChamadoSelecionado(item);
-                                        setMostrarModalPausar(true);
-                                      }}
+                                      onClick={() => abrirModalUnificado("pausar", item)}
                                       className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 shadow-md"
+                                      title="Pausar Atendimento"
                                     >
                                       <FiPauseCircle size={18} />
                                     </button>
@@ -663,120 +700,33 @@ const PainelAnalista = () => {
         </div>
       </main>
 
-      <ModalDetalhesAnalista
-        isOpen={mostrarModalVer}
-        chamado={chamadoSelecionado}
-        onClose={() => setMostrarModalVer(false)}
-        isRemaneja={isRemaneja}
-      />
-
+      {/* COMPONENTE COMPARTILHADO DE IMPRESSÃO */}
       <ImprimirAnalista
         chamado={chamadoSelecionado}
         isRemaneja={isRemaneja}
         formatarDataHora={formatarDataHora}
       />
 
-      {/* MODAL FINALIZAR */}
-      {mostrarModalFinalizar && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-4xl p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase italic">
-              Finalizar OS
-            </h2>
-            <form onSubmit={handleFinalizarChamado} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">
-                  Patrimônio
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={patrimonio}
-                  onChange={(e) => setPatrimonio(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Ex: pat-12345"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">
-                  Parecer Técnico
-                </label>
-                <textarea
-                  value={parecerTecnico}
-                  onChange={(e) => setParecerTecnico(e.target.value)}
-                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-32 outline-none font-medium focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Descreva a solução técnica aplicada..."
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setMostrarModalFinalizar(false)}
-                  className="flex-1 py-4 font-black uppercase text-xs text-slate-400"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-emerald-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg active:scale-95"
-                >
-                  Concluir OS
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL PAUSAR */}
-      {mostrarModalPausar && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-4xl p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase">
-              Pausar SLA
-            </h2>
-            <form onSubmit={handlePausarSLA} className="space-y-4">
-              <select
-                required
-                value={motivoPausa}
-                onChange={(e) => setMotivoPausa(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                <option value="">Selecione o motivo...</option>
-                <option value="Aguardando Peça">Aguardando Peça</option>
-                <option value="Recolhido para Oficina">
-                  Recolhido para Oficina
-                </option>
-                <option value="Aguardando Retorno Usuário">
-                  Aguardando Retorno Usuário
-                </option>
-                <option value="Serviço Externo">Serviço Externo</option>
-              </select>
-              <textarea
-                value={detalhePausa}
-                onChange={(e) => setDetalhePausa(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-24 outline-none focus:ring-2 focus:ring-amber-500"
-                placeholder="Detalhes adicionais..."
-              />
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setMostrarModalPausar(false)}
-                  className="flex-1 text-slate-400 font-black uppercase text-xs"
-                >
-                  Sair
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-amber-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg active:scale-95"
-                >
-                  Confirmar Pausa
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* MODAL MULTIUSO UNIFICADO (FILA ANALISTA) */}
+      <ModalFilaAnalista
+        isOpen={mostrarModal}
+        tipoModal={tipoModal}
+        chamado={chamadoSelecionado}
+        onClose={fecharModalUnificado}
+        equipamento={equipamento}
+        setEquipamento={setEquipamento}
+        patrimonio={patrimonio}
+        setPatrimonio={setPatrimonio}
+        parecerTecnico={parecerTecnico}
+        setParecerTecnico={setParecerTecnico}
+        handleFinalizar={handleFinalizarChamado}
+        motivoPausa={motivoPausa}
+        setMotivoPausa={setMotivoPausa}
+        detalhePausa={detalhePausa}
+        setDetalhePausa={setDetalhePausa}
+        handlePausar={handlePausarSLA}
+      />
+      
       <Footer />
     </div>
   );

@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { db, auth } from "../services/firebase";
-import { useNavigate } from "react-router-dom"; // IMPORTADO
+import { useNavigate } from "react-router-dom";
 import {
   collection,
   addDoc,
   serverTimestamp,
   doc,
   getDoc,
+  query,
+  where,
+  getDocs,
 } from "firebase/firestore";
+import { toast } from "react-toastify";
 import {
   FiX,
   FiSend,
@@ -19,25 +23,19 @@ import {
   FiHome,
   FiCheckCircle,
   FiAlertCircle,
+  FiSearch,
+  FiUsers,
 } from "react-icons/fi";
 
 const FormRemanejamento = ({ onClose }) => {
-  const navigate = useNavigate(); // HOOK DE NAVEGAÇÃO
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [loadingAtivo, setLoadingAtivo] = useState(false);
   const [sucesso, setSucesso] = useState(false);
   const [osGerada, setOsGerada] = useState("");
   const [modoSetor, setModoSetor] = useState(false);
   const [naoSeiPatrimonio, setNaoSeiPatrimonio] = useState(false);
   const [userName, setUserName] = useState("Usuário");
-
-  // FUNÇÃO UNIFICADA PARA SAIR
-  const handleExit = () => {
-    if (onClose) {
-      onClose(); // Se for um modal aberto dentro de outra página
-    } else {
-      navigate("/dashboard"); // Se for acessado via rota /remanejamento
-    }
-  };
 
   const [formData, setFormData] = useState({
     unidade: "",
@@ -47,6 +45,7 @@ const FormRemanejamento = ({ onClose }) => {
     setorDestino: "",
     descricao: "",
     prioridade: "baixa",
+    equipe: "", 
   });
 
   const unidades = [
@@ -58,27 +57,62 @@ const FormRemanejamento = ({ onClose }) => {
     "Samu Ponta Negra",
   ];
 
+  // OPÇÕES DE EQUIPES EXATAS DO SEU SELECT
+  const equipesDisponiveis = [
+    { value: "manutencao predial", label: "Manutenção Predial" },
+    { value: "engenharia clinica", label: "Engenharia Clínica" },
+    { value: "patrimonio", label: "Patrimônio" },
+    { value: "ti malta", label: "Ti Malta" },
+    { value: "sistema e redes", label: "Sistema e Redes" },
+    { value: "refrigeracao", label: "Refrigeração" },
+  ];
+
+  const handleExit = () => {
+    if (onClose) {
+      onClose();
+    } else {
+      navigate("/dashboard");
+    }
+  };
+
+  // Carrega dados do usuário (Nome e Equipe Padrão)
   useEffect(() => {
-    const fetchUserName = async () => {
+    const fetchUserData = async () => {
       const user = auth.currentUser;
       if (user) {
         try {
           const userDoc = await getDoc(doc(db, "usuarios", user.uid));
           if (userDoc.exists()) {
-            setUserName(userDoc.data().nome);
+            const data = userDoc.data();
+            setUserName(data.nome || "Usuário");
+            
+            // Define a equipe padrão do usuário logado se corresponder a uma das opções
+            if (data.equipe) {
+              const equipeUser = data.equipe.toLowerCase();
+              const existeEquipe = equipesDisponiveis.some(e => e.value === equipeUser);
+              if (existeEquipe) {
+                setFormData((prev) => ({ ...prev, equipe: equipeUser }));
+              }
+            }
           } else {
             setUserName(user.displayName || user.email.split("@")[0]);
           }
         } catch (error) {
-          console.error("Erro ao buscar nome:", error);
+          console.error("Erro ao buscar dados do usuário:", error);
         }
       }
     };
-    fetchUserName();
+    fetchUserData();
   }, []);
 
-  const handleChange = (e) =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const value = e.target.value;
+    const formattedValue = e.target.type === "text" || e.target.tagName === "TEXTAREA" 
+      ? value.toLowerCase() 
+      : value;
+
+    setFormData({ ...formData, [e.target.name]: formattedValue });
+  };
 
   const handleNaoSeiPatrimonio = () => {
     const novoEstado = !naoSeiPatrimonio;
@@ -91,16 +125,59 @@ const FormRemanejamento = ({ onClose }) => {
     setModoSetor(novoModo);
     setFormData({
       ...formData,
-      equipamento: novoModo ? "SETOR INTEIRO" : "",
+      equipamento: novoModo ? "setor inteiro" : "",
       patrimonio: novoModo ? "S/P" : "",
     });
     setNaoSeiPatrimonio(false);
+  };
+
+  // BUSCA DE ATIVO NA COLEÇÃO "ativos"
+  const buscarAtivoNoFirestore = async () => {
+    const nPatrimonio = formData.patrimonio.trim().toLowerCase();
+    if (!nPatrimonio || nPatrimonio === "s/p") {
+      toast.info("Insira um número de patrimônio válido para buscar.");
+      return;
+    }
+
+    setLoadingAtivo(true);
+    try {
+      const ativosRef = collection(db, "ativos");
+      const q = query(ativosRef, where("patrimonio", "==", nPatrimonio));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const ativoEncontrado = querySnapshot.docs[0].data();
+        
+        // Faz correspondência sem distinção de maiúsculas/minúsculas para a Unidade
+        const unidadeAtivo = ativoEncontrado.unidade || "";
+        const unidadeCorrespondente = unidades.find(
+          (u) => u.toLowerCase() === unidadeAtivo.toLowerCase()
+        ) || ""; 
+
+        setFormData((prev) => ({
+          ...prev,
+          equipamento: (ativoEncontrado.nome || ativoEncontrado.equipamento || "").toLowerCase(),
+          setorOrigem: (ativoEncontrado.setor || "").toLowerCase(),
+          unidade: unidadeCorrespondente, 
+        }));
+
+        toast.success("Ativo localizado! Campos preenchidos.");
+      } else {
+        toast.warning("Nenhum ativo localizado com este patrimônio.");
+      }
+    } catch (error) {
+      console.error("Erro ao buscar ativo:", error);
+      toast.error("Erro ao realizar a busca de ativos.");
+    } finally {
+      setLoadingAtivo(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const user = auth.currentUser;
     if (!user) return;
+    if (!formData.equipe) return toast.error("Selecione a equipe responsável.");
 
     setLoading(true);
     try {
@@ -114,18 +191,29 @@ const FormRemanejamento = ({ onClose }) => {
           ? "Remanejamento de Setor"
           : "Remanejamento de Equipamento",
         status: "aberto",
-        nome: userName,
+        nome: userName.toLowerCase(),
+        quemSolicitou: userName.toLowerCase(),
         userId: user.uid,
         userEmail: user.email,
         ...formData,
         criadoEm: serverTimestamp(),
       };
 
+      // 1. Grava na fila de chamados (OS principal)
       await addDoc(collection(db, "chamados"), novoRemanejamento);
+
+      // 2. Grava de forma independente na coleção "remanejamento" para histórico
+      await addDoc(collection(db, "remanejamentos"), {
+        ...novoRemanejamento,
+        historicoEm: serverTimestamp(),
+      });
+
       setOsGerada(numeroOS);
       setSucesso(true);
+      toast.success("Solicitação enviada com sucesso!");
     } catch (error) {
       console.error("Erro ao salvar:", error);
+      toast.error("Ocorreu um erro ao processar o envio.");
     } finally {
       setLoading(false);
     }
@@ -157,7 +245,7 @@ const FormRemanejamento = ({ onClose }) => {
             </div>
             <button
               type="button"
-              onClick={handleExit} // ALTERADO PARA handleExit
+              onClick={handleExit}
               className="w-full bg-slate-800 text-white py-5 rounded-2xl font-black text-xs uppercase hover:bg-slate-900 transition-all"
             >
               Concluir e Sair
@@ -167,7 +255,7 @@ const FormRemanejamento = ({ onClose }) => {
           <>
             <button
               type="button"
-              onClick={handleExit} // ALTERADO PARA handleExit
+              onClick={handleExit}
               className="absolute top-6 right-6 p-2 text-slate-300 hover:text-red-400 transition-all"
             >
               <FiX size={20} />
@@ -228,6 +316,30 @@ const FormRemanejamento = ({ onClose }) => {
                 </div>
               </div>
 
+              {/* Equipe Responsável */}
+              <div className="flex flex-col gap-1.5 text-left">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                  Equipe Responsável
+                </label>
+                <div className="relative">
+                  <FiUsers className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-300 z-10" />
+                  <select
+                    name="equipe"
+                    required
+                    value={formData.equipe}
+                    onChange={handleChange}
+                    className="w-full bg-slate-50 border-2 border-transparent focus:border-orange-200 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold appearance-none focus:outline-none transition-all"
+                  >
+                    <option value="" disabled hidden>Selecione a equipe</option>
+                    {equipesDisponiveis.map((eq) => (
+                      <option key={eq.value} value={eq.value}>
+                        {eq.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               {/* Unidade Destino */}
               <div className="flex flex-col gap-1.5 text-left">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
@@ -258,30 +370,6 @@ const FormRemanejamento = ({ onClose }) => {
                   modoSetor ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"
                 }`}
               >
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">
-                    Equipamento
-                  </label>
-                  <div className="relative">
-                    <FiMonitor className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-                    <input
-                      name="equipamento"
-                      required
-                      step="any"
-                      readOnly={modoSetor}
-                      value={formData.equipamento}
-                      type="text"
-                      placeholder="Ex: Monitor"
-                      onChange={handleChange}
-                      className={`w-full rounded-2xl py-4 pl-12 text-sm font-bold text-slate-600 focus:outline-none ${
-                        modoSetor
-                          ? "bg-slate-100 italic"
-                          : "bg-slate-50 border-2 border-transparent focus:border-orange-200"
-                      }`}
-                    />
-                  </div>
-                </div>
-
                 {!modoSetor && (
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center px-1">
@@ -300,31 +388,71 @@ const FormRemanejamento = ({ onClose }) => {
                         {naoSeiPatrimonio ? "DIGITAR" : "NÃO SEI"}
                       </button>
                     </div>
-                    <div className="relative">
-                      <FiHash
-                        className={`absolute left-4 top-1/2 -translate-y-1/2 ${
-                          naoSeiPatrimonio
-                            ? "text-orange-400"
-                            : "text-slate-300"
-                        }`}
-                      />
-                      <input
-                        name="patrimonio"
-                        required
-                        readOnly={naoSeiPatrimonio}
-                        type="text"
-                        value={formData.patrimonio}
-                        onChange={handleChange}
-                        placeholder={naoSeiPatrimonio ? "S/P" : "Número"}
-                        className={`w-full rounded-2xl py-4 pl-12 text-sm font-bold focus:outline-none ${
-                          naoSeiPatrimonio
-                            ? "bg-orange-50 border-2 border-orange-100 text-orange-400"
-                            : "bg-slate-50 border-2 border-transparent focus:border-orange-200"
-                        }`}
-                      />
+                    <div className="relative flex gap-2">
+                      <div className="relative flex-1">
+                        <FiHash
+                          className={`absolute left-4 top-1/2 -translate-y-1/2 ${
+                            naoSeiPatrimonio
+                              ? "text-orange-400"
+                              : "text-slate-300"
+                          }`}
+                        />
+                        <input
+                          name="patrimonio"
+                          required
+                          readOnly={naoSeiPatrimonio}
+                          type="text"
+                          value={formData.patrimonio}
+                          onChange={handleChange}
+                          placeholder={naoSeiPatrimonio ? "S/P" : "Número"}
+                          className={`w-full rounded-2xl py-4 pl-12 text-sm font-bold focus:outline-none ${
+                            naoSeiPatrimonio
+                              ? "bg-orange-50 border-2 border-orange-100 text-orange-400"
+                              : "bg-slate-50 border-2 border-transparent focus:border-orange-200"
+                          }`}
+                        />
+                      </div>
+                      {!naoSeiPatrimonio && (
+                        <button
+                          type="button"
+                          disabled={loadingAtivo}
+                          onClick={buscarAtivoNoFirestore}
+                          className="bg-orange-400 hover:bg-orange-500 text-white px-4 rounded-2xl active:scale-95 transition-all flex items-center justify-center disabled:opacity-50"
+                          title="Buscar ativo"
+                        >
+                          {loadingAtivo ? (
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <FiSearch size={18} />
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">
+                    Equipamento
+                  </label>
+                  <div className="relative">
+                    <FiMonitor className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                    <input
+                      name="equipamento"
+                      required
+                      readOnly={modoSetor}
+                      value={formData.equipamento}
+                      type="text"
+                      placeholder="Ex: Monitor"
+                      onChange={handleChange}
+                      className={`w-full rounded-2xl py-4 pl-12 text-sm font-bold text-slate-600 focus:outline-none ${
+                        modoSetor
+                          ? "bg-slate-100 italic"
+                          : "bg-slate-50 border-2 border-transparent focus:border-orange-200"
+                      }`}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Origem e Destino */}
@@ -338,6 +466,7 @@ const FormRemanejamento = ({ onClose }) => {
                     <input
                       name="setorOrigem"
                       required
+                      value={formData.setorOrigem}
                       type="text"
                       placeholder="Setor atual"
                       onChange={handleChange}
@@ -354,6 +483,7 @@ const FormRemanejamento = ({ onClose }) => {
                     <input
                       name="setorDestino"
                       required
+                      value={formData.setorDestino}
                       type="text"
                       placeholder="Novo setor"
                       onChange={handleChange}
@@ -374,6 +504,7 @@ const FormRemanejamento = ({ onClose }) => {
                     name="descricao"
                     required
                     rows="2"
+                    value={formData.descricao}
                     placeholder="Por que realizar essa mudança?"
                     onChange={handleChange}
                     className="w-full bg-slate-50 border-2 border-transparent focus:border-orange-100 rounded-3xl py-5 pl-12 pr-6 text-sm font-semibold focus:outline-none resize-none"
