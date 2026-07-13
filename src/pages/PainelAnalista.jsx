@@ -18,7 +18,6 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ModalDetalhesAnalista from "../components/ModalDetalhesAnalista";
 import ImprimirAnalista from "../components/ImprimirAnalista";
-import ModalFilaAnalista from "../components/ModalFilaAnalista"; // Importando o novo componente
 
 import {
   FiPauseCircle,
@@ -77,7 +76,7 @@ const PainelAnalista = () => {
       userData?.nome ||
       user?.displayName ||
       user?.email?.split("@")[0] ||
-      "analista"
+      "Analista"
     );
   }, [userData, user]);
 
@@ -92,7 +91,7 @@ const PainelAnalista = () => {
     setPaginaAtual(1);
   };
 
-  const limparBusca = () => {
+  const limpiarBusca = () => {
     setInputValue("");
     setTermoBusca("");
     setPaginaAtual(1);
@@ -140,11 +139,11 @@ const PainelAnalista = () => {
     try {
       await updateDoc(doc(db, "chamados", chamado.id), {
         status: "em atendimento",
-        tecnicoResponsavel: analistaNome.toLowerCase(),
+        tecnicoResponsavel: analistaNome,
         tecnicoId: user.uid,
         iniciadoEm: serverTimestamp(),
         logSeguranca: jaTemTecnico
-          ? `assumido por admin: ${analistaNome}`.toLowerCase()
+          ? `assumido por admin: ${analistaNome}`
           : null,
       });
       toast.info(
@@ -677,24 +676,107 @@ const PainelAnalista = () => {
         formatarDataHora={formatarDataHora}
       />
 
-      {/* CHAMADA UNIFICADA DO NOVO COMPONENTE DE MODAIS EXTRAÍDOS */}
-      <ModalFilaAnalista
-        mostrarModalFinalizar={mostrarModalFinalizar}
-        setMostrarModalFinalizar={setMostrarModalFinalizar}
-        mostrarModalPausar={mostrarModalPausar}
-        setMostrarModalPausar={setMostrarModalPausar}
-        handleFinalizarChamado={handleFinalizarChamado}
-        handlePausarSLA={handlePausarSLA}
-        patrimonio={patrimonio}
-        setPatrimonio={setPatrimonio}
-        parecerTecnico={parecerTecnico}
-        setParecerTecnico={setParecerTecnico}
-        motivoPausa={motivoPausa}
-        setMotivoPausa={setMotivoPausa}
-        detalhePausa={detalhePausa}
-        setDetalhePausa={setDetalhePausa}
-      />
+      {/* MODAL FINALIZAR */}
+      {mostrarModalFinalizar && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-4xl p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase italic">
+              Finalizar OS
+            </h2>
+            <form onSubmit={handleFinalizarChamado} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">
+                  Patrimônio
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={patrimonio}
+                  onChange={(e) => setPatrimonio(e.target.value)}
+                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Ex: pat-12345"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 ml-1">
+                  Parecer Técnico
+                </label>
+                <textarea
+                  value={parecerTecnico}
+                  onChange={(e) => setParecerTecnico(e.target.value)}
+                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-32 outline-none font-medium focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Descreva a solução técnica aplicada..."
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setMostrarModalFinalizar(false)}
+                  className="flex-1 py-4 font-black uppercase text-xs text-slate-400"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-emerald-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg active:scale-95"
+                >
+                  Concluir OS
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
+      {/* MODAL PAUSAR */}
+      {mostrarModalPausar && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-4xl p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h2 className="text-2xl font-black mb-6 text-slate-800 uppercase">
+              Pausar SLA
+            </h2>
+            <form onSubmit={handlePausarSLA} className="space-y-4">
+              <select
+                required
+                value={motivoPausa}
+                onChange={(e) => setMotivoPausa(e.target.value)}
+                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">Selecione o motivo...</option>
+                <option value="Aguardando Peça">Aguardando Peça</option>
+                <option value="Recolhido para Oficina">
+                  Recolhido para Oficina
+                </option>
+                <option value="Aguardando Retorno Usuário">
+                  Aguardando Retorno Usuário
+                </option>
+                <option value="Serviço Externo">Serviço Externo</option>
+              </select>
+              <textarea
+                value={detalhePausa}
+                onChange={(e) => setDetalhePausa(e.target.value)}
+                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-100 h-24 outline-none focus:ring-2 focus:ring-amber-500"
+                placeholder="Detalhes adicionais..."
+              />
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setMostrarModalPausar(false)}
+                  className="flex-1 text-slate-400 font-black uppercase text-xs"
+                >
+                  Sair
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-amber-500 py-4 rounded-2xl font-black uppercase text-xs text-white shadow-lg active:scale-95"
+                >
+                  Confirmar Pausa
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <Footer />
     </div>
   );
