@@ -1,12 +1,5 @@
-import React, { useState } from "react";
-import { db } from "../services/firebase";
-import {
-  collection,
-  getDocs,
-} from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
-import * as XLSX from "xlsx";
+import React from "react";
+import { useInventario } from "../hooks/useInventario"; // Ajuste o caminho se necessário
 import {
   Search,
   Shield,
@@ -16,6 +9,7 @@ import {
   Database,
   FilterX,
   ArrowLeft,
+  ChevronDown,
 } from "lucide-react";
 
 // Importação dos componentes do sistema
@@ -24,175 +18,38 @@ import Footer from "../components/Footer";
 import ModalInventario from "../components/ModalInventario";
 
 const Inventario = () => {
-  const [itens, setItens] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-
-  // Estados dos Filtros
-  const [unidadeFiltro, setUnidadeFiltro] = useState("Todas");
-  const [statusFiltro, setStatusFiltro] = useState("Todos");
-  const [buscaPatrimonio, setBuscaPatrimonio] = useState("");
-
-  const [paginaAtual, setPaginaAtual] = useState(1);
-  
-  // Estado adaptado para controlar o Novo Modal de etapas
-  const [modalAberto, setModalAberto] = useState(false);
-  const [equipamentoSelecionado, setEquipamentoSelecionado] = useState(null);
-
-  const navigate = useNavigate();
-  const itensPorPagina = 15;
-  const WEBAPP_URL_SHEETS =
-    "https://script.google.com/macros/s/AKfycbwHsFnuMc_onDTG9vloDYNW6o_eIrTTfXt6O4WuhGxEP86rl1ZH4WY6o_JsSSljZqck3g/exec";
-
-  // Função de normalização para busca e filtros
-  const normalizarParaComparacao = (texto) => {
-    if (!texto) return "";
-    return texto
-      .toString()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[/\s._-]/g, "")
-      .trim();
-  };
-
-  const carregarDados = async (e) => {
-    if (e) e.preventDefault();
-    loading ? null : setLoading(true);
-    setHasSearched(true);
-    setPaginaAtual(1);
-
-    try {
-      const querySnapshot = await getDocs(collection(db, "ativos"));
-      const todosOsDados = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      setItens(todosOsDados);
-
-      if (todosOsDados.length > 0) {
-        toast.success(`${todosOsDados.length} itens encontrados.`);
-      } else {
-        toast.info("Nenhum item encontrado no banco.");
-      }
-    } catch (error) {
-      console.error("Erro ao carregar:", error);
-      toast.error("Erro ao consultar dados.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const limparFiltros = () => {
-    setBuscaPatrimonio("");
-    setUnidadeFiltro("Todas");
-    setStatusFiltro("Todos");
-    setItens([]);
-    setHasSearched(false);
-  };
-
-  // LÓGICA DE FILTRAGEM CORRIGIDA PARA CORRESPONDER EXATAMENTE À SUA ENTRADA DO BANCO
-  const itensFiltrados = itens.filter((item) => {
-    const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
-    const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeFiltro);
-    const matchUnidade =
-      unidadeFiltro === "Todas" ||
-      unidadeItemNorm.includes(unidadeSelecionadaNorm);
-
-    const statusItemNorm = String(item.status || "operante").toLowerCase().trim();
-    
-    let matchStatus = false;
-    if (statusFiltro === "Todos") {
-      matchStatus = true;
-    } else if (statusFiltro === "Ativo") {
-      // Considera Ativo caso seja "ativo" ou "operante"
-      matchStatus = statusItemNorm === "ativo" || statusItemNorm === "operante";
-    } else if (statusFiltro === "Baixado") {
-      // CORREÇÃO AQUI: Agora aceita explicitamente "inutilizado" vindo da aprovação do laudo
-      matchStatus = 
-        statusItemNorm === "baixado" || 
-        statusItemNorm === "inutilizado" || 
-        statusItemNorm === "inutilizados";
-    }
-
-    let matchBusca = true;
-    if (buscaPatrimonio.trim() !== "") {
-      const termoNorm = normalizarParaComparacao(buscaPatrimonio);
-      const patItemNorm = normalizarParaComparacao(item.patrimonio || "");
-      const nomeItemNorm = normalizarParaComparacao(item.nome || "");
-      matchBusca =
-        patItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
-    }
-
-    return matchUnidade && matchStatus && matchBusca;
-  });
-
-  // Paginação
-  const totalPaginas = Math.ceil(itensFiltrados.length / itensPorPagina);
-  const itensExibidos = itensFiltrados.slice(
-    (paginaAtual - 1) * itensPorPagina,
-    paginaAtual * itensPorPagina
-  );
-
-  const formatarDataBR = (timestamp) => {
-    if (!timestamp) return "---";
-    try {
-      const data = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return data.toLocaleString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch (e) {
-      return "Data inválida";
-    }
-  };
-
-  const exportarExcelCompleto = async () => {
-    if (itensFiltrados.length === 0)
-      return toast.error("Não há dados para exportar.");
-    
-    toast.info("Sincronizando e gerando arquivos...");
-    
-    try {
-      const dadosParaEnviar = itensFiltrados.map((i) => ({
-        patrimonio: i.patrimonio?.toString() || "S/P",
-        nome: i.nome,
-        unidade: i.unidade || "",
-        setor: i.setor || "",
-        estado: i.estado || "Bom",
-        status: i.status,
-        dataBaixa: i.dataBaixa ? formatarDataBR(i.dataBaixa) : "",
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(dadosParaEnviar);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Inventario");
-      XLSX.writeFile(wb, `Inventario_${unidadeFiltro}.xlsx`);
-
-      await fetch(WEBAPP_URL_SHEETS, {
-        method: "POST",
-        mode: "no-cors",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(dadosParaEnviar),
-      });
-
-      toast.success("Exportação local concluída e Google Sheets atualizado!");
-    } catch (error) {
-      console.error("Erro na sincronização:", error);
-      toast.error("Erro ao atualizar a planilha online.");
-    }
-  };
-
-  const lidarComAberturaModal = (item) => {
-    setEquipamentoSelecionado(item);
-    setModalAberto(true);
-  };
+  const {
+    itens,
+    loading,
+    hasSearched,
+    unidadeFiltro,
+    setUnidadeFiltro,
+    setorFiltro,
+    setSetorFiltro,
+    statusFiltro,
+    setStatusFiltro,
+    buscaPatrimonio,
+    setBuscaPatrimonio,
+    paginaAtual,
+    setPaginaAtual,
+    modalAberto,
+    setModalAberto,
+    equipamentoSelecionado,
+    setEquipamentoSelecionado,
+    mostrarDropdownSetor,
+    setMostrarDropdownSetor,
+    dropdownSetorRef,
+    navigate,
+    itensFiltrados,
+    totalPaginas,
+    itensExibidos,
+    formatarDataBR,
+    carregarDados,
+    limparFiltros,
+    obterSetoresDisponiveis,
+    exportarExcelCompleto,
+    lidarComAberturaModal,
+  } = useInventario();
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
@@ -232,15 +89,18 @@ const Inventario = () => {
         </header>
 
         {/* FILTROS E BOTÕES DE AÇÃO */}
-        <div className="max-w-7xl mx-auto bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-8 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div className="max-w-7xl mx-auto bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-8 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
           <div>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
               Unidade
             </label>
             <select
-              className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+              className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer h-[48px]"
               value={unidadeFiltro}
-              onChange={(e) => setUnidadeFiltro(e.target.value)}
+              onChange={(e) => {
+                setUnidadeFiltro(e.target.value);
+                setSetorFiltro("Todos");
+              }}
             >
               <option value="Todas">🌍 Todas as Unidades</option>
               <option value="Hospital Conde">Hospital Conde</option>
@@ -251,12 +111,77 @@ const Inventario = () => {
               <option value="Centro">SAMU Centro</option>
             </select>
           </div>
+
+          <div className="relative" ref={dropdownSetorRef}>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
+              Setor
+            </label>
+            
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                className="w-full bg-slate-50 border-none rounded-xl p-3 pr-10 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none disabled:opacity-50 h-[48px]"
+                placeholder={unidadeFiltro === "Todas" && itens.length === 0 ? "Carregue os dados..." : "📦 Digite ou selecione..."}
+                disabled={unidadeFiltro === "Todas" && itens.length === 0}
+                value={setorFiltro === "Todos" ? "" : setorFiltro}
+                onFocus={() => setMostrarDropdownSetor(true)}
+                onChange={(e) => {
+                  setSetorFiltro(e.target.value || "Todos");
+                  setMostrarDropdownSetor(true);
+                }}
+              />
+              <button
+                type="button"
+                disabled={unidadeFiltro === "Todas" && itens.length === 0}
+                onClick={() => setMostrarDropdownSetor(!mostrarDropdownSetor)}
+                className="absolute right-3 text-slate-400 hover:text-slate-600 disabled:opacity-30 cursor-pointer"
+              >
+                <ChevronDown size={18} />
+              </button>
+            </div>
+
+            {mostrarDropdownSetor && (unidadeFiltro !== "Todas" || itens.length > 0) && (
+              <div className="absolute left-0 right-0 top-[82px] bg-white border border-slate-100 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto py-1 animate-fadeIn">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSetorFiltro("Todos");
+                    setMostrarDropdownSetor(false);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-xs font-black uppercase text-blue-600 hover:bg-blue-50 transition-colors border-b border-slate-50"
+                >
+                  📦 Mostrar Todos os Setores
+                </button>
+                
+                {obterSetoresDisponiveis().length > 0 ? (
+                  obterSetoresDisponiveis().map((setor, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => {
+                        setSetorFiltro(setor);
+                        setMostrarDropdownSetor(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors font-bold uppercase border-b border-slate-50 last:border-none"
+                    >
+                      {setor}
+                    </button>
+                  ))
+                ) : (
+                  <div className="p-4 text-xs text-slate-400 text-center font-medium italic">
+                    Nenhum setor encontrado para esta busca
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
               Status
             </label>
             <select
-              className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+              className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer h-[48px]"
               value={statusFiltro}
               onChange={(e) => setStatusFiltro(e.target.value)}
             >
@@ -265,6 +190,7 @@ const Inventario = () => {
               <option value="Baixado">Inutilizados</option>
             </select>
           </div>
+
           <div>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
               Patrimônio / Nome
@@ -272,7 +198,7 @@ const Inventario = () => {
             <input
               type="text"
               placeholder="Ex: 105 ou Monitor"
-              className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none h-[48px]"
               value={buscaPatrimonio}
               onChange={(e) => setBuscaPatrimonio(e.target.value)}
             />
@@ -282,16 +208,15 @@ const Inventario = () => {
             <button
               type="button"
               onClick={limparFiltros}
-              className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-600 p-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-200"
+              className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-600 h-[48px] rounded-xl font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-200"
               title="Limpar filtros"
             >
               <FilterX size={20} />
-              <span className="hidden lg:inline">Limpar</span>
             </button>
 
             <button
               onClick={carregarDados}
-              className="w-2/3 flex-grow bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-100 cursor-pointer whitespace-nowrap"
+              className="w-2/3 flex-grow bg-blue-600 hover:bg-blue-700 text-white h-[48px] rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-100 cursor-pointer whitespace-nowrap"
             >
               {loading ? (
                 <RefreshCw className="animate-spin" size={20} />
@@ -316,7 +241,7 @@ const Inventario = () => {
             <div className="h-[400px] flex flex-col items-center justify-center text-slate-400 text-center p-4">
               <FilterX size={48} className="mb-2 opacity-20" />
               <p className="font-bold">Nenhum item corresponde aos filtros selecionados.</p>
-              <p className="text-xs italic">Verifique se o Status ou a Unidade estão corretos.</p>
+              <p className="text-xs italic">Verifique se o Status, Unidade ou Setor estão corretos.</p>
             </div>
           ) : (
             <>
@@ -389,7 +314,6 @@ const Inventario = () => {
                 </table>
               </div>
 
-              {/* PAGINAÇÃO */}
               <div className="p-4 bg-slate-50 flex items-center justify-between border-t border-slate-100 font-bold text-slate-400 text-xs uppercase">
                 <span>
                   Página {paginaAtual} de {totalPaginas || 1}
@@ -404,7 +328,7 @@ const Inventario = () => {
                   </button>
                   <button
                     disabled={paginaAtual === totalPaginas}
-                    onClick={() => setPaginaAtual((p) => p - 1)}
+                    onClick={() => setPaginaAtual((p) => p + 1)}
                     className="p-2 bg-white rounded-lg border border-slate-200 disabled:opacity-30 cursor-pointer transition-colors hover:text-blue-600"
                   >
                     <ChevronRight size={18} />

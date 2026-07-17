@@ -1,17 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { db } from "../services/firebase";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  serverTimestamp,
-  increment,
-  runTransaction,
-} from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import React from "react";
+import { useEstoque } from "../hooks/useEstoque";
 import {
   Box,
   ArrowLeft,
@@ -26,223 +14,42 @@ import {
 } from "lucide-react";
 
 const Estoque = () => {
-  const [itensEstoque, setItensEstoque] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [processando, setProcessando] = useState(false);
+  // Destruturação limpa de todos os controles fornecidos pelo hook customizado
+  const {
+    itensEstoque,
+    loading,
+    processando,
+    loteSaida,
+    itemParaAdicionar,
+    setItemParaAdicionar,
+    patrimonioInput,
+    setPatrimonioInput,
+    qtdInput,
+    setQtdInput,
+    mostrarPreview,
+    setMostrarPreview,
+    naoSabeResponsavel,
+    setNaoSabeResponsavel,
+    dadosSaida,
+    setDadosSaida,
+    unidades,
+    setoresPorUnidade, // Alimentar o select de setores dinamicamente
+    motivosSaida,
+    isEstoque,
+    carregarEstoque,
+    adicionarAoLote,
+    removerDoLote,
+    efetivarTransferenciaESalvar,
+    navigate,
+  } = useEstoque();
 
-  // Estados do Carrinho/Lote
-  const [loteSaida, setLoteSaida] = useState([]);
-  const [itemParaAdicionar, setItemParaAdicionar] = useState(null);
-  const [patrimonioInput, setPatrimonioInput] = useState("");
-  const [qtdInput, setQtdInput] = useState(1);
-
-  // Estado do Modal de Preview do Documento
-  const [mostrarPreview, setMostrarPreview] = useState(false);
-
-  // Nova opção: Responsável desconhecido no momento do envio
-  const [naoSabeResponsavel, setNaoSabeResponsavel] = useState(false);
-
-  // Dados comuns de Destino
-  const [dadosSaida, setDadosSaida] = useState({
-    novaUnidade: "",
-    novoSetor: "",
-    responsavelRecebimento: "",
-    motivo: "Transferência Regular (Reforço/Expansão)",
-  });
-
-  const navigate = useNavigate();
-
-  const unidades = [
-    "Estoque Central",
-    "Hospital Conde",
-    "UPA de Inoã",
-    "UPA de Santa Rita",
-    "SAMU Barroco",
-    "SAMU Ponta Negra",
-    "SAMU Centro",
-  ];
-
-  const motivosSaida = [
-    { value: "Transferência Regular (Reforço/Expansão)", label: "Transferência Regular (Reforço/Expansão)" },
-    { value: "Substituição por Rasgo/Avaria", label: "Substituição por Rasgo/Avaria" },
-    { value: "Substituição por Infecção/Contaminação", label: "Substituição por Infecção/Contaminação (Descarte Sanitário)" },
-    { value: "Substituição por Defeito Técnico/Mecânico", label: "Substituição por Defeito Técnico/Mecânico" },
-    { value: "Empréstimo Temporário", label: "Empréstimo Temporário" },
-  ];
-
-  const carregarEstoque = async () => {
-    setLoading(true);
-    try {
-      const estoqueRef = collection(db, "estoque");
-      const q = query(estoqueRef, where("status", "==", "ativo"));
-      const querySnapshot = await getDocs(q);
-      const lista = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setItensEstoque(lista);
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao carregar itens do estoque.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    carregarEstoque();
-  }, []);
-
-  const adicionarAoLote = (e) => {
-    e.preventDefault();
-    if (!itemParaAdicionar) return;
-
-    const qtdDisponivel = Number(itemParaAdicionar.quantidade || 1);
-    const qtdSolicitada = Number(qtdInput);
-
-    if (qtdSolicitada > qtdDisponivel) {
-      toast.error(`Quantidade indisponível! Estoque atual: ${qtdDisponivel}`);
-      return;
-    }
-
-    const patrimonioFinal = itemParaAdicionar.patrimonio === "S/P" 
-      ? patrimonioInput.trim() 
-      : itemParaAdicionar.patrimonio.trim();
-
-    if (!patrimonioFinal) {
-      toast.error("Insira um número de patrimônio válido.");
-      return;
-    }
-
-    const jaExiste = loteSaida.some(item => item.patrimonioMapeado === patrimonioFinal);
-    if (jaExiste) {
-      toast.error("Este número de patrimônio já foi adicionado ao lote!");
-      return;
-    }
-
-    const novoItemLote = {
-      ...itemParaAdicionar,
-      quantidadeMovimentada: qtdSolicitada,
-      patrimonioMapeado: patrimonioFinal,
-    };
-
-    setLoteSaida([...loteSaida, novoItemLote]);
-    setItemParaAdicionar(null);
-    setPatrimonioInput("");
-    setQtdInput(1);
-    toast.success("Item adicionado ao lote!");
-  };
-
-  const removerDoLote = (index) => {
-    const novaLista = [...loteSaida];
-    novaLista.splice(index, 1);
-    setLoteSaida(novaLista);
-  };
-
-  const efetivarTransferenciaESalvar = async () => {
-    if (loteSaida.length === 0) return;
-    setProcessando(true);
-
-    const responsavelFinal = naoSabeResponsavel 
-      ? "responsável pelo setor" 
-      : dadosSaida.responsavelRecebimento.trim();
-
-    try {
-      await runTransaction(db, async (transaction) => {
-        for (const item of loteSaida) {
-          const estoqueItemRef = doc(db, "estoque", item.id);
-          const sfDoc = await transaction.get(estoqueItemRef);
-          
-          if (!sfDoc.exists()) {
-            throw new Error(`O item ${item.nome} não existe mais no estoque.`);
-          }
-
-          const dadosOriginais = sfDoc.data();
-          const qtdAtual = Number(dadosOriginais.quantidade || 1);
-          const qtdSolicitada = item.quantidadeMovimentada;
-
-          if (qtdSolicitada > qtdAtual) {
-            throw new Error(`Estoque insuficiente para ${item.nome}!`);
-          }
-
-          if (qtdSolicitada < qtdAtual) {
-            transaction.update(estoqueItemRef, {
-              quantidade: increment(-qtdSolicitada),
-              ultimaMovimentacao: serverTimestamp(),
-            });
-          } else {
-            transaction.update(estoqueItemRef, {
-              status: "movimentado",
-              quantidade: 0,
-              ultimaMovimentacao: serverTimestamp(),
-            });
-          }
-
-          // TRAVA: Só envia e cria o registro na coleção 'ativos' se NÃO for "Bem durável"
-          if (item.categoriaItem !== "Bem durável") {
-            const novoAtivoRef = doc(collection(db, "ativos"));
-            transaction.set(novoAtivoRef, {
-              nome: item.nome.trim(),
-              categoriaItem: item.categoriaItem || item.tipo || "Mobiliário",
-              tipo: item.tipo || "equipamento",
-              estado: item.estado,
-              observacoes: item.observacoes || "",
-              cadastradoPor: item.cadastradoPor || "",
-              criadoEm: item.criadoEm || serverTimestamp(),
-              id: novoAtivoRef.id,
-              quantidade: qtdSolicitada,
-              patrimonio: item.patrimonioMapeado,
-              unidade: dadosSaida.novaUnidade,
-              setor: dadosSaida.novoSetor.trim(),
-              status: "Ativo",
-              ultimaMovimentacao: serverTimestamp(),
-            });
-          }
-
-          // O Log de saída continua rodando normalmente para todos os tipos de itens
-          const logsRef = collection(db, "saidaEquipamento");
-          transaction.set(doc(logsRef), {
-            estoqueId: item.id,
-            patrimonio: item.patrimonioMapeado,
-            nomeEquipamento: item.nome.trim(),
-            unidadeOrigem: item.unidade || "Almoxarifado Central",
-            setorOrigem: item.setor || "Patrimônio",
-            unidadeDestino: dadosSaida.novaUnidade,
-            setorDestino: dadosSaida.novoSetor.trim(),
-            quantidadeRetirada: qtdSolicitada,
-            responsavelRecebimento: responsavelFinal,
-            motivo: dadosSaida.motivo,
-            dataSaida: serverTimestamp(),
-          });
-        }
-      });
-
-      toast.success("Transferência concluída com sucesso!");
-      window.print();
-
-      setLoteSaida([]);
-      setMostrarPreview(false);
-      setNaoSabeResponsavel(false);
-      setDadosSaida({
-        novaUnidade: "",
-        novoSetor: "",
-        responsavelRecebimento: "",
-        motivo: "Transferência Regular (Reforço/Expansão)",
-      });
-      carregarEstoque();
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setProcessando(false);
-    }
-  };
-
-  const isEstoque = dadosSaida.novaUnidade === "Estoque Central";
+  // Estado local para controlar se o usuário optou por digitar o setor manualmente
+  const [digitarSetorManual, setDigitarSetorManual] = React.useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans print:bg-white print:p-0">
       
-      {/* Interface Normal (Escondida ao Imprimir) */}
+      {/* INTERFACE NORMAL (Escondida em tempo de impressão via CSS utility 'print:hidden') */}
       <div className="print:hidden">
         <header className="max-w-7xl mx-auto mb-8">
           <button
@@ -271,7 +78,7 @@ const Estoque = () => {
 
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Tabela de Itens Disponíveis */}
+          {/* Tabela Principal de Itens em Estoque */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="p-5 border-b border-slate-100 bg-slate-50/50">
@@ -323,7 +130,7 @@ const Estoque = () => {
             </div>
           </div>
 
-          {/* Painel do Lote de Distribuição */}
+          {/* Painel de Controle de Destino e Lote */}
           <div className="space-y-6">
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-6">
               <div className="border-b border-slate-100 pb-4">
@@ -340,10 +147,11 @@ const Estoque = () => {
                     value={dadosSaida.novaUnidade}
                     onChange={(e) => {
                       const selecionado = e.target.value;
+                      setDigitarSetorManual(false); // Reseta o modo manual ao mudar de unidade
                       setDadosSaida({ 
                         ...dadosSaida, 
                         novaUnidade: selecionado,
-                        novoSetor: selecionado === "Estoque Central" ? "equipamento usado" : ""
+                        novoSetor: "" // Reseta o setor para obrigar a nova seleção
                       });
                     }}
                   >
@@ -353,16 +161,63 @@ const Estoque = () => {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                    {isEstoque ? "Classificação no Estoque" : "Setor Destino"}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={isEstoque ? "Ex: equipamento usado, reserva" : "Ex: Sala de Medicação"}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none"
-                    value={dadosSaida.novoSetor}
-                    onChange={(e) => setDadosSaida({ ...dadosSaida, novoSetor: e.target.value })}
-                  />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      {isEstoque ? "Classificação no Estoque" : "Setor Destino"}
+                    </label>
+                    {dadosSaida.novaUnidade && !isEstoque && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDigitarSetorManual(!digitarSetorManual);
+                          setDadosSaida({ ...dadosSaida, novoSetor: "" });
+                        }}
+                        className="text-[10px] font-bold text-blue-600 hover:underline"
+                      >
+                        {digitarSetorManual ? "Escolher da Lista" : "Não achou? Digitar Setor"}
+                      </button>
+                    )}
+                  </div>
+
+                  {digitarSetorManual || isEstoque ? (
+                    <input
+                      type="text"
+                      placeholder={isEstoque ? "Ex: equipamento usado, reserva" : "Digite o nome do setor manualmente..."}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none border-l-4 border-l-amber-500"
+                      value={dadosSaida.novoSetor}
+                      onChange={(e) => setDadosSaida({ ...dadosSaida, novoSetor: e.target.value })}
+                    />
+                  ) : (
+                    <select
+                      disabled={!dadosSaida.novaUnidade}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm font-bold text-slate-700 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      value={dadosSaida.novoSetor}
+                      onChange={(e) => {
+                        if (e.target.value === "OUTRO_MANUAL") {
+                          setDigitarSetorManual(true);
+                          setDadosSaida({ ...dadosSaida, novoSetor: "" });
+                        } else {
+                          setDadosSaida({ ...dadosSaida, novoSetor: e.target.value });
+                        }
+                      }}
+                    >
+                      <option value="">
+                        {dadosSaida.novaUnidade ? "Selecione o Setor Oficial..." : "Selecione uma unidade primeiro..."}
+                      </option>
+                      {dadosSaida.novaUnidade && (
+                        <>
+                          {setoresPorUnidade[dadosSaida.novaUnidade]?.map((setor) => (
+                            <option key={setor} value={setor}>
+                              {setor}
+                            </option>
+                          ))}
+                          <option value="OUTRO_MANUAL" className="text-blue-600 font-bold">
+                            ➕ Outro (Digitar Manualmente...)
+                          </option>
+                        </>
+                      )}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -411,6 +266,7 @@ const Estoque = () => {
 
               <hr className="border-slate-100" />
 
+              {/* Seção Interna do Lote de Saída */}
               <div>
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Equipamentos no Lote ({loteSaida.length})</h3>
                 {loteSaida.length === 0 ? (
@@ -452,7 +308,7 @@ const Estoque = () => {
         </div>
       </div>
 
-      {/* MODAL 1: Configurar patrimônio individual */}
+      {/* MODAL 1: Configuração de Patrimônio Individual */}
       {itemParaAdicionar && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 print:hidden">
           <div className="bg-white rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-4">
@@ -519,13 +375,12 @@ const Estoque = () => {
         </div>
       )}
 
-      {/* MODAL 2: Preview do Documento */}
+      {/* MODAL 2: Visualização de Impressão do Termo A4 */}
       {mostrarPreview && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex justify-center z-50 p-0 md:p-4 overflow-y-auto items-start print:absolute print:inset-0 print:bg-white print:p-0 print:shadow-none">
-          
           <div className="w-full max-w-[840px] flex flex-col my-0 md:my-4 print:my-0">
             
-            {/* Menu de Controle Superior - STICKY */}
+            {/* Header Flutuante de Comando do Modal */}
             <div className="sticky top-0 z-50 flex flex-col sm:flex-row justify-between items-center bg-slate-900 text-white p-4 rounded-b-xl md:rounded-t-3xl border-b border-slate-800 font-sans print:hidden gap-3 shadow-lg">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
                 <AlertTriangle size={16} className="shrink-0" /> Modo de Conferência e Conferência Prévia
@@ -548,11 +403,9 @@ const Estoque = () => {
               </div>
             </div>
 
-            {/* Documento Físico A4 Estilizado */}
+            {/* Espelho do Documento Físico Oficial Tipo A4 */}
             <div className="bg-white w-full min-h-[1050px] shadow-2xl p-6 md:p-12 flex flex-col justify-between font-serif text-slate-900 rounded-b-3xl print:rounded-none print:shadow-none print:p-4">
-              
               <div>
-                {/* Imagens do cabeçalho */}
                 <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-slate-200 w-full">
                   <img src="/Imagem1.png" alt="Logo 1" className="h-12 w-auto max-w-[22%] object-contain" />
                   <img src="/Imagem2.png" alt="Logo 2" className="h-12 w-auto max-w-[22%] object-contain" />
@@ -609,7 +462,7 @@ const Estoque = () => {
                 </table>
               </div>
 
-              {/* Assinaturas */}
+              {/* Assinaturas Formais */}
               <div className="mt-20 pt-12 font-sans">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-12 text-center text-xs">
                   <div className="space-y-1">
@@ -631,7 +484,6 @@ const Estoque = () => {
 
             </div>
           </div>
-
         </div>
       )}
 
