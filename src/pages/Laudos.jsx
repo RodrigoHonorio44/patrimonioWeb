@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from "react";
-import { db } from "../services/firebase";
-import { collection, getDocs, query, where, limit, doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { toast } from "react-toastify";
-import { 
-  Search, 
-  Wrench, 
-  RefreshCw, 
-  FileText, 
-  FilterX, 
-  MapPin, 
-  Layers, 
-  Clock, 
+import React from "react";
+import { useLaudos } from "../hooks/useLaudos";
+import {
+  Search,
+  Wrench,
+  RefreshCw,
+  FileText,
+  FilterX,
+  MapPin,
+  Layers,
+  Clock,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
 } from "lucide-react";
 
 import Header from "../components/Header";
@@ -21,198 +19,32 @@ import Footer from "../components/Footer";
 import ModalLaudoTecnico from "../components/ModalLaudoTecnico";
 
 const Laudos = () => {
-  // Estados para busca de Ativos Operantes
-  const [itens, setItens] = useState([]);
-  const [unidadesDisponiveis, setUnidadesDisponiveis] = useState([]); 
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [buscaPatrimonio, setBuscaPatrimonio] = useState("");
-  const [unidadeSelecionada, setUnidadeSelecionada] = useState("");
-  const [buscaSetor, setBuscaSetor] = useState(""); 
-
-  // Estados para a seção de Laudos Gerados esperando Decisão de Baixa
-  const [laudosPendentes, setLaudosPendentes] = useState([]);
-  const [loadingLaudos, setLoadingLaudos] = useState(false);
-  const [processandoAcao, setProcessandoAcao] = useState(null); // Armazena o ID do laudo em alteração
-  
-  const [modalAberto, setModalAberto] = useState(false);
-  const [equipamentoSelecionado, setEquipamentoSelecionado] = useState(null);
-
-  // Inicializa os dados essenciais da tela
-  useEffect(() => {
-    const inicializarPainel = async () => {
-      await carregarUnidades();
-      await carregarLaudosPendentes();
-    };
-    inicializarPainel();
-  }, []);
-
-  // Busca os laudos gerados com status "pendente"
-  const carregarLaudosPendentes = async () => {
-    setLoadingLaudos(true);
-    try {
-      const q = query(
-        collection(db, "laudos"),
-        where("status", "==", "pendente"),
-        limit(25)
-      );
-      const querySnapshot = await getDocs(q);
-      const listaLaudos = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setLaudosPendentes(listaLaudos);
-    } catch (error) {
-      console.error("Erro ao carregar laudos pendentes:", error);
-    } finally {
-      setLoadingLaudos(false);
-    }
-  };
-
-  // Função para Aprovar a Baixa do Laudo e Atualizar o Ativo no Firebase
-  const handleAprovarLaudo = async (laudoId, equipamentoId) => {
-    setProcessandoAcao(laudoId);
-    try {
-      // 1. Atualiza o status do Laudo para aprovado
-      const laudoRef = doc(db, "laudos", laudoId);
-      await updateDoc(laudoRef, {
-        status: "aprovado",
-        dataDecisao: serverTimestamp()
-      });
-      
-      // 2. CORREÇÃO: Atualiza o Ativo original para "inutilizados" com data de baixa
-      if (equipamentoId) {
-        const ativoRef = doc(db, "ativos", equipamentoId);
-        await updateDoc(ativoRef, {
-          status: "inutilizados",
-          dataBaixa: serverTimestamp(),
-          ultimaMovimentacao: serverTimestamp()
-        });
-      }
-      
-      toast.success("Laudo aprovado e ativo movido para Inutilizados! 🎉");
-      await carregarLaudosPendentes();
-      if (hasSearched) carregarDados(); // Atualiza a tabela de cima se já tiver buscado
-    } catch (error) {
-      console.error("Erro ao aprovar laudo:", error);
-      toast.error("Erro ao aprovar o laudo.");
-    } finally {
-      setProcessandoAcao(null);
-    }
-  };
-
-  // Função para Cancelar/Rejeitar o Laudo e Restaurar o Ativo
-  const handleCancelarLaudo = async (laudoId, equipamentoId) => {
-    setProcessandoAcao(laudoId);
-    try {
-      // 1. Atualiza o status do laudo para cancelado
-      const laudoRef = doc(db, "laudos", laudoId);
-      await updateDoc(laudoRef, {
-        status: "cancelado",
-        dataDecisao: serverTimestamp()
-      });
-
-      // 2. CORREÇÃO: Restaura o status do ativo original para "operante"
-      if (equipamentoId) {
-        const ativoRef = doc(db, "ativos", equipamentoId);
-        await updateDoc(ativoRef, {
-          status: "operante",
-          ultimaMovimentacao: serverTimestamp()
-        });
-      }
-
-      toast.info("Laudo técnico cancelado e ativo restaurado para operante.");
-      await carregarLaudosPendentes();
-      if (hasSearched) carregarDados();
-    } catch (error) {
-      console.error("Erro ao cancelar laudo:", error);
-      toast.error("Erro ao cancelar o laudo.");
-    } finally {
-      setProcessandoAcao(null);
-    }
-  };
-
-  // Carrega a listagem do select limitando o consumo inicial do banco
-  const carregarUnidades = async () => {
-    try {
-      const q = query(collection(db, "ativos"), limit(100));
-      const querySnapshot = await getDocs(q);
-      const dados = querySnapshot.docs.map((doc) => doc.data());
-      
-      const listaUnidades = Array.from(
-        new Set(
-          dados
-            .map((item) => item.unidade?.trim().toLowerCase())
-            .filter(Boolean)
-        )
-      ).sort();
-
-      setUnidadesDisponiveis(listaUnidades);
-    } catch (error) {
-      console.error("Erro ao pré-carregar unidades:", error);
-    }
-  };
-
-  // Consulta Avançada Otimizada (Filtros no servidor)
-  const carregarDados = async (e) => {
-    if (e) e.preventDefault();
-    setLoading(true);
-    setHasSearched(true);
-
-    try {
-      let q = collection(db, "ativos");
-      const restricoes = [];
-
-      if (unidadeSelecionada) {
-        restricoes.push(where("unidade", "==", unidadeSelecionada.toLowerCase().trim()));
-      }
-
-      if (buscaSetor.trim()) {
-        restricoes.push(where("setor", "==", buscaSetor.toLowerCase().trim()));
-      }
-
-      if (buscaPatrimonio.trim() && !isNaN(buscaPatrimonio)) {
-        restricoes.push(where("patrimonio", "==", buscaPatrimonio.trim().toLowerCase()));
-      }
-
-      restricoes.push(limit(30));
-
-      const queryOtimizada = query(q, ...restricoes);
-      const querySnapshot = await getDocs(queryOtimizada);
-      
-      const dados = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setItens(dados);
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao consultar equipamentos.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Função para limpar os filtros e resetar o estado da tabela de busca
-  const handleLimparBusca = () => {
-    setBuscaPatrimonio("");
-    setBuscaSetor("");
-    setUnidadeSelecionada("");
-    setItens([]);
-    setHasSearched(false);
-  };
-
-  const abrirLaudo = (item) => {
-    setEquipamentoSelecionado(item);
-    setModalAberto(true);
-  };
-
-  // Filtro local para buscas textuais parciais no nome do item
-  const itensFiltrados = itens.filter((item) => {
-    if (!buscaPatrimonio.trim() || !isNaN(buscaPatrimonio)) return true;
-    const termo = buscaPatrimonio.toLowerCase();
-    return item.nome && item.nome.toLowerCase().includes(termo);
-  });
+  const {
+    itensFiltrados,
+    unidadesDisponiveis,
+    setoresDaUnidadeAtual,
+    loading,
+    hasSearched,
+    buscaPatrimonio,
+    setBuscaPatrimonio,
+    unidadeSelecionada,
+    setUnidadeSelecionada,
+    buscaSetor,
+    setBuscaSetor,
+    laudosPendentes,
+    loadingLaudos,
+    processandoAcao,
+    modalAberto,
+    setModalAberto,
+    equipamentoSelecionado,
+    setEquipamentoSelecionado,
+    carregarLaudosPendentes,
+    carregarDados,
+    handleAprovarLaudo,
+    handleCancelarLaudo,
+    handleLimparBusca,
+    abrirLaudo,
+  } = useLaudos();
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
@@ -221,7 +53,7 @@ const Laudos = () => {
       <main className="flex-grow p-4 md:p-8 max-w-7xl w-full mx-auto space-y-8">
         <header className="text-center md:text-left">
           <h1 className="text-2xl font-black text-slate-800 flex flex-col md:flex-row items-center gap-2 uppercase tracking-tight justify-center md:justify-start">
-            <FileText className="text-blue-600 hidden md:block" size={28} /> 
+            <FileText className="text-blue-600 hidden md:block" size={28} />
             Painel de Controle e Emissão de Laudos
           </h1>
           <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mt-1">
@@ -229,34 +61,10 @@ const Laudos = () => {
           </p>
         </header>
 
-        {/* Bloco de Filtros Inteligentes */}
+        {/* Bloco de Filtros Inteligentes Reorganizado */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-grow w-full md:w-auto">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
-              Buscar Equipamento (Patrimônio ou Nome)
-            </label>
-            <input
-              type="text"
-              placeholder="Ex: Monitor ou #105"
-              className="w-full bg-slate-50 border-none rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
-              value={buscaPatrimonio}
-              onChange={(e) => setBuscaPatrimonio(e.target.value)}
-            />
-          </div>
-
-          <div className="w-full md:w-56">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-              <Layers size={12} className="text-blue-500" /> Setor Comercial / Técnico
-            </label>
-            <input
-              type="text"
-              placeholder="Ex: emergencia"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
-              value={buscaSetor}
-              onChange={(e) => setBuscaSetor(e.target.value)}
-            />
-          </div>
-
+          
+          {/* 1º Filtro: Unidade Atual (Agora na Esquerda) */}
           <div className="w-full md:w-56">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
               <MapPin size={12} className="text-blue-500" /> Unidade Atual
@@ -264,7 +72,10 @@ const Laudos = () => {
             <select
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer capitalize"
               value={unidadeSelecionada}
-              onChange={(e) => setUnidadeSelecionada(e.target.value)}
+              onChange={(e) => {
+                setUnidadeSelecionada(e.target.value);
+                setBuscaSetor(""); // Reseta o setor ao trocar de unidade
+              }}
             >
               <option value="">Todas as Unidades...</option>
               {unidadesDisponiveis.map((unidade, index) => (
@@ -275,7 +86,50 @@ const Laudos = () => {
             </select>
           </div>
 
-          {/* Wrapper de botões para manter consistência no mobile e desktop */}
+          {/* 2º Filtro: Setor Comercial / Técnico (Centralizado) */}
+          <div className="w-full md:w-56">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+              <Layers size={12} className="text-blue-500" /> Setor Comercial / Técnico
+            </label>
+            {setoresDaUnidadeAtual && setoresDaUnidadeAtual.length > 0 ? (
+              <select
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer capitalize"
+                value={buscaSetor}
+                onChange={(e) => setBuscaSetor(e.target.value)}
+              >
+                <option value="">Todos os Setores...</option>
+                {setoresDaUnidadeAtual.map((setor, index) => (
+                  <option key={index} value={setor}>
+                    {setor}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                placeholder="Ex: emergencia"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                value={buscaSetor}
+                onChange={(e) => setBuscaSetor(e.target.value)}
+              />
+            )}
+          </div>
+
+          {/* 3º Filtro: Buscar Equipamento (Ocupando o espaço restante na Direita) */}
+          <div className="flex-grow w-full md:w-auto">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
+              Buscar Equipamento (Patrimônio ou Nome)
+            </label>
+            <input
+              type="text"
+              placeholder="Ex: Monitor ou #105"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+              value={buscaPatrimonio}
+              onChange={(e) => setBuscaPatrimonio(e.target.value)}
+            />
+          </div>
+
+          {/* Botões de Ação */}
           <div className="flex gap-2 w-full md:w-auto">
             <button
               type="button"
@@ -408,7 +262,7 @@ const Laudos = () => {
                             <CheckCircle size={14} />
                             <span className="hidden lg:inline">Aprovar</span>
                           </button>
-                          
+
                           <button
                             disabled={processandoAcao !== null}
                             onClick={() => handleCancelarLaudo(laudo.id, laudo.equipamentoId)}
@@ -437,7 +291,7 @@ const Laudos = () => {
         onClose={() => {
           setModalAberto(false);
           setEquipamentoSelecionado(null);
-          carregarLaudosPendentes(); 
+          carregarLaudosPendentes();
         }}
         onAtualizar={carregarDados}
       />
