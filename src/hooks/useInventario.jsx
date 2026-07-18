@@ -30,7 +30,7 @@ export const useInventario = () => {
   const navigate = useNavigate();
   const itensPorPagina = 15;
   const WEBAPP_URL_SHEETS =
-    "https://script.google.com/macros/s/AKfycbwHsFnuMc_onDTG9vloDYNW6o_eIrTTfXt6O4WuhGxEP86rl1ZH4WY6o_JsSSljZqck3g/exec";
+    "https://script.google.com/macros/s/AKfycbxR6EGGtOkeZCUMXA4y2hggPXNPUZL80L4acj9CP9MxVxqSbOrYcsyQ2OY2aFpYabsAEA/exec";
 
   // Função de normalização para busca e filtros
   const normalizarParaComparacao = (texto) => {
@@ -92,9 +92,7 @@ export const useInventario = () => {
     setHasSearched(false);
   };
 
-  // GERAÇÃO INTELIGENTE DE SETORES (ESTÁTICA POR UNIDADE OU DINÂMICA DO BANCO)
   const obterSetoresDisponiveis = () => {
-    // Mapeia o valor do select para as chaves exatas do seu objeto MAPA_SETORES_POR_UNIDADE
     const deParaUnidades = {
       "Hospital Conde": "Hospital Conde",
       "Santa Rita": "Upa Santa Rita",
@@ -107,11 +105,9 @@ export const useInventario = () => {
     const chaveUnidade = deParaUnidades[unidadeFiltro];
     let listaSetores = [];
 
-    // Se houver uma unidade específica selecionada, usa os setores mapeados do setores.js
     if (chaveUnidade && MAPA_SETORES_POR_UNIDADE[chaveUnidade]) {
       listaSetores = [...MAPA_SETORES_POR_UNIDADE[chaveUnidade]];
     } else {
-      // Caso contrário (Unidade "Todas"), gera dinamicamente a partir dos itens em memória
       const setoresUnicos = new Set();
       itens.forEach((item) => {
         if (item.setor && item.setor.trim() !== "") {
@@ -121,10 +117,8 @@ export const useInventario = () => {
       listaSetores = Array.from(setoresUnicos);
     }
 
-    // Garante que a lista fique sempre em ordem alfabética
     listaSetores.sort();
 
-    // Aplica a filtragem por texto caso o usuário esteja digitando no input do setor
     if (setorFiltro !== "Todos" && setorFiltro.trim() !== "") {
       const termoNorm = normalizarParaComparacao(setorFiltro);
       return listaSetores.filter(setor => 
@@ -135,7 +129,6 @@ export const useInventario = () => {
     return listaSetores;
   };
 
-  // LÓGICA DE FILTRAGEM DOS ITENS DA TABELA
   const itensFiltrados = itens.filter((item) => {
     const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
     const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeFiltro);
@@ -206,18 +199,20 @@ export const useInventario = () => {
     try {
       const dadosParaEnviar = itensFiltrados.map((i) => ({
         patrimonio: i.patrimonio?.toString() || "S/P",
-        nome: i.nome,
+        nome: i.nome || "Sem Nome",
         unidade: i.unidade || "",
         setor: i.setor || "",
         estado: i.estado || "Bom",
-        status: i.status,
-        dataBaixa: i.dataBaixa ? formatarDataBR(i.dataBaixa) : "",
+        quantidade: i.quantidade || 1,
+        observacoes: i.observacoes || "",
+        status: i.status || "Ativo",
+        tipo: i.tipo || "N/A",
+        dataBaixa: i.dataBaixa ? formatarDataBR(i.dataBaixa) : ""
       }));
 
       const ws = XLSX.utils.json_to_sheet(dadosParaEnviar);
       const wb = XLSX.utils.book_new();
       
-      // CORREÇÃO: XXLSX alterado para XLSX para evitar erros de referência indefinida
       XLSX.utils.book_append_sheet(wb, ws, "Inventario");
       XLSX.writeFile(wb, `Inventario_${unidadeFiltro}.xlsx`);
 

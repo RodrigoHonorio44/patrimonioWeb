@@ -23,6 +23,7 @@ import {
   FiAlertCircle,
   FiLock,
   FiUser,
+  FiClock, 
 } from "react-icons/fi";
 
 const PainelAnalista = () => {
@@ -148,6 +149,9 @@ const PainelAnalista = () => {
                     Prioridade
                   </th>
                   <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                    SLA
+                  </th>
+                  <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
                     Técnico / Status
                   </th>
                   <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
@@ -159,7 +163,7 @@ const PainelAnalista = () => {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan="7"
+                      colSpan="8"
                       className="p-10 text-center text-slate-400 font-bold uppercase animate-pulse"
                     >
                       Carregando chamados...
@@ -248,6 +252,34 @@ const PainelAnalista = () => {
                             <FiAlertCircle size={12} /> {prio}
                           </div>
                         </td>
+                        
+                        {/* COLUNA DO SLA CONTROLADA POR STATUS */}
+                        <td className="p-5 text-center">
+                          {status === "pendente" ? (
+                            <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2.5 py-1 rounded-lg border border-amber-200 text-[10px] font-black uppercase animate-pulse">
+                              <FiPauseCircle size={12} className="text-amber-500" />
+                              <span>Pausado</span>
+                            </div>
+                          ) : status === "fechado" || status === "arquivado" ? (
+                            <div className="inline-flex items-center gap-1 bg-slate-100 text-slate-400 px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold uppercase">
+                              <FiCheck size={12} />
+                              <span>Finalizado</span>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-bold uppercase">
+                              <FiClock size={12} className="text-blue-500" />
+                              <span>
+                                {item.sla || item.prazo || item.tempoRestante || item.slaHoras || (() => {
+                                  if (prio === "urgente") return "2h";
+                                  if (prio === "alta") return "4h";
+                                  if (prio === "média" || prio === "media") return "12h";
+                                  return "24h";
+                                })()}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+
                         <td className="p-5 text-center">
                           <div className="flex flex-col items-center gap-1">
                             {item.tecnicoResponsavel && (
@@ -405,7 +437,7 @@ const PainelAnalista = () => {
             </span>
             <button
               disabled={paginaAtual === totalPaginas}
-              onClick={() => setPaginaAtual((p) => p + 1)}
+              onClick={() => setPaginaAtual((p) => p - 1)}
               className="p-2 rounded-xl border border-slate-200 disabled:opacity-30 hover:bg-slate-50 transition-colors"
             >
               <FiChevronRight />

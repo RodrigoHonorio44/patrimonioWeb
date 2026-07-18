@@ -64,6 +64,7 @@ export const usePainelAnalista = () => {
     return date.toLocaleString("pt-BR");
   };
 
+  // CORRIGIDO: Nome da função ajustado de ejecutarBusca para executarBusca
   const executarBusca = () => {
     setTermoBusca(inputValue);
     setPaginaAtual(1);
@@ -74,6 +75,63 @@ export const usePainelAnalista = () => {
     setTermoBusca("");
     setPaginaAtual(1);
   };
+
+  // NOVA FUNÇÃO: Calcula dinamicamente o status do SLA baseado em 6h para atendimento e 12h para solução
+  const calcularSlaLinha = useCallback((item) => {
+    const statusAtual = item?.status?.toLowerCase() || "";
+
+    if (statusAtual === "fechado" || statusAtual === "arquivado") {
+      return { texto: "Concluído", estourado: false, classe: "bg-slate-100 text-slate-500 border border-slate-200", bola: "bg-slate-400" };
+    }
+
+    const timestampCriado = item?.criadoEm || item?.criatedAt;
+    if (!timestampCriado) {
+      return { texto: "--", estourado: false, classe: "bg-slate-100 text-slate-400", bola: "bg-slate-300" };
+    }
+
+    const dataAbertura = timestampCriado.toDate ? timestampCriado.toDate() : new Date(timestampCriado);
+    const agora = new Date();
+    const tempoDecorridoHoras = (agora - dataAbertura) / (1000 * 60 * 60);
+
+    // Regra 1: Se o chamado ainda está Aberto, o prazo limite é de 6 horas para assumir
+    if (statusAtual === "aberto") {
+      const limiteAtendimento = 6;
+      if (tempoDecorridoHoras > limiteAtendimento) {
+        const atraso = Math.floor(tempoDecorridoHoras - limiteAtendimento);
+        return {
+          texto: `SLA Atendimento Estourado (+${atraso}h)`,
+          estourado: true,
+          classe: "bg-red-100 text-red-600 animate-pulse border border-red-200",
+          bola: "bg-red-600 animate-ping"
+        };
+      }
+      return {
+        texto: "Prazo Atendimento OK",
+        estourado: false,
+        classe: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+        bola: "bg-emerald-500"
+      };
+    }
+
+    // Regra 2: Se o chamado está em atendimento ou pendente, valida o limite total de solução (12 horas)
+    const limiteSolucao = 12;
+    if (tempoDecorridoHoras > limiteSolucao) {
+      const atraso = Math.floor(tempoDecorridoHoras - limiteSolucao);
+      return {
+        texto: `SLA Solução Estourado (+${atraso}h)`,
+        estourado: true,
+        classe: "bg-red-100 text-red-600 animate-pulse border border-red-200",
+        bola: "bg-red-600 animate-ping"
+      };
+    }
+
+    return {
+      texto: "Prazo Solução OK",
+      estourado: false,
+      classe: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+      bola: "bg-emerald-500"
+    };
+  }, []);
 
   // Carrega os dados do usuário logado
   useEffect(() => {
@@ -123,7 +181,7 @@ export const usePainelAnalista = () => {
         tecnicoId: user.uid,
         iniciadoEm: serverTimestamp(),
         logSeguranca: jaTemTecnico
-          ? `assumido por admin: ${analistaNome}`.toLowerCase()
+          ? `Override realizado por admin: ${analistaNome}`
           : null,
       });
       toast.info(
@@ -160,13 +218,13 @@ export const usePainelAnalista = () => {
     try {
       const novosDados = {
         status: "fechado",
-        feedbackAnalista: parecerTecnico.trim().toLowerCase(),
-        patrimonio: patrimonio.trim().toLowerCase(),
+        feedbackAnalista: parecerTecnico.trim(),
+        patrimonio: patrimonio.trim(),
         finalizadoEm: serverTimestamp(),
       };
 
       if (equipamento.trim()) {
-        novosDados.equipamento = equipamento.trim().toLowerCase();
+        novosDados.equipamento = equipamento.trim();
       }
 
       await updateDoc(doc(db, "chamados", chamadoSelecionado.id), novosDados);
@@ -188,8 +246,8 @@ export const usePainelAnalista = () => {
     try {
       await updateDoc(doc(db, "chamados", chamadoSelecionado.id), {
         status: "pendente",
-        motivoPausa: motivoPausa.toLowerCase(),
-        detalhePausa: detalhePausa.trim().toLowerCase(),
+        motivoPausa: motivoPausa,
+        detalhePausa: detalhePausa.trim(),
         pausadoEm: serverTimestamp(),
       });
       setMostrarModal(false);
@@ -219,24 +277,25 @@ export const usePainelAnalista = () => {
     setEnviandoPlanilha(item.id);
     const idToast = toast.loading(`Sincronizando OS #${item.numeroOs}...`);
     try {
-     const payload = {
-  tipo: "CHAMADOS_POWERBI",
-  dados: [
-    {
-      OS: item.numeroOs || "s/n",
-      Patrimonio: item.patrimonio || "s/p",
-      Unidade: item.unidade || "",
-      Setor: item.setor || item.setorOrigem || "",
-      Equipamento: item.equipamento || "s/p", // CORRIGIDO: "E" maiúsculo para casar com a planilha
-      Status: "FECHADO",
-      Descricao: item.problema || item.descricao || "Sem descrição",
-      Parecer_Tecnico: item.feedbackAnalista || "Sem parecer",
-      Equipe: item.equipe || "",              // CORRIGIDO: Garante que se não houver equipe, envie vazio e não quebre a ordem
-      Finalizado_Por: item.tecnicoResponsavel || analistaNome,
-      Finalizado_Em: formatarDataHora(item.finalizadoEm),
-    },
-  ],
-};
+      const payload = {
+        tipo: "CHAMADOS_POWERBI",
+        dados: [
+          {
+            OS: item.numeroOs || "s/n",
+            Patrimonio: item.patrimonio || "s/p",
+            Unidade: item.unidade || "",
+            Setor: item.setor || item.setorOrigem || "",
+            Equipamento: item.equipamento || "s/p",
+            Status: "FECHADO",
+            Descricao: item.problema || item.descricao || "Sem descrição",
+            Parecer_Tecnico: item.feedbackAnalista || "Sem parecer",
+            Equipe: item.equipe || "",
+            Finalizado_Por: item.tecnicoResponsavel || analistaNome,
+            Data: formatarDataHora(item.criatedAt || item.criadoEm),
+            Finalizado_Em: formatarDataHora(item.finalizadoEm),
+          },
+        ],
+      };
       await fetch(WEB_APP_URL, {
         method: "POST",
         mode: "no-cors",
@@ -363,5 +422,6 @@ export const usePainelAnalista = () => {
     handleEnviarParaPlanilha,
     abrirModalUnificado,
     fecharModalUnificado,
+    calcularSlaLinha,
   };
 };
