@@ -260,12 +260,12 @@ export const useTransferencia = () => {
       const patrimonioFinal =
         normalizarParaComparacao(itemSelecionado.patrimonio) === "sp" &&
         novoPatrimonioParaSP
-          ? novoPatrimonioParaSP.toLowerCase()
-          : itemSelecionado.patrimonio.toLowerCase();
+          ? novoPatrimonioParaSP
+          : itemSelecionado.patrimonio;
 
       await updateDoc(ativoRef, {
         unidade: dadosSaida.novaUnidade,
-        setor: dadosSaida.novoSetor.toLowerCase(),
+        setor: dadosSaida.novoSetor,
         patrimonio: patrimonioFinal,
         status: isResidencial ? "em_uso_residencial" : "ativo",
         ultimaMovimentacao: serverTimestamp(),
@@ -274,19 +274,19 @@ export const useTransferencia = () => {
       const payloadSaida = {
         ativoId: itemSelecionado.id,
         patrimonio: patrimonioFinal,
-        nomeEquipamento: itemSelecionado.nome.toLowerCase(),
+        nomeEquipamento: itemSelecionado.nome,
         unidadeOrigem: itemSelecionado.unidade,
-        setorOrigem: itemSelecionado.setor.toLowerCase(),
+        setorOrigem: itemSelecionado.setor,
         unidadeDestino: dadosSaida.novaUnidade,
-        setorDestino: dadosSaida.novoSetor.toLowerCase(),
-        responsavelRecebimento: dadosSaida.responsavelRecebimento.toLowerCase(),
-        motivo: isResidencial ? "home care" : dadosSaida.motivo.toLowerCase(),
+        setorDestino: dadosSaida.novoSetor,
+        responsavelRecebimento: dadosSaida.responsavelRecebimento,
+        motivo: isResidencial ? "home care" : dadosSaida.motivo,
         dataSaida: serverTimestamp(),
       };
 
       if (isResidencial) {
         payloadSaida.pacienteDetails = {
-          endereco: dadosSaida.pacienteEndereco.toLowerCase(),
+          endereco: dadosSaida.pacienteEndereco,
           telefone: dadosSaida.pacienteTelefone,
           identity: dadosSaida.pacienteIdentidade,
           cpf: dadosSaida.pacienteCpf,
@@ -298,19 +298,19 @@ export const useTransferencia = () => {
       if (isResidencial) {
         await addDoc(collection(db, "equipamento_com_paciente"), {
           equipamentoId: itemSelecionado.id,
-          equipamentoNome: itemSelecionado.nome.toLowerCase(),
+          equipamentoNome: itemSelecionado.nome,
           patrimonio: patrimonioFinal,
           unidadeOrigem: itemSelecionado.unidade,
-          setorOrigem: itemSelecionado.setor.toLowerCase(),
+          setorOrigem: itemSelecionado.setor,
           dataEntrega: serverTimestamp(),
           statusVinculo: "ativo",
           paciente: {
-            nome: dadosSaida.novoSetor.toLowerCase(),
-            endereco: dadosSaida.pacienteEndereco.toLowerCase(),
+            nome: dadosSaida.novoSetor,
+            endereco: dadosSaida.pacienteEndereco,
             telefone: dadosSaida.pacienteTelefone,
             identidade: dadosSaida.pacienteIdentidade,
             cpf: dadosSaida.pacienteCpf,
-            responsavelRecebimento: dadosSaida.responsavelRecebimento.toLowerCase()
+            responsavelRecebimento: dadosSaida.responsavelRecebimento
           },
         });
       }
