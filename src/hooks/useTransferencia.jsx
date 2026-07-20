@@ -5,7 +5,9 @@ import {
   addDoc,
   query,
   getDocs,
+  getDoc,
   updateDoc,
+  deleteDoc,
   doc,
   serverTimestamp,
   limit,
@@ -45,9 +47,11 @@ export const useTransferencia = () => {
     pacienteTelefone: "",
     pacienteIdentidade: "",
     pacienteCpf: "",
+    quantidadeRetirada: 1, // Adicionado controle de quantidade a transferir
   });
 
   const unidades = [
+    "Estoque Patrimônio",
     "Hospital Conde",
     "UPA INOÃ",
     "UPA SANTA RITA",
@@ -108,13 +112,23 @@ export const useTransferencia = () => {
     );
   };
 
-  const ejecutarBusca = async (tipo) => {
+  const ejecutarBusca = async (tipo, valorForcadoSetor = null) => {
     let termoOriginal = "";
     if (tipo === "patrimonio") termoOriginal = patrimonioBusca;
-    else if (tipo === "setor") termoOriginal = setorBusca;
+    else if (tipo === "setor") termoOriginal = valorForcadoSetor || setorBusca;
     else termoOriginal = nomeBusca;
 
-    if (!termoOriginal.trim() && tipo !== "setor" && !unidadeFiltro) {
+    if (tipo === "setor" && !unidadeFiltro) {
+      toast.warn("Por favor, selecione a unidade antes de filtrar por setor.");
+      return;
+    }
+
+    if (tipo === "setor" && !termoOriginal) {
+      toast.warn("Por favor, selecione um setor no campo correspondente.");
+      return;
+    }
+
+    if (!termoOriginal.trim() && !unidadeFiltro && tipo !== "setor") {
       toast.warn("Por favor, selecione um filtro ou preencha um campo de busca.");
       return;
     }
@@ -122,14 +136,11 @@ export const useTransferencia = () => {
     setLoading(true);
     setMostrarDropdown(false);
     try {
-      const ativosRef = collection(db, "ativos");
-      let listaGeral = [];
-
-      // Mantemos a busca de ativos, mas sem varrer setores desnecessariamente
+      const ativosRef = collection(db, "estoque");
       const qGeral = query(ativosRef, limit(2000));
       const snapGeral = await getDocs(qGeral);
       
-      listaGeral = snapGeral.docs.map((doc) => ({
+      let listaGeral = snapGeral.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
@@ -146,13 +157,23 @@ export const useTransferencia = () => {
         const itemNomeNorm = normalizarParaComparacao(item.nome);
         const itemSetorNorm = normalizarParaComparacao(item.setor);
 
+        // Valida unidade
         if (unidadeFiltro && itemUnidadeNorm !== unidadeFiltroNorm)
           return false;
 
         if (tipo === "patrimonio") {
           return itemPatrimonioNorm === termoNorm;
         } else if (tipo === "setor") {
-          return itemSetorNorm.includes(termoNorm);
+          if (!termoNorm) return true;
+          
+          const ehBuscaPatrimonio = termoNorm.includes("patrimonio");
+          const itemEhPatrimonio = itemSetorNorm.includes("patrimonio");
+
+          if (ehBuscaPatrimonio && itemEhPatrimonio) {
+            return true;
+          }
+
+          return itemSetorNorm === termoNorm || itemSetorNorm.includes(termoNorm) || termoNorm.includes(itemSetorNorm);
         } else if (tipo === "nome") {
           return itemNomeNorm.includes(termoNorm);
         }
@@ -256,21 +277,37 @@ export const useTransferencia = () => {
     const isResidencial = dadosSaida.novaUnidade === "Residência do Paciente";
 
     try {
-      const ativoRef = doc(db, "ativos", itemSelecionado.id);
+      const ativoRef = doc(db, "estoque", itemSelecionado.id);
+      const ativoSnap = await getDoc(ativoRef);
+
+      if (!ativoSnap.exists()) {
+        toast.error("Item não encontrado no estoque.");
+        setLoading(false);
+        return;
+      }
+
+      const dadosAtuais = ativoSnap.data();
+      const quantidadeAtual = Number(dadosAtuais.quantidade) || 1;
+      const qtdRetirada = Number(dadosSaida.quantidadeRetirada) || 1;
+      const novaQuantidade = quantidadeAtual - qtdRetirada;
+
       const patrimonioFinal =
         normalizarParaComparacao(itemSelecionado.patrimonio) === "sp" &&
         novoPatrimonioParaSP
           ? novoPatrimonioParaSP
           : itemSelecionado.patrimonio;
 
-      await updateDoc(ativoRef, {
-        unidade: dadosSaida.novaUnidade,
-        setor: dadosSaida.novoSetor,
-        patrimonio: patrimonioFinal,
-        status: isResidencial ? "em_uso_residencial" : "ativo",
-        ultimaMovimentacao: serverTimestamp(),
-      });
+      // 1. Se a quantidade zerou ou ficou negativa, remove do estoque. Senão, atualiza o saldo.
+      if (novaQuantidade <= 0) {
+        await deleteDoc(ativoRef);
+      } else {
+        await updateDoc(ativoRef, {
+          quantidade: novaQuantidade,
+          ultimaMovimentacao: serverTimestamp(),
+        });
+      }
 
+      // 2. Grava o registro na coleção de saída de equipamentos
       const payloadSaida = {
         ativoId: itemSelecionado.id,
         patrimonio: patrimonioFinal,
@@ -281,6 +318,7 @@ export const useTransferencia = () => {
         setorDestino: dadosSaida.novoSetor,
         responsavelRecebimento: dadosSaida.responsavelRecebimento,
         motivo: isResidencial ? "home care" : dadosSaida.motivo,
+        quantidadeTransferida: qtdRetirada,
         dataSaida: serverTimestamp(),
       };
 
@@ -333,6 +371,7 @@ export const useTransferencia = () => {
         pacienteTelefone: "",
         pacienteIdentidade: "",
         pacienteCpf: "",
+        quantidadeRetirada: 1,
       });
     } catch (error) {
       console.error(error);

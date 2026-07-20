@@ -20,7 +20,7 @@ const ModalTransferencia = ({
   if (!isOpen || !itemSelecionado) return null;
 
   const isResidencial = dadosSaida.novaUnidade === "Residência do Paciente";
-  const isEstoque = dadosSaida.novaUnidade === "Estoque Central";
+  const isEstoque = dadosSaida.novaUnidade === "Estoque Patrimônio";
 
   // Máscaras aplicadas estritamente com base em números
   const aplicarMascaraTelefone = (valor) => {
@@ -104,14 +104,14 @@ const ModalTransferencia = ({
                   ...dadosSaida,
                   novaUnidade: selecionado,
                   // Sugere automaticamente "equipamento usado" se o destino for o estoque
-                  novoSetor: selecionado === "Estoque Central" ? "equipamento usado" : "", 
+                  novoSetor: selecionado === "Estoque Patrimônio" ? "equipamento usado" : "", 
                 });
               }}
             >
               <option value="">Selecione...</option>
-              <option value="Estoque Central">Estoque Central</option>
+              <option value="Estoque Patrimônio">Estoque Patrimônio</option>
               {unidades
-                .filter((u) => u !== "Estoque Central")
+                .filter((u) => u !== "Estoque Patrimônio" && u !== "Estoque Central")
                 .map((u) => (
                   <option key={u} value={u}>
                     {u}

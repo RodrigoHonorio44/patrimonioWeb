@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { db, auth } from "../services/firebase";
 import {
   collection,
@@ -18,6 +18,8 @@ import {
   FiMapPin,
   FiInfo,
   FiActivity,
+  FiGift,
+  FiChevronDown,
 } from "react-icons/fi";
 
 const CadastroEquipamento = () => {
@@ -35,7 +37,32 @@ const CadastroEquipamento = () => {
     unidade: "",
     estado: "Novo",
     observacoes: "",
+    ehDoacao: false,
+    doador: "",
   });
+
+  // Controle do dropdown personalizado para o setor
+  const [mostrarDropdownSetor, setMostrarDropdownSetor] = useState(false);
+  const dropdownSetorRef = useRef(null);
+
+  const sugestoesSetores = [
+    "Estoque Patrimônio",
+   
+  ];
+
+  // Fecha o dropdown se clicar fora dele
+  useEffect(() => {
+    const clicarFora = (e) => {
+      if (
+        dropdownSetorRef.current &&
+        !dropdownSetorRef.current.contains(e.target)
+      ) {
+        setMostrarDropdownSetor(false);
+      }
+    };
+    document.addEventListener("mousedown", clicarFora);
+    return () => document.removeEventListener("mousedown", clicarFora);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -96,7 +123,6 @@ const CadastroEquipamento = () => {
     const idToast = toast.loading("Registrando no estoque central...");
 
     try {
-      // Alterado para salvar na coleção "estoque" com os dados normalizados em minúsculo
       await addDoc(collection(db, "estoque"), {
         nome: formData.nome.toLowerCase().trim(),
         setor: formData.setor.toLowerCase().trim(),
@@ -108,6 +134,8 @@ const CadastroEquipamento = () => {
         tipo: "equipamento",
         categoriaItem: formData.tipo,
         status: "ativo",
+        ehDoacao: formData.ehDoacao,
+        doador: formData.ehDoacao ? formData.doador.toLowerCase().trim() : "",
         criadoEm: serverTimestamp(),
         cadastradoPor: nomeUsuario,
       });
@@ -119,8 +147,14 @@ const CadastroEquipamento = () => {
         autoClose: 3000,
       });
 
-      // Limpa os campos variáveis
-      setFormData({ ...formData, patrimonio: "", nome: "", observacoes: "" });
+      setFormData({
+        ...formData,
+        patrimonio: "",
+        nome: "",
+        observacoes: "",
+        ehDoacao: false,
+        doador: "",
+      });
     } catch (error) {
       console.error("Erro ao salvar no estoque:", error);
       toast.update(idToast, {
@@ -157,7 +191,8 @@ const CadastroEquipamento = () => {
               Novo Item no Estoque
             </h1>
             <p className="text-slate-500 text-sm">
-              Cadastro de entrada de ativos no estoque central
+              Cadastro de entrada de ativos no estoque Patrimônio
+
             </p>
           </div>
         </div>
@@ -196,7 +231,11 @@ const CadastroEquipamento = () => {
                 className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
                 value={formData.unidade}
                 onChange={(e) =>
-                  setFormData({ ...formData, unidadedestino: e.target.value, unidade: e.target.value })
+                  setFormData({
+                    ...formData,
+                    unidadedestino: e.target.value,
+                    unidade: e.target.value,
+                  })
                 }
               >
                 <option value="">Selecione a Unidade...</option>
@@ -229,20 +268,54 @@ const CadastroEquipamento = () => {
                 <option value="Ferramenta">Ferramenta</option>
               </select>
             </div>
-            <div className="space-y-2">
+
+            {/* Setor / Sala com Dropdown Personalizado Estilizado */}
+            <div className="space-y-2 relative" ref={dropdownSetorRef}>
               <label className="flex items-center gap-2 text-sm font-bold text-slate-700 ml-1">
                 <FiMapPin className="text-blue-500" /> Setor / Sala
               </label>
-              <input
-                type="text"
-                required
-                placeholder="Ex: Sala Patrimonio"
-                className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all"
-                value={formData.setor}
-                onChange={(e) =>
-                  setFormData({ ...formData, setor: e.target.value })
-                }
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Estoque Patrimônio"
+                  className="w-full bg-slate-50 border border-slate-200 p-3 pr-10 rounded-xl outline-none focus:border-blue-500 focus:bg-white transition-all"
+                  value={formData.setor}
+                  onChange={(e) =>
+                    setFormData({ ...formData, setor: e.target.value })
+                  }
+                  onFocus={() => setMostrarDropdownSetor(true)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarDropdownSetor(!mostrarDropdownSetor)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                >
+                  <FiChevronDown
+                    className={`transition-transform duration-200 ${
+                      mostrarDropdownSetor ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {mostrarDropdownSetor && (
+                <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden py-1">
+                  {sugestoesSetores.map((sugestao) => (
+                    <button
+                      key={sugestao}
+                      type="button"
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center justify-between"
+                      onClick={() => {
+                        setFormData({ ...formData, setor: sugestao });
+                        setMostrarDropdownSetor(false);
+                      }}
+                    >
+                      <span>{sugestao}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -260,6 +333,49 @@ const CadastroEquipamento = () => {
                 setFormData({ ...formData, nome: e.target.value })
               }
             />
+          </div>
+
+          {/* Seção de Doação */}
+          <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="ehDoacao"
+                className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
+                checked={formData.ehDoacao}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    ehDoacao: e.target.checked,
+                    doador: e.target.checked ? formData.doador : "",
+                  })
+                }
+              />
+              <label
+                htmlFor="ehDoacao"
+                className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer select-none"
+              >
+                <FiGift className="text-blue-500" /> Este item veio de Doação?
+              </label>
+            </div>
+
+            {formData.ehDoacao && (
+              <div className="space-y-2 pt-2 animate-fadeIn">
+                <label className="text-sm font-bold text-slate-700 ml-1">
+                  Quem doou / Doador
+                </label>
+                <input
+                  type="text"
+                  required={formData.ehDoacao}
+                  placeholder="Ex: Prefeitura, Empresa X, Particular..."
+                  className="w-full bg-white border border-slate-200 p-3 rounded-xl outline-none focus:border-blue-500 transition-all"
+                  value={formData.doador}
+                  onChange={(e) =>
+                    setFormData({ ...formData, doador: e.target.value })
+                  }
+                />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

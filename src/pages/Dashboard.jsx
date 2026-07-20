@@ -284,7 +284,7 @@ export default function Dashboard() {
                 <NavButton icon={PlusCircle} label="Novo Ativo" path="/cadastro-equipamento" moduloId="inventario" />
                 <NavButton icon={Search} label="Inventário" path="/inventario" moduloId="inventario" />
                 <NavButton icon={Layers3} label="Consulta de Itens" path="/consulta-patrimonio" moduloId="inventario" />
-                <NavButton icon={Package} label="Sala do Patrimônio" path="/estoque" moduloId="inventario" />
+                <NavButton icon={Package} label="Estoque" path="/estoque" moduloId="inventario" />
                 <NavButton icon={Truck} label="Saída/Transferência" path="/transferencia" moduloId="inventario" />
                 <NavButton icon={Barcode} label="Gerar Etiquetas" path="/emissao-etiquetas" moduloId="etiquetas" />
               </div>
