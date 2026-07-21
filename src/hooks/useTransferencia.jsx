@@ -114,11 +114,6 @@ export const useTransferencia = () => {
     else if (tipo === "setor") termoOriginal = valorForcadoSetor || setorBusca;
     else termoOriginal = nomeBusca;
 
-    if (tipo === "setor" && !unidadeFiltro) {
-      toast.warn("Por favor, selecione a unidade antes de filtrar por setor.");
-      return;
-    }
-
     if (!termoOriginal.trim() && !unidadeFiltro && tipo !== "setor") {
       toast.warn("Por favor, selecione um filtro ou preencha um campo de busca.");
       return;
@@ -174,25 +169,23 @@ export const useTransferencia = () => {
         const itemNomeNorm = normalizarParaComparacao(item.nome);
         const itemSetorNorm = normalizarParaComparacao(item.setor);
 
-        // Valida Unidade
+        // Se o usuário buscou diretamente pelo Patrimônio, prioriza encontrar o patrimônio
+        if (tipo === "patrimonio") {
+          return itemPatrimonioNorm === termoNorm || itemPatrimonioNorm.includes(termoNorm);
+        }
+
+        // Valida Unidade se informada
         if (unidadeFiltro && !ehOrigemResidencial && itemUnidadeNorm !== unidadeFiltroNorm)
           return false;
 
-        // Valida Setor de forma estrita se houver filtro de setor preenchido
-        if (setorBusca) {
-          // Se o usuário buscou um setor específico, o setor do item deve corresponder exatamente ou conter o termo exato,
-          // evitando misturar com itens que estejam no "estoque patrimonio" interno da unidade por engano.
-          if (itemSetorNorm.includes("estoque") && !setorBuscaNorm.includes("estoque")) {
-            return false;
-          }
+        // Valida Setor de forma flexível
+        if (setorBusca && !tipo.includes("patrimonio")) {
           if (!itemSetorNorm.includes(setorBuscaNorm)) {
             return false;
           }
         }
 
-        if (tipo === "patrimonio") {
-          return itemPatrimonioNorm === termoNorm || itemPatrimonioNorm.includes(termoNorm);
-        } else if (tipo === "setor") {
+        if (tipo === "setor") {
           if (!termoNorm) return true;
           return itemSetorNorm.includes(termoNorm) || termoNorm.includes(itemSetorNorm);
         } else if (tipo === "nome") {
