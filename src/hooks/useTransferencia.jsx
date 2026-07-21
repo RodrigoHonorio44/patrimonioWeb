@@ -129,7 +129,6 @@ export const useTransferencia = () => {
     try {
       const unidadeFiltroNorm = normalizarParaComparacao(unidadeFiltro);
       const ehOrigemResidencial = unidadeFiltroNorm.includes("residencia") || unidadeFiltroNorm.includes("paciente");
-      const ehOrigemEstoque = unidadeFiltroNorm.includes("estoque");
 
       let listaGeral = [];
 
@@ -149,9 +148,7 @@ export const useTransferencia = () => {
           };
         });
       } else {
-        // Se for Estoque ou Unidades hospitalares, olhamos diretamente na coleção "ativos" (já que todos os ativos ficam lá)
         const snapGeral = await getDocs(query(collection(db, "ativos"), limit(2000)));
-        
         listaGeral = snapGeral.docs.map((docSnap) => ({
           id: docSnap.id,
           ...docSnap.data(),
@@ -177,12 +174,21 @@ export const useTransferencia = () => {
         const itemNomeNorm = normalizarParaComparacao(item.nome);
         const itemSetorNorm = normalizarParaComparacao(item.setor);
 
-        // Se buscou por unidade específica (e não é residência), valida
+        // Valida Unidade
         if (unidadeFiltro && !ehOrigemResidencial && itemUnidadeNorm !== unidadeFiltroNorm)
           return false;
 
-        if (setorBusca && !itemSetorNorm.includes(setorBuscaNorm) && itemSetorNorm !== setorBuscaNorm)
-          return false;
+        // Valida Setor de forma estrita se houver filtro de setor preenchido
+        if (setorBusca) {
+          // Se o usuário buscou um setor específico, o setor do item deve corresponder exatamente ou conter o termo exato,
+          // evitando misturar com itens que estejam no "estoque patrimonio" interno da unidade por engano.
+          if (itemSetorNorm.includes("estoque") && !setorBuscaNorm.includes("estoque")) {
+            return false;
+          }
+          if (!itemSetorNorm.includes(setorBuscaNorm)) {
+            return false;
+          }
+        }
 
         if (tipo === "patrimonio") {
           return itemPatrimonioNorm === termoNorm || itemPatrimonioNorm.includes(termoNorm);
@@ -299,7 +305,6 @@ export const useTransferencia = () => {
           ? novoPatrimonioParaSP
           : itemSelecionado.patrimonio;
 
-      // 1. SE O ITEM ESTÁ VINDO DA RESIDÊNCIA DO PACIENTE
       if (itemSelecionado.status === "em_uso_residencial" || itemSelecionado._docPacienteId) {
         if (itemSelecionado._docPacienteId) {
           await deleteDoc(doc(db, "equipamento_com_paciente", itemSelecionado._docPacienteId));
@@ -311,7 +316,6 @@ export const useTransferencia = () => {
           });
         }
 
-        // Atualiza ou garante o item na coleção "ativos" apontando para a nova unidade/estoque destino
         const ativoRef = doc(db, "ativos", itemSelecionado.id);
         const ativoSnap = await getDoc(ativoRef);
 
@@ -334,7 +338,6 @@ export const useTransferencia = () => {
           });
         }
 
-        // Se o destino também gerencia estoque físico, atualiza opcionalmente na coleção estoque
         if (destinoEhEstoque) {
           const estoqueRef = collection(db, "estoque");
           const qEstoque = query(estoqueRef, where("patrimonio", "==", patrimonioFinal));
@@ -360,7 +363,6 @@ export const useTransferencia = () => {
           }
         }
       } else {
-        // 2. FLUXO NORMAL DE TRANSFERÊNCIA (DE SETORES/ESTOQUE PARA OUTRO LUGAR)
         const itemRef = doc(db, "ativos", itemSelecionado.id);
         const itemSnap = await getDoc(itemRef);
 
@@ -375,7 +377,6 @@ export const useTransferencia = () => {
         }
       }
 
-      // Registra o histórico na coleção de saída
       const payloadSaida = {
         ativoId: itemSelecionado.id,
         patrimonio: patrimonioFinal,
