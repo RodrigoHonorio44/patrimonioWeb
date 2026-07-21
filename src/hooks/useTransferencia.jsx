@@ -127,28 +127,67 @@ export const useTransferencia = () => {
 
       let listaGeral = [];
 
-      if (ehOrigemResidencial) {
-        const snapPacientes = await getDocs(collection(db, "equipamento_com_paciente"));
-        listaGeral = snapPacientes.docs.map((docSnap) => {
-          const data = docSnap.data();
-          return {
-            id: data.equipamentoId || docSnap.id,
-            _docPacienteId: docSnap.id,
-            nome: data.equipamentoNome || data.nome,
-            patrimonio: data.patrimonio,
-            unidade: "Residência do Paciente",
-            setor: data.paciente?.nome ? `Residência do Paciente - ${data.paciente.nome}` : "Residência",
-            status: "em_uso_residencial",
+      // BUSCA DIRETA OTIMIZADA PARA PATRIMÔNIO (Evita o limite de 2000 e acha qualquer patrimônio exato)
+      if (tipo === "patrimonio" && termoOriginal.trim() !== "") {
+        const termoBuscaExato = termoOriginal.trim();
+        const qPatrimonio = query(
+          collection(db, "ativos"),
+          where("patrimonio", "==", termoBuscaExato)
+        );
+        const snapPatrimonio = await getDocs(qPatrimonio);
+
+        if (!snapPatrimonio.empty) {
+          listaGeral = snapPatrimonio.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
             _colecaoOrigem: "ativos",
-          };
-        });
+          }));
+        } else {
+          // Tenta também buscar na coleção de pacientes se não achar nos ativos principais
+          const qPac = query(
+            collection(db, "equipamento_com_paciente"),
+            where("patrimonio", "==", termoBuscaExato)
+          );
+          const snapPac = await getDocs(qPac);
+          listaGeral = snapPac.docs.map((docSnap) => {
+            const data = docSnap.data();
+            return {
+              id: data.equipamentoId || docSnap.id,
+              _docPacienteId: docSnap.id,
+              nome: data.equipamentoNome || data.nome,
+              patrimonio: data.patrimonio,
+              unidade: "Residência do Paciente",
+              setor: data.paciente?.nome ? `Residência do Paciente - ${data.paciente.nome}` : "Residência",
+              status: "em_uso_residencial",
+              _colecaoOrigem: "ativos",
+            };
+          });
+        }
       } else {
-        const snapGeral = await getDocs(query(collection(db, "ativos"), limit(2000)));
-        listaGeral = snapGeral.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-          _colecaoOrigem: "ativos",
-        }));
+        // Comportamento padrão para os outros tipos de busca
+        if (ehOrigemResidencial) {
+          const snapPacientes = await getDocs(collection(db, "equipamento_com_paciente"));
+          listaGeral = snapPacientes.docs.map((docSnap) => {
+            const data = docSnap.data();
+            return {
+              id: data.equipamentoId || docSnap.id,
+              _docPacienteId: docSnap.id,
+              nome: data.equipamentoNome || data.nome,
+              patrimonio: data.patrimonio,
+              unidade: "Residência do Paciente",
+              setor: data.paciente?.nome ? `Residência do Paciente - ${data.paciente.nome}` : "Residência",
+              status: "em_uso_residencial",
+              _colecaoOrigem: "ativos",
+            };
+          });
+        } else {
+          const snapGeral = await getDocs(query(collection(db, "ativos"), limit(2000)));
+          listaGeral = snapGeral.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+            _colecaoOrigem: "ativos",
+          }));
+        }
       }
 
       const termoNorm = normalizarParaComparacao(termoOriginal);
@@ -169,24 +208,19 @@ export const useTransferencia = () => {
         const itemNomeNorm = normalizarParaComparacao(item.nome || "");
         const itemSetorNorm = normalizarParaComparacao(item.setor || "");
 
-        // Se o usuário buscou diretamente por patrimônio, acha em qualquer lugar (como o inventário faz)
         if (tipo === "patrimonio" && termoNorm !== "") {
           return itemPatrimonioNorm.includes(termoNorm);
         }
 
-        // Valida Unidade se informada
         const matchUnidade = !unidadeFiltro || ehOrigemResidencial || itemUnidadeNorm.includes(unidadeFiltroNorm);
         if (!matchUnidade) return false;
 
-        // Valida Setor de forma flexível igual ao inventário
         if (setorBusca && setorBusca.trim() !== "") {
           const matchSetor = itemSetorNorm === setorBuscaNorm || itemSetorNorm.includes(setorBuscaNorm);
           if (!matchSetor) return false;
         }
 
-        if (tipo === "patrimonio") {
-          return itemPatrimonioNorm.includes(termoNorm);
-        } else if (tipo === "setor") {
+        if (tipo === "setor") {
           if (!termoNorm) return true;
           return itemSetorNorm.includes(termoNorm);
         } else if (tipo === "nome") {
