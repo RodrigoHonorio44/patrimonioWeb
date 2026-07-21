@@ -4,6 +4,7 @@ import {
   collection,
   addDoc,
   query,
+  where,
   getDocs,
   getDoc,
   updateDoc,
@@ -14,7 +15,6 @@ import {
 } from "firebase/firestore";
 import { toast } from "react-toastify";
 import { abrirVisualizacaoTermo } from "../components/ImpressaoTransferencia";
-// IMPORTANTE: Importando o mapa que você enviou
 import { MAPA_SETORES_POR_UNIDADE } from "../components/constants/setores"; 
 
 export const useTransferencia = () => {
@@ -28,7 +28,6 @@ export const useTransferencia = () => {
   const [loading, setLoading] = useState(false);
   const [novoPatrimonioParaSP, setNovoPatrimonioParaSP] = useState("");
 
-  // CONTROLES DO DROPDOWN CUSTOMIZADO
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -47,7 +46,7 @@ export const useTransferencia = () => {
     pacienteTelefone: "",
     pacienteIdentidade: "",
     pacienteCpf: "",
-    quantidadeRetirada: 1, // Adicionado controle de quantidade a transferir
+    quantidadeRetirada: 1,
   });
 
   const unidades = [
@@ -72,7 +71,6 @@ export const useTransferencia = () => {
       .trim();
   };
 
-  // Fecha o dropdown de setores se clicar fora dele
   useEffect(() => {
     const clicarFora = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -93,11 +91,9 @@ export const useTransferencia = () => {
     toast.info("Busca resetada");
   };
 
-  // RETORNO DE SETORES COM CUSTO ZERO: Filtrando a partir do seu arquivo estático
   const obterSetoresFiltrados = () => {
     if (!unidadeFiltro) return [];
 
-    // Encontra a chave correta no mapa ignorando maiúsculas/minúsculas
     const chaveUnidade = Object.keys(MAPA_SETORES_POR_UNIDADE).find(
       (key) => normalizarParaComparacao(key) === normalizarParaComparacao(unidadeFiltro)
     );
@@ -123,11 +119,6 @@ export const useTransferencia = () => {
       return;
     }
 
-    if (tipo === "setor" && !termoOriginal) {
-      toast.warn("Por favor, selecione um setor no campo correspondente.");
-      return;
-    }
-
     if (!termoOriginal.trim() && !unidadeFiltro && tipo !== "setor") {
       toast.warn("Por favor, selecione um filtro ou preencha um campo de busca.");
       return;
@@ -136,44 +127,68 @@ export const useTransferencia = () => {
     setLoading(true);
     setMostrarDropdown(false);
     try {
-      const ativosRef = collection(db, "estoque");
-      const qGeral = query(ativosRef, limit(2000));
-      const snapGeral = await getDocs(qGeral);
-      
-      let listaGeral = snapGeral.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const unidadeFiltroNorm = normalizarParaComparacao(unidadeFiltro);
+      const ehOrigemResidencial = unidadeFiltroNorm.includes("residencia") || unidadeFiltroNorm.includes("paciente");
+      const ehOrigemEstoque = unidadeFiltroNorm.includes("estoque");
+
+      let listaGeral = [];
+
+      if (ehOrigemResidencial) {
+        const snapPacientes = await getDocs(collection(db, "equipamento_com_paciente"));
+        listaGeral = snapPacientes.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: data.equipamentoId || docSnap.id,
+            _docPacienteId: docSnap.id,
+            nome: data.equipamentoNome || data.nome,
+            patrimonio: data.patrimonio,
+            unidade: "Residência do Paciente",
+            setor: data.paciente?.nome ? `Residência do Paciente - ${data.paciente.nome}` : "Residência",
+            status: "em_uso_residencial",
+            _colecaoOrigem: "ativos",
+          };
+        });
+      } else {
+        // Se for Estoque ou Unidades hospitalares, olhamos diretamente na coleção "ativos" (já que todos os ativos ficam lá)
+        const snapGeral = await getDocs(query(collection(db, "ativos"), limit(2000)));
+        
+        listaGeral = snapGeral.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+          _colecaoOrigem: "ativos",
+        }));
+      }
 
       const termoNorm = normalizarParaComparacao(termoOriginal);
-      const unidadeFiltroNorm = normalizarParaComparacao(unidadeFiltro);
+      const setorBuscaNorm = normalizarParaComparacao(setorBusca);
 
       const filtrados = listaGeral.filter((item) => {
         const statusItemNorm = String(item.status || "ativo").toLowerCase().trim();
-        if (statusItemNorm !== "ativo" && statusItemNorm !== "em_uso_residencial") return false;
+        if (
+          statusItemNorm !== "ativo" && 
+          statusItemNorm !== "em_uso_residencial" && 
+          statusItemNorm !== "operante"
+        ) {
+          return false;
+        }
 
         const itemUnidadeNorm = normalizarParaComparacao(item.unidade);
         const itemPatrimonioNorm = normalizarParaComparacao(item.patrimonio);
         const itemNomeNorm = normalizarParaComparacao(item.nome);
         const itemSetorNorm = normalizarParaComparacao(item.setor);
 
-        // Valida unidade
-        if (unidadeFiltro && itemUnidadeNorm !== unidadeFiltroNorm)
+        // Se buscou por unidade específica (e não é residência), valida
+        if (unidadeFiltro && !ehOrigemResidencial && itemUnidadeNorm !== unidadeFiltroNorm)
+          return false;
+
+        if (setorBusca && !itemSetorNorm.includes(setorBuscaNorm) && itemSetorNorm !== setorBuscaNorm)
           return false;
 
         if (tipo === "patrimonio") {
-          return itemPatrimonioNorm === termoNorm;
+          return itemPatrimonioNorm === termoNorm || itemPatrimonioNorm.includes(termoNorm);
         } else if (tipo === "setor") {
           if (!termoNorm) return true;
-          
-          const ehBuscaPatrimonio = termoNorm.includes("patrimonio");
-          const itemEhPatrimonio = itemSetorNorm.includes("patrimonio");
-
-          if (ehBuscaPatrimonio && itemEhPatrimonio) {
-            return true;
-          }
-
-          return itemSetorNorm === termoNorm || itemSetorNorm.includes(termoNorm) || termoNorm.includes(itemSetorNorm);
+          return itemSetorNorm.includes(termoNorm) || termoNorm.includes(itemSetorNorm);
         } else if (tipo === "nome") {
           return itemNomeNorm.includes(termoNorm);
         }
@@ -184,7 +199,7 @@ export const useTransferencia = () => {
       setPaginaAtual(1);
       
       if (filtrados.length === 0) {
-        toast.error("Nenhum item ativo encontrado.");
+        toast.error("Nenhum item encontrado com os filtros informados.");
       }
     } catch (error) {
       console.error(error);
@@ -202,7 +217,7 @@ export const useTransferencia = () => {
 
   const lidarComVisualizacao = () => {
     const isResidencial = dadosSaida.novaUnidade === "Residência do Paciente";
-    const isVindoDeResidencial = itemSelecionado?.status === "em_uso_residencial";
+    const isVindoDeResidencial = itemSelecionado?.status === "em_uso_residencial" || itemSelecionado?.unidade === "Residência do Paciente";
 
     if (!dadosSaida.novaUnidade || !dadosSaida.novoSetor || !dadosSaida.responsavelRecebimento) {
       toast.warn("Por favor, preencha todos os campos obrigatórios antes de visualizar.");
@@ -275,39 +290,92 @@ export const useTransferencia = () => {
     e.preventDefault();
     setLoading(true);
     const isResidencial = dadosSaida.novaUnidade === "Residência do Paciente";
+    const destinoEhEstoque = normalizarParaComparacao(dadosSaida.novaUnidade).includes("estoque");
 
     try {
-      const ativoRef = doc(db, "estoque", itemSelecionado.id);
-      const ativoSnap = await getDoc(ativoRef);
-
-      if (!ativoSnap.exists()) {
-        toast.error("Item não encontrado no estoque.");
-        setLoading(false);
-        return;
-      }
-
-      const dadosAtuais = ativoSnap.data();
-      const quantidadeAtual = Number(dadosAtuais.quantidade) || 1;
-      const qtdRetirada = Number(dadosSaida.quantidadeRetirada) || 1;
-      const novaQuantidade = quantidadeAtual - qtdRetirada;
-
       const patrimonioFinal =
         normalizarParaComparacao(itemSelecionado.patrimonio) === "sp" &&
         novoPatrimonioParaSP
           ? novoPatrimonioParaSP
           : itemSelecionado.patrimonio;
 
-      // 1. Se a quantidade zerou ou ficou negativa, remove do estoque. Senão, atualiza o saldo.
-      if (novaQuantidade <= 0) {
-        await deleteDoc(ativoRef);
+      // 1. SE O ITEM ESTÁ VINDO DA RESIDÊNCIA DO PACIENTE
+      if (itemSelecionado.status === "em_uso_residencial" || itemSelecionado._docPacienteId) {
+        if (itemSelecionado._docPacienteId) {
+          await deleteDoc(doc(db, "equipamento_com_paciente", itemSelecionado._docPacienteId));
+        } else {
+          const qPaciente = query(collection(db, "equipamento_com_paciente"), where("equipamentoId", "==", itemSelecionado.id));
+          const snapPaciente = await getDocs(qPaciente);
+          snapPaciente.forEach(async (docP) => {
+            await deleteDoc(doc(db, "equipamento_com_paciente", docP.id));
+          });
+        }
+
+        // Atualiza ou garante o item na coleção "ativos" apontando para a nova unidade/estoque destino
+        const ativoRef = doc(db, "ativos", itemSelecionado.id);
+        const ativoSnap = await getDoc(ativoRef);
+
+        if (ativoSnap.exists()) {
+          await updateDoc(ativoRef, {
+            unidade: dadosSaida.novaUnidade,
+            setor: dadosSaida.novoSetor,
+            patrimonio: patrimonioFinal,
+            status: "ativo",
+            ultimaMovimentacao: serverTimestamp(),
+          });
+        } else {
+          await addDoc(collection(db, "ativos"), {
+            nome: itemSelecionado.nome,
+            patrimonio: patrimonioFinal,
+            unidade: dadosSaida.novaUnidade,
+            setor: dadosSaida.novoSetor,
+            status: "ativo",
+            ultimaMovimentacao: serverTimestamp(),
+          });
+        }
+
+        // Se o destino também gerencia estoque físico, atualiza opcionalmente na coleção estoque
+        if (destinoEhEstoque) {
+          const estoqueRef = collection(db, "estoque");
+          const qEstoque = query(estoqueRef, where("patrimonio", "==", patrimonioFinal));
+          const snapEstoque = await getDocs(qEstoque);
+
+          if (!snapEstoque.empty) {
+            const docEstoque = snapEstoque.docs[0];
+            const qtdAtual = Number(docEstoque.data().quantidade) || 0;
+            await updateDoc(doc(db, "estoque", docEstoque.id), {
+              quantidade: qtdAtual + 1,
+              ultimaMovimentacao: serverTimestamp(),
+            });
+          } else {
+            await addDoc(estoqueRef, {
+              nome: itemSelecionado.nome,
+              patrimonio: patrimonioFinal,
+              quantidade: 1,
+              unidade: "Estoque Patrimônio",
+              setor: dadosSaida.novoSetor,
+              status: "ativo",
+              ultimaMovimentacao: serverTimestamp(),
+            });
+          }
+        }
       } else {
-        await updateDoc(ativoRef, {
-          quantidade: novaQuantidade,
-          ultimaMovimentacao: serverTimestamp(),
-        });
+        // 2. FLUXO NORMAL DE TRANSFERÊNCIA (DE SETORES/ESTOQUE PARA OUTRO LUGAR)
+        const itemRef = doc(db, "ativos", itemSelecionado.id);
+        const itemSnap = await getDoc(itemRef);
+
+        if (itemSnap.exists()) {
+          await updateDoc(itemRef, {
+            unidade: dadosSaida.novaUnidade,
+            setor: dadosSaida.novoSetor,
+            patrimonio: patrimonioFinal,
+            status: isResidencial ? "em_uso_residencial" : "operante",
+            ultimaMovimentacao: serverTimestamp(),
+          });
+        }
       }
 
-      // 2. Grava o registro na coleção de saída de equipamentos
+      // Registra o histórico na coleção de saída
       const payloadSaida = {
         ativoId: itemSelecionado.id,
         patrimonio: patrimonioFinal,
@@ -318,7 +386,7 @@ export const useTransferencia = () => {
         setorDestino: dadosSaida.novoSetor,
         responsavelRecebimento: dadosSaida.responsavelRecebimento,
         motivo: isResidencial ? "home care" : dadosSaida.motivo,
-        quantidadeTransferida: qtdRetirada,
+        quantidadeTransferida: Number(dadosSaida.quantidadeRetirada) || 1,
         dataSaida: serverTimestamp(),
       };
 
@@ -329,11 +397,7 @@ export const useTransferencia = () => {
           identity: dadosSaida.pacienteIdentidade,
           cpf: dadosSaida.pacienteCpf,
         };
-      }
 
-      await addDoc(collection(db, "saidaEquipamento"), payloadSaida);
-
-      if (isResidencial) {
         await addDoc(collection(db, "equipamento_com_paciente"), {
           equipamentoId: itemSelecionado.id,
           equipamentoNome: itemSelecionado.nome,
@@ -353,7 +417,9 @@ export const useTransferencia = () => {
         });
       }
 
-      toast.success("Transferência salva com sucesso no sistema!");
+      await addDoc(collection(db, "saidaEquipamento"), payloadSaida);
+
+      toast.success("Transferência realizada com sucesso!");
       setShowModal(false);
       setTermoVisualizado(false);
       setItensEncontrados([]);
@@ -375,7 +441,7 @@ export const useTransferencia = () => {
       });
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao salvar a transferência.");
+      toast.error("Erro ao concluir a transferência.");
     } finally {
       setLoading(false);
     }
