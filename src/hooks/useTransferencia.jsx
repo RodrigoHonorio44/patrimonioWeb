@@ -127,7 +127,6 @@ export const useTransferencia = () => {
 
       let listaGeral = [];
 
-      // BUSCA DIRETA OTIMIZADA PARA PATRIMÔNIO (Evita o limite de 2000 e acha qualquer patrimônio exato)
       if (tipo === "patrimonio" && termoOriginal.trim() !== "") {
         const termoBuscaExato = termoOriginal.trim();
         const qPatrimonio = query(
@@ -143,7 +142,6 @@ export const useTransferencia = () => {
             _colecaoOrigem: "ativos",
           }));
         } else {
-          // Tenta também buscar na coleção de pacientes se não achar nos ativos principais
           const qPac = query(
             collection(db, "equipamento_com_paciente"),
             where("patrimonio", "==", termoBuscaExato)
@@ -164,7 +162,6 @@ export const useTransferencia = () => {
           });
         }
       } else {
-        // Comportamento padrão para os outros tipos de busca
         if (ehOrigemResidencial) {
           const snapPacientes = await getDocs(collection(db, "equipamento_com_paciente"));
           listaGeral = snapPacientes.docs.map((docSnap) => {
@@ -333,6 +330,7 @@ export const useTransferencia = () => {
           ? novoPatrimonioParaSP
           : itemSelecionado.patrimonio;
 
+      // Se o item estava em uso residencial, removemos o vínculo do paciente
       if (itemSelecionado.status === "em_uso_residencial" || itemSelecionado._docPacienteId) {
         if (itemSelecionado._docPacienteId) {
           await deleteDoc(doc(db, "equipamento_com_paciente", itemSelecionado._docPacienteId));
@@ -343,68 +341,62 @@ export const useTransferencia = () => {
             await deleteDoc(doc(db, "equipamento_com_paciente", docP.id));
           });
         }
+      }
 
-        const ativoRef = doc(db, "ativos", itemSelecionado.id);
-        const ativoSnap = await getDoc(ativoRef);
+      // Atualiza o registro principal na coleção "ativos"
+      const itemRef = doc(db, "ativos", itemSelecionado.id);
+      const itemSnap = await getDoc(itemRef);
 
-        if (ativoSnap.exists()) {
-          await updateDoc(ativoRef, {
+      if (itemSnap.exists()) {
+        await updateDoc(itemRef, {
+          unidade: dadosSaida.novaUnidade,
+          setor: dadosSaida.novoSetor,
+          patrimonio: patrimonioFinal,
+          status: "ativo", // Mantém como ativo para aparecer perfeitamente no inventário
+          ultimaMovimentacao: serverTimestamp(),
+        });
+      } else {
+        // Caso por algum motivo o ativo não estivesse na coleção principal, criamos ele lá
+        await addDoc(collection(db, "ativos"), {
+          nome: itemSelecionado.nome,
+          patrimonio: patrimonioFinal,
+          unidade: dadosSaida.novaUnidade,
+          setor: dadosSaida.novoSetor,
+          status: "ativo",
+          ultimaMovimentacao: serverTimestamp(),
+        });
+      }
+
+      // Se o destino for o estoque, adiciona/registra também na coleção "estoque" para aparecer na Central do Estoque
+      if (destinoEhEstoque) {
+        const estoqueRef = collection(db, "estoque");
+        const qEstoque = query(estoqueRef, where("patrimonio", "==", patrimonioFinal));
+        const snapEstoque = await getDocs(qEstoque);
+
+        if (!snapEstoque.empty) {
+          const docEstoque = snapEstoque.docs[0];
+          await updateDoc(doc(db, "estoque", docEstoque.id), {
+            nome: itemSelecionado.nome,
             unidade: dadosSaida.novaUnidade,
             setor: dadosSaida.novoSetor,
-            patrimonio: patrimonioFinal,
             status: "ativo",
+            quantidade: 1,
             ultimaMovimentacao: serverTimestamp(),
           });
         } else {
-          await addDoc(collection(db, "ativos"), {
+          await addDoc(estoqueRef, {
             nome: itemSelecionado.nome,
             patrimonio: patrimonioFinal,
+            quantidade: 1,
             unidade: dadosSaida.novaUnidade,
             setor: dadosSaida.novoSetor,
             status: "ativo",
-            ultimaMovimentacao: serverTimestamp(),
-          });
-        }
-
-        if (destinoEhEstoque) {
-          const estoqueRef = collection(db, "estoque");
-          const qEstoque = query(estoqueRef, where("patrimonio", "==", patrimonioFinal));
-          const snapEstoque = await getDocs(qEstoque);
-
-          if (!snapEstoque.empty) {
-            const docEstoque = snapEstoque.docs[0];
-            const qtdAtual = Number(docEstoque.data().quantidade) || 0;
-            await updateDoc(doc(db, "estoque", docEstoque.id), {
-              quantidade: qtdAtual + 1,
-              ultimaMovimentacao: serverTimestamp(),
-            });
-          } else {
-            await addDoc(estoqueRef, {
-              nome: itemSelecionado.nome,
-              patrimonio: patrimonioFinal,
-              quantidade: 1,
-              unidade: "Estoque Patrimônio",
-              setor: dadosSaida.novoSetor,
-              status: "ativo",
-              ultimaMovimentacao: serverTimestamp(),
-            });
-          }
-        }
-      } else {
-        const itemRef = doc(db, "ativos", itemSelecionado.id);
-        const itemSnap = await getDoc(itemRef);
-
-        if (itemSnap.exists()) {
-          await updateDoc(itemRef, {
-            unidade: dadosSaida.novaUnidade,
-            setor: dadosSaida.novoSetor,
-            patrimonio: patrimonioFinal,
-            status: isResidencial ? "em_uso_residencial" : "operante",
             ultimaMovimentacao: serverTimestamp(),
           });
         }
       }
 
+      // Registra o histórico da movimentação de saída
       const payloadSaida = {
         ativoId: itemSelecionado.id,
         patrimonio: patrimonioFinal,
