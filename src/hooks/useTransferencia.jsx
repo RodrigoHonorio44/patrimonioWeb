@@ -164,30 +164,31 @@ export const useTransferencia = () => {
           return false;
         }
 
-        const itemUnidadeNorm = normalizarParaComparacao(item.unidade);
-        const itemPatrimonioNorm = normalizarParaComparacao(item.patrimonio);
-        const itemNomeNorm = normalizarParaComparacao(item.nome);
-        const itemSetorNorm = normalizarParaComparacao(item.setor);
+        const itemUnidadeNorm = normalizarParaComparacao(item.unidade || "");
+        const itemPatrimonioNorm = normalizarParaComparacao(item.patrimonio || "");
+        const itemNomeNorm = normalizarParaComparacao(item.nome || "");
+        const itemSetorNorm = normalizarParaComparacao(item.setor || "");
 
-        // Se o usuário buscou diretamente pelo Patrimônio, prioriza encontrar o patrimônio
-        if (tipo === "patrimonio") {
-          return itemPatrimonioNorm === termoNorm || itemPatrimonioNorm.includes(termoNorm);
+        // Se o usuário buscou diretamente por patrimônio, acha em qualquer lugar (como o inventário faz)
+        if (tipo === "patrimonio" && termoNorm !== "") {
+          return itemPatrimonioNorm.includes(termoNorm);
         }
 
         // Valida Unidade se informada
-        if (unidadeFiltro && !ehOrigemResidencial && itemUnidadeNorm !== unidadeFiltroNorm)
-          return false;
+        const matchUnidade = !unidadeFiltro || ehOrigemResidencial || itemUnidadeNorm.includes(unidadeFiltroNorm);
+        if (!matchUnidade) return false;
 
-        // Valida Setor de forma flexível
-        if (setorBusca && !tipo.includes("patrimonio")) {
-          if (!itemSetorNorm.includes(setorBuscaNorm)) {
-            return false;
-          }
+        // Valida Setor de forma flexível igual ao inventário
+        if (setorBusca && setorBusca.trim() !== "") {
+          const matchSetor = itemSetorNorm === setorBuscaNorm || itemSetorNorm.includes(setorBuscaNorm);
+          if (!matchSetor) return false;
         }
 
-        if (tipo === "setor") {
+        if (tipo === "patrimonio") {
+          return itemPatrimonioNorm.includes(termoNorm);
+        } else if (tipo === "setor") {
           if (!termoNorm) return true;
-          return itemSetorNorm.includes(termoNorm) || termoNorm.includes(itemSetorNorm);
+          return itemSetorNorm.includes(termoNorm);
         } else if (tipo === "nome") {
           return itemNomeNorm.includes(termoNorm);
         }
