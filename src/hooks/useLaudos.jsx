@@ -35,30 +35,37 @@ export const useLaudos = () => {
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[/\s._-]/g, "")
       .trim();
   };
 
   const obterSetoresDaUnidade = (unidade) => {
     if (!unidade) return null;
     
-    const unidadeNorm = normalizarParaComparacao(unidade);
+    // Mapeamento idêntico ao inventário para traduzir o nome amigável para a chave correta das constantes
+    const deParaUnidades = {
+      "Hospital Conde": "Hospital Conde",
+      "Santa Rita": "Upa Santa Rita",
+      "Inoã": "Upa Inoã",
+      "Barroco": "Samu Barroco",
+      "Ponta Negra": "Samu Ponta Negra",
+      "Centro": "Samu Centro"
+    };
 
-    // Procura no MAPA_SETORES_POR_UNIDADE comparando a chave normalizada com a unidade digitada/selecionada
-    const chaveEncontrada = Object.keys(MAPA_SETORES_POR_UNIDADE).find((key) => {
-      const keyNorm = normalizarParaComparacao(key);
-      return keyNorm === unidadeNorm || keyNorm.includes(unidadeNorm) || unidadeNorm.includes(keyNorm);
-    });
-    
-    if (chaveEncontrada) {
-      return MAPA_SETORES_POR_UNIDADE[chaveEncontrada];
+    // Tenta pelo dicionário direto
+    let chaveUnidade = deParaUnidades[unidade];
+
+    // Se não achar direto, tenta buscar por correspondência normalizada robusta
+    if (!chaveUnidade) {
+      const unidadeNorm = normalizarParaComparacao(unidade);
+      chaveUnidade = Object.keys(MAPA_SETORES_POR_UNIDADE).find(k => {
+        const kNorm = normalizarParaComparacao(k);
+        return kNorm === unidadeNorm || kNorm.includes(unidadeNorm) || unidadeNorm.includes(kNorm);
+      });
     }
 
-    // Fallback de segurança caso contenha "upa" e "inoa" independentemente de como foi escrito
-    if (unidadeNorm.includes("upa") && unidadeNorm.includes("inoa")) {
-      const chaveUpa = Object.keys(MAPA_SETORES_POR_UNIDADE).find(k => 
-        normalizarParaComparacao(k).includes("upa") && normalizarParaComparacao(k).includes("inoa")
-      );
-      if (chaveUpa) return MAPA_SETORES_POR_UNIDADE[chaveUpa];
+    if (chaveUnidade && MAPA_SETORES_POR_UNIDADE[chaveUnidade]) {
+      return MAPA_SETORES_POR_UNIDADE[chaveUnidade];
     }
 
     return null;
