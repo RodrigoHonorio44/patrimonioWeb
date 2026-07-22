@@ -40,9 +40,17 @@ export const useLaudos = () => {
   };
 
   const obterSetoresDaUnidade = (unidade) => {
-    if (!unidade) return null;
-    
-    // Mapeamento idêntico ao inventário para traduzir o nome amigável para a chave correta das constantes
+    if (!unidade || unidade === "Todas") return null;
+
+    // 1. Força o reconhecimento imediato de qualquer variação escrita da UPA Inoã
+    const unidadeLimpa = unidade.toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (unidadeLimpa.includes("inoan") || unidadeLimpa.includes("inoa") || unidadeLimpa === "upainoa") {
+      if (MAPA_SETORES_POR_UNIDADE["Upa Inoã"]) {
+        return MAPA_SETORES_POR_UNIDADE["Upa Inoã"];
+      }
+    }
+
+    // 2. Dicionário padrão para as demais unidades
     const deParaUnidades = {
       "Hospital Conde": "Hospital Conde",
       "Santa Rita": "Upa Santa Rita",
@@ -53,10 +61,8 @@ export const useLaudos = () => {
       "Centro": "Samu Centro"
     };
 
-    // Tenta pelo dicionário direto
     let chaveUnidade = deParaUnidades[unidade];
 
-    // Se não achar direto, tenta buscar por correspondência normalizada robusta nas chaves de MAPA_SETORES_POR_UNIDADE
     if (!chaveUnidade) {
       const unidadeNorm = normalizarParaComparacao(unidade);
       chaveUnidade = Object.keys(MAPA_SETORES_POR_UNIDADE).find(k => {
@@ -69,7 +75,18 @@ export const useLaudos = () => {
       return MAPA_SETORES_POR_UNIDADE[chaveUnidade];
     }
 
-    return null;
+    // 3. Fallback extraindo dos itens carregados no banco
+    const setoresUnicos = new Set();
+    itens.forEach((item) => {
+      const itemUnidadeNorm = normalizarParaComparacao(item.unidade || "");
+      const unidadeSelecionadaNorm = normalizarParaComparacao(unidade);
+      if (itemUnidadeNorm.includes(unidadeSelecionadaNorm) && item.setor && item.setor.trim() !== "") {
+        setoresUnicos.add(item.setor.trim());
+      }
+    });
+
+    const listaFallback = Array.from(setoresUnicos).sort();
+    return listaFallback.length > 0 ? listaFallback : null;
   };
 
   const carregarLaudosPendentes = async () => {
