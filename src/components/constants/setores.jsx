@@ -226,11 +226,7 @@ const SETORES_SAMU_PONTA_NEGRA = [
   "DML"
 ];
 
-// O SEGREDO ESTÁ AQUI: Um mapa chave-valor vinculando a Unidade aos Setores dela.
-// Certifique-se de que as chaves (ex: 'Hospital Conde') sejam exatamente iguais 
-// aos valores que você salva/seleciona no campo "Unidade" do seu formulário.
 export const MAPA_SETORES_POR_UNIDADE = {
-  export const MAPA_SETORES_POR_UNIDADE = {
   "Hospital Conde": SETORES_HOSPITAL_CONDE,
   "Upa Inoã": SETORES_UPA_INOA,
   "UPA Inoã": SETORES_UPA_INOA,
@@ -241,5 +237,4 @@ export const MAPA_SETORES_POR_UNIDADE = {
   "Samu Barroco": SETORES_SAMU_BARROCO,
   "Samu Centro": SETORES_SAMU_CENTRO,
   "Samu Ponta Negra": SETORES_SAMU_PONTA_NEGRA
-
 };
