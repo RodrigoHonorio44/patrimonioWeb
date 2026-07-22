@@ -42,40 +42,45 @@ export const useLaudos = () => {
   const obterSetoresDaUnidade = (unidade) => {
     if (!unidade || unidade === "Todas") return null;
 
-    // 1. Força o reconhecimento imediato de qualquer variação escrita da UPA Inoã
-    const unidadeLimpa = unidade.toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (unidadeLimpa.includes("inoan") || unidadeLimpa.includes("inoa") || unidadeLimpa === "upainoa") {
-      if (MAPA_SETORES_POR_UNIDADE["Upa Inoã"]) {
-        return MAPA_SETORES_POR_UNIDADE["Upa Inoã"];
-      }
+    // 1. Verificação direta exata e normalizada no MAPA_SETORES_POR_UNIDADE
+    const unidadeLimpa = unidade.toString().trim();
+    
+    // Varre as chaves do MAPA_SETORES_POR_UNIDADE com correspondência exata ou normalizada
+    const chaveEncontrada = Object.keys(MAPA_SETORES_POR_UNIDADE).find((k) => {
+      const kNorm = normalizarParaComparacao(k);
+      const uNorm = normalizarParaComparacao(unidadeLimpa);
+      return k.toLowerCase() === unidadeLimpa.toLowerCase() || kNorm === uNorm || kNorm.includes(uNorm) || uNorm.includes(kNorm);
+    });
+
+    if (chaveEncontrada && MAPA_SETORES_POR_UNIDADE[chaveEncontrada]) {
+      return MAPA_SETORES_POR_UNIDADE[chaveEncontrada];
     }
 
-    // 2. Dicionário padrão para as demais unidades
+    // 2. Dicionário de equivalência avançada para variações comuns
     const deParaUnidades = {
       "Hospital Conde": "Hospital Conde",
       "Santa Rita": "Upa Santa Rita",
+      "Upa Santa Rita": "Upa Santa Rita",
+      "UPA Santa Rita": "Upa Santa Rita",
       "Inoã": "Upa Inoã",
+      "Upa Inoã": "Upa Inoã",
+      "UPA Inoã": "Upa Inoã",
       "Upa Inoa": "Upa Inoã",
+      "upa inoa": "Upa Inoã",
       "Barroco": "Samu Barroco",
+      "Samu Barroco": "Samu Barroco",
       "Ponta Negra": "Samu Ponta Negra",
-      "Centro": "Samu Centro"
+      "Samu Ponta Negra": "Samu Ponta Negra",
+      "Centro": "Samu Centro",
+      "Samu Centro": "Samu Centro"
     };
 
-    let chaveUnidade = deParaUnidades[unidade];
-
-    if (!chaveUnidade) {
-      const unidadeNorm = normalizarParaComparacao(unidade);
-      chaveUnidade = Object.keys(MAPA_SETORES_POR_UNIDADE).find(k => {
-        const kNorm = normalizarParaComparacao(k);
-        return kNorm === unidadeNorm || kNorm.includes(unidadeNorm) || unidadeNorm.includes(kNorm);
-      });
+    let chaveMapeada = deParaUnidades[unidadeLimpa] || deParaUnidades[unidade];
+    if (chaveMapeada && MAPA_SETORES_POR_UNIDADE[chaveMapeada]) {
+      return MAPA_SETORES_POR_UNIDADE[chaveMapeada];
     }
 
-    if (chaveUnidade && MAPA_SETORES_POR_UNIDADE[chaveUnidade]) {
-      return MAPA_SETORES_POR_UNIDADE[chaveUnidade];
-    }
-
-    // 3. Fallback extraindo dos itens carregados no banco
+    // 3. Fallback extraindo dos itens carregados no banco caso não ache no mapa estático
     const setoresUnicos = new Set();
     itens.forEach((item) => {
       const itemUnidadeNorm = normalizarParaComparacao(item.unidade || "");
