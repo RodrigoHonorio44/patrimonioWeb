@@ -40,8 +40,14 @@ export const useLaudos = () => {
 
   const obterSetoresDaUnidade = (unidade) => {
     if (!unidade) return null;
-    const unidadeNorm = normalizarParaComparacao(unidade);
     
+    // Tratamento direto e forçado para qualquer variação da UPA Inoã
+    const unidadeLimpa = unidade.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (unidadeLimpa.includes("upa") && unidadeLimpa.includes("inoa")) {
+      return MAPA_SETORES_POR_UNIDADE["UPA Inoã"] || MAPA_SETORES_POR_UNIDADE["Upa Inoã"] || MAPA_SETORES_POR_UNIDADE["upa inoa"] || Object.values(MAPA_SETORES_POR_UNIDADE)[0];
+    }
+
+    const unidadeNorm = normalizarParaComparacao(unidade);
     const chaveEncontrada = Object.keys(MAPA_SETORES_POR_UNIDADE).find((key) => {
       const keyNorm = normalizarParaComparacao(key);
       return keyNorm === unidadeNorm || keyNorm.includes(unidadeNorm) || unidadeNorm.includes(keyNorm);
