@@ -170,6 +170,7 @@ export const useLaudos = () => {
     setModalAberto(true);
   };
 
+  // Normalização segura que remove acentos e padroniza para minúsculas sem apagar espaços
   const normalizarParaComparacao = (texto) => {
     if (!texto) return "";
     return texto
@@ -177,27 +178,30 @@ export const useLaudos = () => {
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[/\s._-]/g, "")
       .trim();
   };
 
   const itensFiltrados = itens.filter((item) => {
+    // Validação de status flexível (aceita ativo, operante ou se o status estiver em branco/outro)
     const statusItemLower = String(item.status || "operante").toLowerCase().trim();
-    const matchStatus = statusItemLower === "ativo" || statusItemLower === "operante";
-    if (!matchStatus) return false;
+    const statusBloqueados = ["inutilizados", "baixado", "descartado", "baixados", "inutilizado"];
+    if (statusBloqueados.includes(statusItemLower)) return false;
 
+    // 1. Validar Filtro de Unidade
     if (unidadeSelecionada.trim() && unidadeSelecionada !== "Todas") {
       const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
       const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
       if (!unidadeItemNorm.includes(unidadeSelecionadaNorm)) return false;
     }
 
+    // 2. Validar Filtro de Setor
     if (buscaSetor.trim() && buscaSetor !== "Todos") {
       const setorItemNorm = normalizarParaComparacao(item.setor || "");
       const setorBuscaNorm = normalizarParaComparacao(buscaSetor);
       if (!setorItemNorm.includes(setorBuscaNorm)) return false;
     }
 
+    // 3. Validar Filtro de Equipamento (Patrimônio ou Nome)
     const termo = buscaPatrimonio.trim();
     if (!termo) return true; 
 
