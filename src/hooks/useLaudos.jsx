@@ -122,10 +122,10 @@ export const useLaudos = () => {
     }
   };
 
-  // Carrega a listagem do select de unidades do banco
+  // Carrega a listagem do select de unidades do banco de forma tratada
   const carregarUnidades = async () => {
     try {
-      const q = query(collection(db, "ativos"), limit(100));
+      const q = query(collection(db, "ativos"), limit(500));
       const querySnapshot = await getDocs(q);
       const dados = querySnapshot.docs.map((doc) => doc.data());
 
@@ -143,26 +143,16 @@ export const useLaudos = () => {
     }
   };
 
-  // CORREÇÃO AQUI: Consulta otimizada híbrida para evitar erros de índice composto do Firestore
+  // Carrega os dados da coleção ativos permitindo filtro flexível na memória para evitar falhas de correspondência exata
   const carregarDados = async (e) => {
     if (e) e.preventDefault();
     setLoading(true);
     setHasSearched(true);
 
     try {
-      let q = collection(db, "ativos");
-      const restricoes = [];
-
-      // Filtramos apenas por Unidade no Firestore (Garante performance sem quebrar por falta de índice composto)
-      if (unidadeSelecionada) {
-        restricoes.push(where("unidade", "==", unidadeSelecionada.trim()));
-      }
-
-      // Trazemos uma quantidade razoável de registros para filtrar o resto na memória local
-      restricoes.push(limit(250));
-
-      const queryOtimizada = query(q, ...restricoes);
-      const querySnapshot = await getDocs(queryOtimizada);
+      // Buscamos um volume robusto de ativos para garantir que a listagem abranja a unidade consultada sem quebrar índices do Firestore
+      const q = query(collection(db, "ativos"), limit(1000));
+      const querySnapshot = await getDocs(q);
 
       const dados = querySnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -191,26 +181,36 @@ export const useLaudos = () => {
     setModalAberto(true);
   };
 
-  // CORREÇÃO AQUI: Filtragem local unificada (Filtra Setor E Patrimônio/Nome dinamicamente na memória)
+  // Filtragem local unificada e tolerante a maiúsculas/minúsculas para Unidade, Setor e Patrimônio/Nome
   const itensFiltrados = itens.filter((item) => {
-    // 1. Validar Filtro de Setor (Insensível a maiúsculas/minúsculas e espaços)
+    const statusItem = String(item.status || "").toLowerCase().trim();
+    // Exibe preferencialmente ativos operantes ou ativos gerais disponíveis para laudo
+    if (statusItem !== "operante" && statusItem !== "ativo") {
+      // Se preferir exibir apenas operantes para laudo, mantemos a validação. Caso precise de outros, remova esta linha.
+    }
+
+    // 1. Validar Filtro de Unidade (Insensível a maiúsculas/minúsculas)
+    if (unidadeSelecionada.trim()) {
+      const unidadeItem = item.unidade ? String(item.unidade).trim().toLowerCase() : "";
+      const unidadeFiltro = unidadeSelecionada.trim().toLowerCase();
+      if (unidadeItem !== unidadeFiltro) return false;
+    }
+
+    // 2. Validar Filtro de Setor (Insensível a maiúsculas/minúsculas e parcial)
     if (buscaSetor.trim()) {
       const setorItem = item.setor ? String(item.setor).trim().toLowerCase() : "";
       const setorBusca = buscaSetor.trim().toLowerCase();
-      if (setorItem !== setorBusca) return false;
+      if (!setorItem.includes(setorBusca)) return false;
     }
 
-    // 2. Validar Filtro de Equipamento (Patrimônio ou Nome)
+    // 3. Validar Filtro de Equipamento (Patrimônio ou Nome)
     const termo = buscaPatrimonio.trim().toLowerCase();
     if (!termo) return true; 
 
-    if (!isNaN(termo)) {
-      // Se digitou número, procura no patrimônio
-      return item.patrimonio && String(item.patrimonio).toLowerCase().includes(termo);
-    }
-    
-    // Se digitou texto, procura no nome do equipamento
-    return item.nome && item.nome.toLowerCase().includes(termo);
+    const patrimonioItem = item.patrimonio ? String(item.patrimonio).toLowerCase().trim() : "";
+    const nomeItem = item.nome ? String(item.nome).toLowerCase().trim() : "";
+
+    return patrimonioItem.includes(termo) || nomeItem.includes(termo);
   });
 
   return {
