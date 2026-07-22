@@ -148,6 +148,7 @@ export const useLaudos = () => {
         ...doc.data(),
       }));
       
+      console.log(`TOTAL DE ITENS CARREGADOS DO FIRESTORE: ${dados.length}`);
       setItens(dados);
     } catch (error) {
       console.error(error);
@@ -170,7 +171,6 @@ export const useLaudos = () => {
     setModalAberto(true);
   };
 
-  // Normalização segura que remove acentos e padroniza para minúsculas sem apagar espaços
   const normalizarParaComparacao = (texto) => {
     if (!texto) return "";
     return texto
@@ -182,34 +182,56 @@ export const useLaudos = () => {
   };
 
   const itensFiltrados = itens.filter((item) => {
-    // Validação de status flexível (aceita ativo, operante ou se o status estiver em branco/outro)
+    // Diagnóstico individual por item no console (procure pelo patrimônio ou nome que procura)
+    const patStr = String(item.patrimonio || "");
+    const nomeStr = String(item.nome || "");
+    const eOItemProcurado = patStr.includes("24252") || nomeStr.toLowerCase().includes("banco giratorio");
+
     const statusItemLower = String(item.status || "operante").toLowerCase().trim();
     const statusBloqueados = ["inutilizados", "baixado", "descartado", "baixados", "inutilizado"];
-    if (statusBloqueados.includes(statusItemLower)) return false;
+    const passouStatus = !statusBloqueados.includes(statusItemLower);
 
-    // 1. Validar Filtro de Unidade
+    if (!passouStatus) {
+      if (eOItemProcurado) console.warn("❌ O item foi BLOQUEADO pelo status:", item.status);
+      return false;
+    }
+
     if (unidadeSelecionada.trim() && unidadeSelecionada !== "Todas") {
       const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
       const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
-      if (!unidadeItemNorm.includes(unidadeSelecionadaNorm)) return false;
+      if (!unidadeItemNorm.includes(unidadeSelecionadaNorm)) {
+        if (eOItemProcurado) console.warn("❌ O item foi BLOQUEADO pelo filtro de UNIDADE. Unidade do item:", item.unidade, "| Unidade buscada:", unidadeSelecionada);
+        return false;
+      }
     }
 
-    // 2. Validar Filtro de Setor
     if (buscaSetor.trim() && buscaSetor !== "Todos") {
       const setorItemNorm = normalizarParaComparacao(item.setor || "");
       const setorBuscaNorm = normalizarParaComparacao(buscaSetor);
-      if (!setorItemNorm.includes(setorBuscaNorm)) return false;
+      if (!setorItemNorm.includes(setorBuscaNorm)) {
+        if (eOItemProcurado) console.warn("❌ O item foi BLOQUEADO pelo filtro de SETOR. Setor do item:", item.setor, "| Setor buscado:", buscaSetor);
+        return false;
+      }
     }
 
-    // 3. Validar Filtro de Equipamento (Patrimônio ou Nome)
     const termo = buscaPatrimonio.trim();
-    if (!termo) return true; 
+    if (!termo) {
+      if (eOItemProcurado) console.log("✅ O item PASSOU com sucesso!", item);
+      return true; 
+    }
 
     const termoNorm = normalizarParaComparacao(termo);
     const patrimonioItemNorm = normalizarParaComparacao(item.patrimonio || "");
     const nomeItemNorm = normalizarParaComparacao(item.nome || "");
 
-    return patrimonioItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
+    const passouBusca = patrimonioItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
+    if (!passouBusca && eOItemProcurado) {
+      console.warn("❌ O item foi BLOQUEADO pelo termo de busca digitado:", termo);
+    } else if (passouBusca && eOItemProcurado) {
+      console.log("✅ O item PASSOU na busca com sucesso!", item);
+    }
+
+    return passouBusca;
   });
 
   return {
