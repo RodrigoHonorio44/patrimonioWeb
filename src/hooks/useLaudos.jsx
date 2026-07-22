@@ -5,7 +5,6 @@ import { toast } from "react-toastify";
 import { MAPA_SETORES_POR_UNIDADE } from "../components/constants/setores"; 
 
 export const useLaudos = () => {
-  // Estados para busca de Ativos Operantes
   const [itens, setItens] = useState([]);
   const [unidadesDisponiveis, setUnidadesDisponiveis] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -14,16 +13,13 @@ export const useLaudos = () => {
   const [unidadeSelecionada, setUnidadeSelecionada] = useState("");
   const [buscaSetor, setBuscaSetor] = useState("");
 
-  // Estados para a seção de Laudos Gerados esperando Decisão de Baixa
   const [laudosPendentes, setLaudosPendentes] = useState([]);
   const [loadingLaudos, setLoadingLaudos] = useState(false);
   const [processandoAcao, setProcessandoAcao] = useState(null);
 
-  // Estados dos Modais
   const [modalAberto, setModalAberto] = useState(false);
   const [equipamentoSelecionado, setEquipamentoSelecionado] = useState(null);
 
-  // Inicializa os dados essenciais da tela
   useEffect(() => {
     const inicializarPainel = async () => {
       await carregarUnidades();
@@ -32,7 +28,6 @@ export const useLaudos = () => {
     inicializarPainel();
   }, []);
 
-  // Função auxiliar para encontrar os setores de forma insensível a maiúsculas/minúsculas
   const obterSetoresDaUnidade = (unidade) => {
     if (!unidade) return null;
     const chaveEncontrada = Object.keys(MAPA_SETORES_POR_UNIDADE).find(
@@ -41,7 +36,6 @@ export const useLaudos = () => {
     return chaveEncontrada ? MAPA_SETORES_POR_UNIDADE[chaveEncontrada] : null;
   };
 
-  // Busca os laudos gerados com status "pendente"
   const carregarLaudosPendentes = async () => {
     setLoadingLaudos(true);
     try {
@@ -63,7 +57,6 @@ export const useLaudos = () => {
     }
   };
 
-  // Função para Aprovar a Baixa do Laudo e Atualizar o Ativo no Firebase
   const handleAprovarLaudo = async (laudoId, equipamentoId) => {
     setProcessandoAcao(laudoId);
     try {
@@ -93,7 +86,6 @@ export const useLaudos = () => {
     }
   };
 
-  // Função para Cancelar/Rejeitar o Laudo e Restaurar o Ativo
   const handleCancelarLaudo = async (laudoId, equipamentoId) => {
     setProcessandoAcao(laudoId);
     try {
@@ -122,7 +114,6 @@ export const useLaudos = () => {
     }
   };
 
-  // Carrega a listagem do select de unidades do banco de forma tratada
   const carregarUnidades = async () => {
     try {
       const q = query(collection(db, "ativos"), limit(500));
@@ -143,7 +134,6 @@ export const useLaudos = () => {
     }
   };
 
-  // Carrega os dados da coleção ativos permitindo filtro flexível na memória para evitar falhas de correspondência exata
   const carregarDados = async (e) => {
     if (e) e.preventDefault();
     setLoading(true);
@@ -180,34 +170,42 @@ export const useLaudos = () => {
     setModalAberto(true);
   };
 
-  // Filtragem local unificada e tolerante a maiúsculas/minúsculas para Unidade, Setor, Status e Patrimônio/Nome
+  const normalizarParaComparacao = (texto) => {
+    if (!texto) return "";
+    return texto
+      .toString()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[/\s._-]/g, "")
+      .trim();
+  };
+
   const itensFiltrados = itens.filter((item) => {
     const statusItemLower = String(item.status || "operante").toLowerCase().trim();
     const matchStatus = statusItemLower === "ativo" || statusItemLower === "operante";
     if (!matchStatus) return false;
 
-    // 1. Validar Filtro de Unidade (Insensível a maiúsculas/minúsculas)
-    if (unidadeSelecionada.trim()) {
-      const unidadeItem = item.unidade ? String(item.unidade).trim().toLowerCase() : "";
-      const unidadeFiltro = unidadeSelecionada.trim().toLowerCase();
-      if (unidadeItem !== unidadeFiltro) return false;
+    if (unidadeSelecionada.trim() && unidadeSelecionada !== "Todas") {
+      const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
+      const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
+      if (!unidadeItemNorm.includes(unidadeSelecionadaNorm)) return false;
     }
 
-    // 2. Validar Filtro de Setor (Insensível a maiúsculas/minúsculas e parcial)
-    if (buscaSetor.trim()) {
-      const setorItem = item.setor ? String(item.setor).trim().toLowerCase() : "";
-      const setorBusca = buscaSetor.trim().toLowerCase();
-      if (!setorItem.includes(setorBusca)) return false;
+    if (buscaSetor.trim() && buscaSetor !== "Todos") {
+      const setorItemNorm = normalizarParaComparacao(item.setor || "");
+      const setorBuscaNorm = normalizarParaComparacao(buscaSetor);
+      if (!setorItemNorm.includes(setorBuscaNorm)) return false;
     }
 
-    // 3. Validar Filtro de Equipamento (Patrimônio ou Nome)
-    const termo = buscaPatrimonio.trim().toLowerCase();
+    const termo = buscaPatrimonio.trim();
     if (!termo) return true; 
 
-    const patrimonioItem = item.patrimonio ? String(item.patrimonio).toLowerCase().trim() : "";
-    const nomeItem = item.nome ? String(item.nome).toLowerCase().trim() : "";
+    const termoNorm = normalizarParaComparacao(termo);
+    const patrimonioItemNorm = normalizarParaComparacao(item.patrimonio || "");
+    const nomeItemNorm = normalizarParaComparacao(item.nome || "");
 
-    return patrimonioItem.includes(termo) || nomeItem.includes(termo);
+    return patrimonioItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
   });
 
   return {
