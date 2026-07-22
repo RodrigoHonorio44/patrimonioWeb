@@ -230,10 +230,16 @@ const SETORES_SAMU_PONTA_NEGRA = [
 // Certifique-se de que as chaves (ex: 'Hospital Conde') sejam exatamente iguais 
 // aos valores que você salva/seleciona no campo "Unidade" do seu formulário.
 export const MAPA_SETORES_POR_UNIDADE = {
+  export const MAPA_SETORES_POR_UNIDADE = {
   "Hospital Conde": SETORES_HOSPITAL_CONDE,
   "Upa Inoã": SETORES_UPA_INOA,
+  "UPA Inoã": SETORES_UPA_INOA,
+  "Upa Inoa": SETORES_UPA_INOA,
+  "upa inoa": SETORES_UPA_INOA,
   "Upa Santa Rita": SETORES_UPA_SANTA_RITA,
+  "UPA Santa Rita": SETORES_UPA_SANTA_RITA,
   "Samu Barroco": SETORES_SAMU_BARROCO,
   "Samu Centro": SETORES_SAMU_CENTRO,
   "Samu Ponta Negra": SETORES_SAMU_PONTA_NEGRA
+
 };
