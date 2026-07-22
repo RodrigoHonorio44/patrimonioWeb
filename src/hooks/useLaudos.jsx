@@ -47,6 +47,7 @@ export const useLaudos = () => {
       "Hospital Conde": "Hospital Conde",
       "Santa Rita": "Upa Santa Rita",
       "Inoã": "Upa Inoã",
+      "Upa Inoa": "Upa Inoã",
       "Barroco": "Samu Barroco",
       "Ponta Negra": "Samu Ponta Negra",
       "Centro": "Samu Centro"
@@ -55,7 +56,7 @@ export const useLaudos = () => {
     // Tenta pelo dicionário direto
     let chaveUnidade = deParaUnidades[unidade];
 
-    // Se não achar direto, tenta buscar por correspondência normalizada robusta
+    // Se não achar direto, tenta buscar por correspondência normalizada robusta nas chaves de MAPA_SETORES_POR_UNIDADE
     if (!chaveUnidade) {
       const unidadeNorm = normalizarParaComparacao(unidade);
       chaveUnidade = Object.keys(MAPA_SETORES_POR_UNIDADE).find(k => {
