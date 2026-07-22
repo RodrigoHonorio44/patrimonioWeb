@@ -28,11 +28,25 @@ export const useLaudos = () => {
     inicializarPainel();
   }, []);
 
+  const normalizarParaComparacao = (texto) => {
+    if (!texto) return "";
+    return texto
+      .toString()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  };
+
   const obterSetoresDaUnidade = (unidade) => {
     if (!unidade) return null;
-    const chaveEncontrada = Object.keys(MAPA_SETORES_POR_UNIDADE).find(
-      (key) => key.toLowerCase() === unidade.toLowerCase().trim()
-    );
+    const unidadeNorm = normalizarParaComparacao(unidade);
+    
+    const chaveEncontrada = Object.keys(MAPA_SETORES_POR_UNIDADE).find((key) => {
+      const keyNorm = normalizarParaComparacao(key);
+      return keyNorm === unidadeNorm || keyNorm.includes(unidadeNorm) || unidadeNorm.includes(keyNorm);
+    });
+    
     return chaveEncontrada ? MAPA_SETORES_POR_UNIDADE[chaveEncontrada] : null;
   };
 
@@ -170,16 +184,6 @@ export const useLaudos = () => {
     setModalAberto(true);
   };
 
-  const normalizarParaComparacao = (texto) => {
-    if (!texto) return "";
-    return texto
-      .toString()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim();
-  };
-
   const itensFiltrados = itens.filter((item) => {
     const statusItemLower = String(item.status || "operante").toLowerCase().trim();
     const statusBloqueados = ["inutilizados", "baixado", "descartado", "baixados", "inutilizado"];
@@ -190,12 +194,9 @@ export const useLaudos = () => {
     const nomeItemNorm = normalizarParaComparacao(item.nome || "");
     const termoNorm = normalizarParaComparacao(termo);
 
-    // Se o usuário digitou um patrimônio específico e ele bateu com o item, 
-    // liberamos o item na hora (ignorando travas de unidade caso estejam divergentes)
     const eBuscaExataPatrimonio = termo && patrimonioItemNorm.includes(termoNorm);
 
     if (!eBuscaExataPatrimonio) {
-      // Caso contrário, aplica os filtros normais de unidade e setor se estiverem preenchidos
       if (unidadeSelecionada.trim() && unidadeSelecionada !== "Todas") {
         const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
         const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
