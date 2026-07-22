@@ -41,19 +41,27 @@ export const useLaudos = () => {
   const obterSetoresDaUnidade = (unidade) => {
     if (!unidade) return null;
     
-    // Tratamento direto e forçado para qualquer variação da UPA Inoã
-    const unidadeLimpa = unidade.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    if (unidadeLimpa.includes("upa") && unidadeLimpa.includes("inoa")) {
-      return MAPA_SETORES_POR_UNIDADE["UPA Inoã"] || MAPA_SETORES_POR_UNIDADE["Upa Inoã"] || MAPA_SETORES_POR_UNIDADE["upa inoa"] || Object.values(MAPA_SETORES_POR_UNIDADE)[0];
-    }
-
     const unidadeNorm = normalizarParaComparacao(unidade);
+
+    // Procura no MAPA_SETORES_POR_UNIDADE comparando a chave normalizada com a unidade digitada/selecionada
     const chaveEncontrada = Object.keys(MAPA_SETORES_POR_UNIDADE).find((key) => {
       const keyNorm = normalizarParaComparacao(key);
       return keyNorm === unidadeNorm || keyNorm.includes(unidadeNorm) || unidadeNorm.includes(keyNorm);
     });
     
-    return chaveEncontrada ? MAPA_SETORES_POR_UNIDADE[chaveEncontrada] : null;
+    if (chaveEncontrada) {
+      return MAPA_SETORES_POR_UNIDADE[chaveEncontrada];
+    }
+
+    // Fallback de segurança caso contenha "upa" e "inoa" independentemente de como foi escrito
+    if (unidadeNorm.includes("upa") && unidadeNorm.includes("inoa")) {
+      const chaveUpa = Object.keys(MAPA_SETORES_POR_UNIDADE).find(k => 
+        normalizarParaComparacao(k).includes("upa") && normalizarParaComparacao(k).includes("inoa")
+      );
+      if (chaveUpa) return MAPA_SETORES_POR_UNIDADE[chaveUpa];
+    }
+
+    return null;
   };
 
   const carregarLaudosPendentes = async () => {
