@@ -150,7 +150,6 @@ export const useLaudos = () => {
     setHasSearched(true);
 
     try {
-      // Buscamos um volume robusto de ativos para garantir que a listagem abranja a unidade consultada sem quebrar índices do Firestore
       const q = query(collection(db, "ativos"), limit(1000));
       const querySnapshot = await getDocs(q);
 
@@ -181,13 +180,11 @@ export const useLaudos = () => {
     setModalAberto(true);
   };
 
-  // Filtragem local unificada e tolerante a maiúsculas/minúsculas para Unidade, Setor e Patrimônio/Nome
+  // Filtragem local unificada e tolerante a maiúsculas/minúsculas para Unidade, Setor, Status e Patrimônio/Nome
   const itensFiltrados = itens.filter((item) => {
-    const statusItem = String(item.status || "").toLowerCase().trim();
-    // Exibe preferencialmente ativos operantes ou ativos gerais disponíveis para laudo
-    if (statusItem !== "operante" && statusItem !== "ativo") {
-      // Se preferir exibir apenas operantes para laudo, mantemos a validação. Caso precise de outros, remova esta linha.
-    }
+    const statusItemLower = String(item.status || "operante").toLowerCase().trim();
+    const matchStatus = statusItemLower === "ativo" || statusItemLower === "operante";
+    if (!matchStatus) return false;
 
     // 1. Validar Filtro de Unidade (Insensível a maiúsculas/minúsculas)
     if (unidadeSelecionada.trim()) {
