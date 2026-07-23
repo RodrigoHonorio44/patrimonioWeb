@@ -234,31 +234,30 @@ export const useLaudos = () => {
     const nomeItemNorm = normalizarParaComparacao(item.nome || "");
     const termoNorm = normalizarParaComparacao(termo);
 
-    // Se houver termo de busca, valida se bate com patrimônio ou nome
-    if (termoNorm) {
-      const matchTermo = patrimonioItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
-      if (!matchTermo) return false;
-    }
+    const eBuscaExataPatrimonio = termoNorm && patrimonioItemNorm.includes(termoNorm);
 
-    // Filtro por Unidade
-    if (unidadeSelecionada && unidadeSelecionada.trim() !== "" && unidadeSelecionada !== "Todas") {
-      const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
-      const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
-      if (!unidadeItemNorm.includes(unidadeSelecionadaNorm) && !unidadeSelecionadaNorm.includes(unidadeItemNorm)) {
-        return false;
+    // Se o usuário digitou um patrimônio e ele bate exatamente, ignoramos as travas de unidade/setor (igual ao inventário)
+    if (!eBuscaExataPatrimonio) {
+      if (unidadeSelecionada && unidadeSelecionada.trim() !== "" && unidadeSelecionada !== "Todas") {
+        const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
+        const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
+        if (!unidadeItemNorm.includes(unidadeSelecionadaNorm) && !unidadeSelecionadaNorm.includes(unidadeItemNorm)) {
+          return false;
+        }
+      }
+
+      if (buscaSetor && buscaSetor.trim() !== "" && buscaSetor !== "Todos" && buscaSetor !== "Todos Os Setores...") {
+        const setorItemNorm = normalizarParaComparacao(item.setor || "");
+        const setorBuscaNorm = normalizarParaComparacao(buscaSetor);
+        if (!setorItemNorm.includes(setorBuscaNorm) && !setorBuscaNorm.includes(setorItemNorm)) {
+          return false;
+        }
       }
     }
 
-    // Filtro por Setor
-    if (buscaSetor && buscaSetor.trim() !== "" && buscaSetor !== "Todos" && buscaSetor !== "Todos Os Setores...") {
-      const setorItemNorm = normalizarParaComparacao(item.setor || "");
-      const setorBuscaNorm = normalizarParaComparacao(buscaSetor);
-      if (!setorItemNorm.includes(setorBuscaNorm) && !setorBuscaNorm.includes(setorItemNorm)) {
-        return false;
-      }
-    }
+    if (!termoNorm) return true;
 
-    return true;
+    return patrimonioItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
   });
 
   return {
