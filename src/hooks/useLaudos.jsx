@@ -40,6 +40,8 @@ export const useLaudos = () => {
   };
 
   const obterSetoresDaUnidade = (unidade) => {
+    if (!unidade || unidade === "Todas") return null;
+
     const deParaUnidades = {
       "Hospital Conde": "Hospital Conde",
       "Santa Rita": "Upa Santa Rita",
@@ -157,8 +159,7 @@ export const useLaudos = () => {
 
   const carregarUnidades = async () => {
     try {
-      const q = query(collection(db, "ativos"), limit(500));
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = await getDocs(collection(db, "ativos"));
       const dados = querySnapshot.docs.map((doc) => doc.data());
 
       const listaUnidades = Array.from(
@@ -217,32 +218,37 @@ export const useLaudos = () => {
   };
 
   const itensFiltrados = itens.filter((item) => {
+    // 1. Ocultar apenas itens que já foram desativados/baixados/inutilizados
     const statusItemLower = String(item.status || "operante").toLowerCase().trim();
     const statusBloqueados = ["inutilizados", "baixado", "descartado", "baixados", "inutilizado"];
     if (statusBloqueados.includes(statusItemLower)) return false;
 
+    // 2. Filtro por Unidade (compara de forma flexível)
     const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
     const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
     const matchUnidade =
       unidadeSelecionada === "Todas" ||
-      unidadeItemNorm.includes(unidadeSelecionadaNorm);
+      unidadeSelecionada.trim() === "" ||
+      unidadeItemNorm.includes(unidadeSelecionadaNorm) ||
+      unidadeSelecionadaNorm.includes(unidadeItemNorm);
 
+    // 3. Filtro por Setor
     const setorItemNorm = normalizarParaComparacao(item.setor || "");
     const setorSelecionadoNorm = normalizarParaComparacao(buscaSetor);
     const matchSetor =
       buscaSetor === "Todos" ||
       buscaSetor === "Todos Os Setores..." ||
       buscaSetor.trim() === "" ||
-      setorItemNorm === setorSelecionadoNorm ||
-      setorItemNorm.includes(setorSelecionadoNorm);
+      setorItemNorm.includes(setorSelecionadoNorm) ||
+      setorSelecionadoNorm.includes(setorItemNorm);
 
+    // 4. Filtro por Patrimônio / Nome
     let matchBusca = true;
     if (buscaPatrimonio.trim() !== "") {
       const termoNorm = normalizarParaComparacao(buscaPatrimonio);
       const patItemNorm = normalizarParaComparacao(item.patrimonio || "");
       const nomeItemNorm = normalizarParaComparacao(item.nome || "");
-      matchBusca =
-        patItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
+      matchBusca = patItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
     }
 
     return matchUnidade && matchSetor && matchBusca;
