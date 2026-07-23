@@ -20,7 +20,6 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
   const [justificativaSubstituicao, setJustificativaSubstituicao] = useState("");
   const [processando, setProcessando] = useState(false);
 
-  // Estados para o Histórico de Manutenções
   const [historicoManutencoes, setHistoricoManutencoes] = useState([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
 
@@ -238,7 +237,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
         </div>
       )}
 
-      {/* ETAPA 2: PREVIEW / IMPRESSÃO CORRIGIDO PARA TELAS DE NOTEBOOK (COM SCROLL INTERNO) */}
+      {/* ETAPA 2: PREVIEW / IMPRESSÃO */}
       {etapa === "preview" && (
         <div id="secao-laudo-oficial" className="bg-white w-full max-w-[850px] max-h-[90vh] shadow-2xl p-6 sm:p-10 flex flex-col justify-between font-serif text-slate-900 mx-auto rounded-[24px] animate-in fade-in duration-200 overflow-y-auto">
           
@@ -370,22 +369,22 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
 
       <style>{`
         @media print {
-          .print-container {
-            position: fixed !important;
-            inset: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
+          /* Reseta o fundo da página inteira para branco limpo */
+          body, html, .print-container {
+            background-color: #ffffff !important;
             background: #ffffff !important;
-            backdrop-filter: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            z-index: 9999999 !important;
-            display: block !important;
+            position: static !important;
             overflow: visible !important;
+            height: auto !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
 
+          /* Oculta absolutamente tudo fora do modal/laudo */
+          body > *:not(.print-container),
+          .print-container > *:not(#secao-laudo-oficial),
           .barra-botoes-preview,
-          .barra-botoes-preview *,
           button,
           nav,
           header,
@@ -393,11 +392,13 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
             display: none !important;
             visibility: hidden !important;
             height: 0 !important;
-            padding: 0 !important;
+            width: 0 !important;
             margin: 0 !important;
+            padding: 0 !important;
             opacity: 0 !important;
           }
 
+          /* Destrava e expande o laudo para ocupar exatamente a folha de papel */
           #secao-laudo-oficial {
             position: absolute !important;
             top: 0 !important;
@@ -405,6 +406,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
             width: 100% !important;
             max-width: 100% !important;
             max-height: none !important;
+            height: auto !important;
             box-shadow: none !important;
             border: none !important;
             padding: 0 !important;
@@ -426,7 +428,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
 
           @page {
             size: portrait;
-            margin: 15mm 15mm 15mm 15mm;
+            margin: 10mm 15mm 10mm 15mm;
           }
         }
       `}</style>
