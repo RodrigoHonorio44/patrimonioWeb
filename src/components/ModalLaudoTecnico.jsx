@@ -71,6 +71,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
 
     setProcessando(true);
     try {
+      // MAPEIA O HISTÓRICO ATUAL PARA SALVAR TAMBÉM DENTRO DO LAUDO DO FIREBASE (HISTÓRICO CONGELADO)
       const historicoTratado = historicoManutencoes.map(os => ({
         id: os.id,
         numeroOs: os.numeroOs || os.id.substring(0, 6),
@@ -79,6 +80,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
         solucao: (os.solucaoTecnica || "").toLowerCase().trim()
       }));
 
+      // 1. GERAR DOCUMENTO NA COLEÇÃO INDEPENDENTE "LAUDOS"
       const laudosRef = collection(db, "laudos");
       await addDoc(laudosRef, {
         equipamentoId: equipamento.id,
@@ -92,9 +94,10 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
         dataEmissao: serverTimestamp(),
         ultimaMovimentacao: serverTimestamp(),
         totalManutencoesAnteriores: historicoManutencoes.length,
-        historicoAnexo: historicoTratado
+        historicoAnexo: historicoTratado // Salva a cópia dos chamados que motivaram a condenação
       });
 
+      // 2. ALTERA O STATUS DO ATIVO PARA "LAUDO PENDENTE"
       const ativoRef = doc(db, "ativos", equipamento.id);
       await updateDoc(ativoRef, {
         status: "laudo pendente",
@@ -118,13 +121,14 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
   if (!isOpen || !equipamento) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto print-container">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto print-container">
       
-      {/* ETAPA 1: FORMULÁRIO DE PARECER TÉCNICO */}
+      {/* ETAPA 1: FORMULÁRIO DE PARECER TÉCNICO + CARD DE HISTÓRICO RECORRENTE */}
       {etapa === "formulario" && (
-        <div className="bg-white rounded-[24px] sm:rounded-[32px] w-full max-w-5xl shadow-2xl border border-slate-100 flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh]">
+        <div className="bg-white rounded-[32px] w-full max-w-5xl shadow-2xl border border-slate-100 flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh]">
           
-          <div className="w-full md:w-5/12 bg-slate-50 p-4 sm:p-6 border-b md:border-b-0 md:border-r border-slate-200/60 flex flex-col overflow-y-auto max-h-[40vh] md:max-h-none">
+          {/* PAINEL ESQUERDO: HISTÓRICO DE MANUTENÇÕES */}
+          <div className="w-full md:w-5/12 bg-slate-50 p-6 border-b md:border-b-0 md:border-r border-slate-200/60 flex flex-col overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h4 className="font-black text-slate-700 uppercase text-[11px] tracking-wider flex items-center gap-1.5">
                 <Clock size={14} className="text-red-500" /> Histórico de Chamados Ocorridos
@@ -144,7 +148,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
                 <p className="text-[11px] font-bold uppercase tracking-wide">Nenhuma manutenção anterior localizada para este patrimônio.</p>
               </div>
             ) : (
-              <div className="space-y-3 overflow-y-auto pr-1 flex-grow">
+              <div className="space-y-3 overflow-y-auto pr-1 flex-grow max-h-[60vh] md:max-h-none">
                 {historicoManutencoes.map((os) => (
                   <div key={os.id} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-red-500 text-xs">
                     <div className="flex justify-between font-black text-slate-400 text-[9px] uppercase mb-1">
@@ -165,8 +169,9 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
             )}
           </div>
 
-          <div className="w-full md:w-7/12 p-4 sm:p-6 flex flex-col justify-between overflow-y-auto max-h-[50vh] md:max-h-[90vh]">
-            <div className="space-y-4">
+          {/* PAINEL DIREITO: FORMULÁRIO */}
+          <div className="w-full md:w-7/12 p-6 flex flex-col justify-between overflow-y-auto">
+            <div className="space-y-5">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="font-black text-slate-800 uppercase text-xs tracking-wider flex items-center gap-2">
                   <Wrench size={16} className="text-blue-600" /> Emitir Laudo de Inviabilidade Técnica
@@ -176,7 +181,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
                 </button>
               </div>
 
-              <div className="bg-slate-50 rounded-2xl p-3 sm:p-4 border border-slate-100 space-y-2 text-xs font-sans">
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 text-xs font-sans">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="capitalize"><strong>Equipamento:</strong> <span className="text-slate-700">{equipamento.nome}</span></div>
                   <div><strong>Nº Patrimônio:</strong> <span className="text-blue-600 font-mono uppercase">#{equipamento.patrimonio || "S/P"}</span></div>
@@ -187,13 +192,13 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
                     Diagnóstico Técnico / Situação do Ativo
                   </label>
                   <textarea
-                    rows={2}
+                    rows={3}
                     placeholder="Descreva detalhadamente os defeitos encontrados..."
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none uppercase"
                     value={diagnosticoTecnico}
@@ -206,7 +211,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
                     Justificativa para Substituição Imediata
                   </label>
                   <textarea
-                    rows={2}
+                    rows={3}
                     placeholder="Justifique o impacto da falta deste equipamento na unidade..."
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none uppercase"
                     value={justificativaSubstituicao}
@@ -216,7 +221,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
               </div>
             </div>
 
-            <div className="flex gap-2 border-t border-slate-100 pt-4 mt-4">
+            <div className="flex gap-2 border-t border-slate-100 pt-4 mt-6">
               <button
                 type="button"
                 onClick={fecharELimpar}
@@ -238,33 +243,33 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
         </div>
       )}
 
-      {/* ETAPA 2: PREVIEW / IMPRESSÃO CORRIGIDO PARA TELAS DE NOTEBOOK (COM SCROLL INTERNO) */}
+      {/* ETAPA 2: PREVIEW / IMPRESSÃO (AJUSTADO PARA PAGINAÇÃO RIGOROSA DE 1 PÁGINA) */}
       {etapa === "preview" && (
-        <div id="secao-laudo-oficial" className="bg-white w-full max-w-[850px] max-h-[90vh] shadow-2xl p-6 sm:p-10 flex flex-col justify-between font-serif text-slate-900 mx-auto rounded-[24px] animate-in fade-in duration-200 overflow-y-auto">
+        <div id="secao-laudo-oficial" className="bg-white w-full max-w-[850px] shadow-2xl p-8 flex flex-col justify-between font-serif text-slate-900 mx-auto rounded-[24px] animate-in fade-in duration-200 overflow-y-auto">
           
-          <div className="flex justify-between items-center bg-slate-100 border border-slate-200 p-3 sm:p-4 rounded-2xl mb-4 font-sans barra-botoes-preview print:hidden shrink-0">
+          <div className="flex justify-between items-center bg-slate-100 border border-slate-200 p-4 rounded-2xl mb-4 font-sans barra-botoes-preview print:hidden">
             <div className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-tight">
               <FileText size={16} /> Conferência do Laudo de Inviabilidade
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setEtapa("formulario")}
-                className="bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-slate-50 uppercase tracking-wider cursor-pointer"
+                className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-50 uppercase tracking-wider cursor-pointer"
               >
                 Editar
               </button>
               <button
                 onClick={() => window.print()}
-                className="bg-slate-800 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-slate-900 flex items-center gap-1.5 shadow-md uppercase tracking-wider cursor-pointer"
+                className="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-900 flex items-center gap-1.5 shadow-md uppercase tracking-wider cursor-pointer"
               >
-                <Printer size={14} /> Imprimir
+                <Printer size={14} /> Imprimir Laudo
               </button>
               <button
                 onClick={emitirLaudoDefinitivo}
                 disabled={processando}
-                className="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-700 flex items-center gap-1.5 shadow-md uppercase tracking-wider cursor-pointer"
+                className="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 flex items-center gap-1.5 shadow-md uppercase tracking-wider cursor-pointer"
               >
-                <CheckCircle size={14} /> {processando ? "Salvando..." : "Homologar"}
+                <CheckCircle size={14} /> {processando ? "Salvando..." : "Homologar Laudo"}
               </button>
             </div>
           </div>
@@ -272,60 +277,61 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
           <div className="w-full flex flex-col justify-between flex-1 corpo-documento-print">
             <div>
               <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-200 w-full">
-                <img src="/Imagem1.png" alt="Logo 1" className="h-10 sm:h-12 w-auto max-w-[22%] object-contain" />
-                <img src="/Imagem2.png" alt="Logo 2" className="h-10 sm:h-12 w-auto max-w-[22%] object-contain" />
-                <img src="/Imagem3.png" alt="Logo 3" className="h-10 sm:h-12 w-auto max-w-[22%] object-contain" />
-                <img src="/Imagem4.png" alt="Logo 4" className="h-10 sm:h-12 w-auto max-w-[22%] object-contain" />
+                <img src="/Imagem1.png" alt="Logo 1" className="h-10 w-auto max-w-[22%] object-contain" />
+                <img src="/Imagem2.png" alt="Logo 2" className="h-10 w-auto max-w-[22%] object-contain" />
+                <img src="/Imagem3.png" alt="Logo 3" className="h-10 w-auto max-w-[22%] object-contain" />
+                <img src="/Imagem4.png" alt="Logo 4" className="h-10 w-auto max-w-[22%] object-contain" />
               </div>
 
-              <div className="text-center space-y-1 border-b-2 border-slate-800 pb-3 mb-4 font-sans">
-                <h2 className="text-base sm:text-lg font-black uppercase tracking-wide">Laudo Técnico de Inviabilidade e Substituição de Bem</h2>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Setor de Patrimônio</p>
+              <div className="text-center space-y-0.5 border-b-2 border-slate-800 pb-3 mb-4 font-sans">
+                <h2 className="text-base font-black uppercase tracking-wide">Laudo Técnico de Inviabilidade e Substituição de Bem</h2>
+                <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Setor de Patrimônio</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-y-1.5 text-xs mb-4 font-sans border border-slate-200 p-3 rounded-xl bg-slate-50/50">
+              <div className="grid grid-cols-2 gap-y-1.5 text-xs mb-3 font-sans border border-slate-200 p-2.5 rounded-xl bg-slate-50/50">
                 <div className="capitalize"><strong>Equipamento / Ativo:</strong> {equipamento.nome}</div>
                 <div><strong>Nº de Patrimônio (TAG):</strong> <span className="font-mono font-bold uppercase">#{equipamento.patrimonio || "S/P"}</span></div>
                 <div className="capitalize"><strong>Unidade de Origem:</strong> {equipamento.unidade}</div>
                 <div className="capitalize"><strong>Setor de Alocação:</strong> {equipamento.setor}</div>
                 <div><strong>Data do Diagnóstico:</strong> {new Date().toLocaleDateString("pt-BR")}</div>
-                <div className="text-red-600 font-bold flex items-center gap-1 uppercase text-[11px]">
-                  <AlertOctagon size={13} /> Classificação: Inserviceável / Condenado
+                <div className="text-red-600 font-bold flex items-center gap-1 uppercase text-[10px]">
+                  <AlertOctagon size={12} /> Classificação: Inserviceável / Condenado
                 </div>
               </div>
 
               <div className="space-y-3 text-xs leading-relaxed text-justify font-sans">
                 <div>
-                  <h4 className="font-bold text-[10px] uppercase text-slate-500 tracking-wider mb-1">1. Diagnóstico e Parecer do Exame Técnico</h4>
-                  <p className="bg-slate-50/40 p-2.5 rounded-xl border border-slate-100 italic whitespace-pre-wrap text-slate-800 uppercase">
+                  <h4 className="font-bold text-[10px] uppercase text-slate-500 tracking-wider mb-0.5">1. Diagnóstico e Parecer do Exame Técnico</h4>
+                  <p className="bg-slate-50/40 p-2.5 rounded-xl border border-slate-100 italic whitespace-pre-wrap text-slate-800 uppercase text-[11px]">
                     {diagnosticoTecnico}
                   </p>
                 </div>
 
                 <div>
-                  <h4 className="font-bold text-[10px] uppercase text-slate-500 tracking-wider mb-1">2. Justificativa para Nexo de Substituição</h4>
-                  <p className="bg-slate-50/40 p-2.5 rounded-xl border border-slate-100 italic whitespace-pre-wrap text-slate-800 uppercase">
+                  <h4 className="font-bold text-[10px] uppercase text-slate-500 tracking-wider mb-0.5">2. Justificativa para Nexo de Substituição</h4>
+                  <p className="bg-slate-50/40 p-2.5 rounded-xl border border-slate-100 italic whitespace-pre-wrap text-slate-800 uppercase text-[11px]">
                     {justificativaSubstituicao}
                   </p>
                 </div>
 
+                {/* SEÇÃO INJETADA DO HISTÓRICO NO DOCUMENTO FINAL */}
                 <div>
                   <h4 className="font-bold text-[10px] uppercase text-slate-500 tracking-wider mb-1 flex items-center gap-1">
                     3. Histórico de Ocorrências e Reincidências Vinculadas (Folha Corrida do Ativo)
                   </h4>
                   {historicoManutencoes.length === 0 ? (
-                    <p className="text-[11px] text-slate-500 italic p-2 border border-slate-100 rounded-xl bg-slate-50/30 uppercase">
+                    <p className="text-[10px] text-slate-500 italic p-2 border border-slate-100 rounded-xl bg-slate-50/30 uppercase">
                       Sem registros anteriores de intervenções críticas nesta TAG até a presente data.
                     </p>
                   ) : (
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm max-h-36 overflow-y-auto">
-                      <table className="w-full text-[10px] border-collapse text-left">
-                        <thead>
-                          <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[9px] sticky top-0">
-                            <th className="p-2 w-[15%]">Cód OS</th>
-                            <th className="p-2 w-[15%]">Abertura</th>
-                            <th className="p-2 w-[35%]">Defeito Constatado</th>
-                            <th className="p-2 w-[35%]">Ação/Solução Aplicada</th>
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm max-h-[140px] overflow-y-auto">
+                      <table className="w-full text-[9px] border-collapse text-left">
+                        <thead className="sticky top-0 bg-slate-100">
+                          <tr className="border-b border-slate-200 text-slate-700 font-black uppercase text-[9px]">
+                            <th className="p-1.5 w-[15%]">Cód OS</th>
+                            <th className="p-1.5 w-[15%]">Abertura</th>
+                            <th className="p-1.5 w-[35%]">Defeito Constatado</th>
+                            <th className="p-1.5 w-[35%]">Ação/Solução Aplicada</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-700 uppercase">
@@ -343,23 +349,23 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
                   )}
                 </div>
 
-                <p className="pt-1 font-serif text-xs">
+                <p className="pt-1 font-serif text-[11px]">
                   Conclui-se que o referido patrimônio apresenta desgaste oneroso ou obsolescência técnica que inviabiliza economicamente qualquer intervenção de manutenção corretiva conforme histórico analítico anexo. Fica recomendada pelo **Setor de Patrimônio** a baixa do registro patrimonial vigente da unidade.
                 </p>
               </div>
             </div>
 
-            <div className="mt-8 pt-4 font-sans shrink-0">
+            <div className="mt-6 pt-4 font-sans">
               <div className="grid grid-cols-2 gap-12 text-center text-xs">
                 <div className="space-y-1">
                   <div className="border-t border-slate-400 w-full mx-auto pt-2"></div>
-                  <p className="font-bold text-slate-700">Técnico Responsável pela Avaliação</p>
-                  <p className="text-[10px] text-slate-400 uppercase">Visto Técnico</p>
+                  <p className="font-bold text-slate-700 text-[11px]">Técnico Responsável pela Avaliação</p>
+                  <p className="text-[9px] text-slate-400 uppercase">Visto Técnico</p>
                 </div>
                 <div className="space-y-1">
                   <div className="border-t border-slate-400 w-full mx-auto pt-2"></div>
-                  <p className="font-bold text-slate-700">Direção / Supervisão Hospitalar</p>
-                  <p className="text-[10px] text-slate-400 uppercase">Assinatura e Carimbo</p>
+                  <p className="font-bold text-slate-700 text-[11px]">Direção / Supervisão Hospitalar</p>
+                  <p className="text-[9px] text-slate-400 uppercase">Assinatura e Carimbo</p>
                 </div>
               </div>
             </div>
@@ -370,18 +376,30 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
 
       <style>{`
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 8mm 10mm 8mm 10mm;
+          }
+
+          body, html {
+            background: #ffffff !important;
+            color: #000000 !important;
+            height: 100% !important;
+            overflow: hidden !important;
+          }
+
           .print-container {
             position: fixed !important;
             inset: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
+            width: 100vw !important;
+            height: 100vh !important;
             background: #ffffff !important;
             backdrop-filter: none !important;
             padding: 0 !important;
             margin: 0 !important;
             z-index: 9999999 !important;
             display: block !important;
-            overflow: visible !important;
+            overflow: hidden !important;
           }
 
           .barra-botoes-preview,
@@ -404,7 +422,8 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
             left: 0 !important;
             width: 100% !important;
             max-width: 100% !important;
-            max-height: none !important;
+            height: 100% !important;
+            max-height: 100vh !important;
             box-shadow: none !important;
             border: none !important;
             padding: 0 !important;
@@ -413,7 +432,8 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-            overflow: visible !important;
+            page-break-inside: avoid !important;
+            page-break-after: avoid !important;
           }
 
           .corpo-documento-print,
@@ -423,11 +443,6 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
 
           #secao-laudo-oficial .flex { display: flex !important; }
           #secao-laudo-oficial .grid { display: grid !important; }
-
-          @page {
-            size: portrait;
-            margin: 15mm 15mm 15mm 15mm;
-          }
         }
       `}</style>
     </div>
