@@ -28,6 +28,11 @@ export const useLaudos = () => {
     inicializarPainel();
   }, []);
 
+  // Reseta o setor selecionado sempre que alterar a unidade
+  useEffect(() => {
+    setBuscaSetor("Todos");
+  }, [unidadeSelecionada]);
+
   const normalizarParaComparacao = (texto) => {
     if (!texto) return "";
     return texto
@@ -60,22 +65,34 @@ export const useLaudos = () => {
       "Samu Centro": "Samu Centro"
     };
 
-    const chaveUnidade = deParaUnidades[unidade] || unidade;
-    let listaSetores = [];
-
-    if (chaveUnidade && MAPA_SETORES_POR_UNIDADE[chaveUnidade]) {
-      listaSetores = [...MAPA_SETORES_POR_UNIDADE[chaveUnidade]];
-    } else {
-      const setoresUnicos = new Set();
-      itens.forEach((item) => {
-        if (item.setor && item.setor.trim() !== "") {
-          setoresUnicos.add(item.setor.trim());
-        }
-      });
-      listaSetores = Array.from(setoresUnicos);
+    // Tenta encontrar a chave mapeada diretamente ou por comparação flexível
+    const chaveMapeada = deParaUnidades[unidade] || unidade;
+    
+    // 1. Tenta pegar do mapa de constantes
+    if (MAPA_SETORES_POR_UNIDADE[chaveMapeada]) {
+      return [...MAPA_SETORES_POR_UNIDADE[chaveMapeada]].sort();
     }
 
-    listaSetores.sort();
+    const buscaChaveFlexivel = Object.keys(MAPA_SETORES_POR_UNIDADE).find(
+      (key) => normalizarParaComparacao(key) === normalizarParaComparacao(unidade)
+    );
+
+    if (buscaChaveFlexivel && MAPA_SETORES_POR_UNIDADE[buscaChaveFlexivel]) {
+      return [...MAPA_SETORES_POR_UNIDADE[buscaChaveFlexivel]].sort();
+    }
+
+    // 2. Se não encontrou nas constantes, extrai dinamicamente dos itens filtrados pela unidade
+    const unidadeNorm = normalizarParaComparacao(unidade);
+    const setoresUnicos = new Set();
+    
+    itens.forEach((item) => {
+      const itemUnidadeNorm = normalizarParaComparacao(item.unidade || "");
+      if (itemUnidadeNorm.includes(unidadeNorm) && item.setor && item.setor.trim() !== "") {
+        setoresUnicos.add(item.setor.trim());
+      }
+    });
+
+    const listaSetores = Array.from(setoresUnicos).sort();
     return listaSetores.length > 0 ? listaSetores : null;
   };
 
@@ -159,7 +176,8 @@ export const useLaudos = () => {
 
   const carregarUnidades = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "ativos"));
+      const q = query(collection(db, "ativos"), limit(500));
+      const querySnapshot = await getDocs(q);
       const dados = querySnapshot.docs.map((doc) => doc.data());
 
       const listaUnidades = Array.from(
@@ -218,12 +236,10 @@ export const useLaudos = () => {
   };
 
   const itensFiltrados = itens.filter((item) => {
-    // 1. Ocultar apenas itens que já foram desativados/baixados/inutilizados
     const statusItemLower = String(item.status || "operante").toLowerCase().trim();
     const statusBloqueados = ["inutilizados", "baixado", "descartado", "baixados", "inutilizado"];
     if (statusBloqueados.includes(statusItemLower)) return false;
 
-    // 2. Filtro por Unidade (compara de forma flexível)
     const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
     const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
     const matchUnidade =
@@ -232,7 +248,6 @@ export const useLaudos = () => {
       unidadeItemNorm.includes(unidadeSelecionadaNorm) ||
       unidadeSelecionadaNorm.includes(unidadeItemNorm);
 
-    // 3. Filtro por Setor
     const setorItemNorm = normalizarParaComparacao(item.setor || "");
     const setorSelecionadoNorm = normalizarParaComparacao(buscaSetor);
     const matchSetor =
@@ -242,7 +257,6 @@ export const useLaudos = () => {
       setorItemNorm.includes(setorSelecionadoNorm) ||
       setorSelecionadoNorm.includes(setorItemNorm);
 
-    // 4. Filtro por Patrimônio / Nome
     let matchBusca = true;
     if (buscaPatrimonio.trim() !== "") {
       const termoNorm = normalizarParaComparacao(buscaPatrimonio);
