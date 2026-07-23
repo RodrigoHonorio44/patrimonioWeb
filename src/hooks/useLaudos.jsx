@@ -42,10 +42,8 @@ export const useLaudos = () => {
   const obterSetoresDaUnidade = (unidade) => {
     if (!unidade || unidade === "Todas") return null;
 
-    // 1. Verificação direta exata e normalizada no MAPA_SETORES_POR_UNIDADE
     const unidadeLimpa = unidade.toString().trim();
     
-    // Varre as chaves do MAPA_SETORES_POR_UNIDADE com correspondência exata ou normalizada
     const chaveEncontrada = Object.keys(MAPA_SETORES_POR_UNIDADE).find((k) => {
       const kNorm = normalizarParaComparacao(k);
       const uNorm = normalizarParaComparacao(unidadeLimpa);
@@ -56,7 +54,6 @@ export const useLaudos = () => {
       return MAPA_SETORES_POR_UNIDADE[chaveEncontrada];
     }
 
-    // 2. Dicionário de equivalência avançada para variações comuns
     const deParaUnidades = {
       "Hospital Conde": "Hospital Conde",
       "Santa Rita": "Upa Santa Rita",
@@ -80,7 +77,6 @@ export const useLaudos = () => {
       return MAPA_SETORES_POR_UNIDADE[chaveMapeada];
     }
 
-    // 3. Fallback extraindo dos itens carregados no banco caso não ache no mapa estático
     const setoresUnicos = new Set();
     itens.forEach((item) => {
       const itemUnidadeNorm = normalizarParaComparacao(item.unidade || "");
@@ -238,25 +234,31 @@ export const useLaudos = () => {
     const nomeItemNorm = normalizarParaComparacao(item.nome || "");
     const termoNorm = normalizarParaComparacao(termo);
 
-    const eBuscaExataPatrimonio = termo && patrimonioItemNorm.includes(termoNorm);
+    // Se houver termo de busca, valida se bate com patrimônio ou nome
+    if (termoNorm) {
+      const matchTermo = patrimonioItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
+      if (!matchTermo) return false;
+    }
 
-    if (!eBuscaExataPatrimonio) {
-      if (unidadeSelecionada.trim() && unidadeSelecionada !== "Todas") {
-        const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
-        const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
-        if (!unidadeItemNorm.includes(unidadeSelecionadaNorm)) return false;
-      }
-
-      if (buscaSetor.trim() && buscaSetor !== "Todos") {
-        const setorItemNorm = normalizarParaComparacao(item.setor || "");
-        const setorBuscaNorm = normalizarParaComparacao(buscaSetor);
-        if (!setorItemNorm.includes(setorBuscaNorm)) return false;
+    // Filtro por Unidade
+    if (unidadeSelecionada && unidadeSelecionada.trim() !== "" && unidadeSelecionada !== "Todas") {
+      const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
+      const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
+      if (!unidadeItemNorm.includes(unidadeSelecionadaNorm) && !unidadeSelecionadaNorm.includes(unidadeItemNorm)) {
+        return false;
       }
     }
 
-    if (!termo) return true; 
+    // Filtro por Setor
+    if (buscaSetor && buscaSetor.trim() !== "" && buscaSetor !== "Todos" && buscaSetor !== "Todos Os Setores...") {
+      const setorItemNorm = normalizarParaComparacao(item.setor || "");
+      const setorBuscaNorm = normalizarParaComparacao(buscaSetor);
+      if (!setorItemNorm.includes(setorBuscaNorm) && !setorBuscaNorm.includes(setorItemNorm)) {
+        return false;
+      }
+    }
 
-    return patrimonioItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
+    return true;
   });
 
   return {
