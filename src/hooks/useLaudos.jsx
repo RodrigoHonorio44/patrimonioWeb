@@ -28,11 +28,6 @@ export const useLaudos = () => {
     inicializarPainel();
   }, []);
 
-  // Reseta o setor selecionado sempre que alterar a unidade
-  useEffect(() => {
-    setBuscaSetor("Todos");
-  }, [unidadeSelecionada]);
-
   const normalizarParaComparacao = (texto) => {
     if (!texto) return "";
     return texto
@@ -45,8 +40,6 @@ export const useLaudos = () => {
   };
 
   const obterSetoresDaUnidade = (unidade) => {
-    if (!unidade || unidade === "Todas") return null;
-
     const deParaUnidades = {
       "Hospital Conde": "Hospital Conde",
       "Santa Rita": "Upa Santa Rita",
@@ -65,34 +58,22 @@ export const useLaudos = () => {
       "Samu Centro": "Samu Centro"
     };
 
-    // Tenta encontrar a chave mapeada diretamente ou por comparação flexível
-    const chaveMapeada = deParaUnidades[unidade] || unidade;
-    
-    // 1. Tenta pegar do mapa de constantes
-    if (MAPA_SETORES_POR_UNIDADE[chaveMapeada]) {
-      return [...MAPA_SETORES_POR_UNIDADE[chaveMapeada]].sort();
+    const chaveUnidade = deParaUnidades[unidade] || unidade;
+    let listaSetores = [];
+
+    if (chaveUnidade && MAPA_SETORES_POR_UNIDADE[chaveUnidade]) {
+      listaSetores = [...MAPA_SETORES_POR_UNIDADE[chaveUnidade]];
+    } else {
+      const setoresUnicos = new Set();
+      itens.forEach((item) => {
+        if (item.setor && item.setor.trim() !== "") {
+          setoresUnicos.add(item.setor.trim());
+        }
+      });
+      listaSetores = Array.from(setoresUnicos);
     }
 
-    const buscaChaveFlexivel = Object.keys(MAPA_SETORES_POR_UNIDADE).find(
-      (key) => normalizarParaComparacao(key) === normalizarParaComparacao(unidade)
-    );
-
-    if (buscaChaveFlexivel && MAPA_SETORES_POR_UNIDADE[buscaChaveFlexivel]) {
-      return [...MAPA_SETORES_POR_UNIDADE[buscaChaveFlexivel]].sort();
-    }
-
-    // 2. Se não encontrou nas constantes, extrai dinamicamente dos itens filtrados pela unidade
-    const unidadeNorm = normalizarParaComparacao(unidade);
-    const setoresUnicos = new Set();
-    
-    itens.forEach((item) => {
-      const itemUnidadeNorm = normalizarParaComparacao(item.unidade || "");
-      if (itemUnidadeNorm.includes(unidadeNorm) && item.setor && item.setor.trim() !== "") {
-        setoresUnicos.add(item.setor.trim());
-      }
-    });
-
-    const listaSetores = Array.from(setoresUnicos).sort();
+    listaSetores.sort();
     return listaSetores.length > 0 ? listaSetores : null;
   };
 
@@ -244,9 +225,7 @@ export const useLaudos = () => {
     const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
     const matchUnidade =
       unidadeSelecionada === "Todas" ||
-      unidadeSelecionada.trim() === "" ||
-      unidadeItemNorm.includes(unidadeSelecionadaNorm) ||
-      unidadeSelecionadaNorm.includes(unidadeItemNorm);
+      unidadeItemNorm.includes(unidadeSelecionadaNorm);
 
     const setorItemNorm = normalizarParaComparacao(item.setor || "");
     const setorSelecionadoNorm = normalizarParaComparacao(buscaSetor);
@@ -254,15 +233,16 @@ export const useLaudos = () => {
       buscaSetor === "Todos" ||
       buscaSetor === "Todos Os Setores..." ||
       buscaSetor.trim() === "" ||
-      setorItemNorm.includes(setorSelecionadoNorm) ||
-      setorSelecionadoNorm.includes(setorItemNorm);
+      setorItemNorm === setorSelecionadoNorm ||
+      setorItemNorm.includes(setorSelecionadoNorm);
 
     let matchBusca = true;
     if (buscaPatrimonio.trim() !== "") {
       const termoNorm = normalizarParaComparacao(buscaPatrimonio);
       const patItemNorm = normalizarParaComparacao(item.patrimonio || "");
       const nomeItemNorm = normalizarParaComparacao(item.nome || "");
-      matchBusca = patItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
+      matchBusca =
+        patItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
     }
 
     return matchUnidade && matchSetor && matchBusca;
