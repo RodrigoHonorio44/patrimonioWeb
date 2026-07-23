@@ -10,8 +10,8 @@ export const useLaudos = () => {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [buscaPatrimonio, setBuscaPatrimonio] = useState("");
-  const [unidadeSelecionada, setUnidadeSelecionada] = useState("");
-  const [buscaSetor, setBuscaSetor] = useState("");
+  const [unidadeSelecionada, setUnidadeSelecionada] = useState("Todas");
+  const [buscaSetor, setBuscaSetor] = useState("Todos");
 
   const [laudosPendentes, setLaudosPendentes] = useState([]);
   const [loadingLaudos, setLoadingLaudos] = useState(false);
@@ -40,20 +40,6 @@ export const useLaudos = () => {
   };
 
   const obterSetoresDaUnidade = (unidade) => {
-    if (!unidade || unidade === "Todas") return null;
-
-    const unidadeLimpa = unidade.toString().trim();
-    
-    const chaveEncontrada = Object.keys(MAPA_SETORES_POR_UNIDADE).find((k) => {
-      const kNorm = normalizarParaComparacao(k);
-      const uNorm = normalizarParaComparacao(unidadeLimpa);
-      return k.toLowerCase() === unidadeLimpa.toLowerCase() || kNorm === uNorm || kNorm.includes(uNorm) || uNorm.includes(kNorm);
-    });
-
-    if (chaveEncontrada && MAPA_SETORES_POR_UNIDADE[chaveEncontrada]) {
-      return MAPA_SETORES_POR_UNIDADE[chaveEncontrada];
-    }
-
     const deParaUnidades = {
       "Hospital Conde": "Hospital Conde",
       "Santa Rita": "Upa Santa Rita",
@@ -72,22 +58,23 @@ export const useLaudos = () => {
       "Samu Centro": "Samu Centro"
     };
 
-    let chaveMapeada = deParaUnidades[unidadeLimpa] || deParaUnidades[unidade];
-    if (chaveMapeada && MAPA_SETORES_POR_UNIDADE[chaveMapeada]) {
-      return MAPA_SETORES_POR_UNIDADE[chaveMapeada];
+    const chaveUnidade = deParaUnidades[unidade] || unidade;
+    let listaSetores = [];
+
+    if (chaveUnidade && MAPA_SETORES_POR_UNIDADE[chaveUnidade]) {
+      listaSetores = [...MAPA_SETORES_POR_UNIDADE[chaveUnidade]];
+    } else {
+      const setoresUnicos = new Set();
+      itens.forEach((item) => {
+        if (item.setor && item.setor.trim() !== "") {
+          setoresUnicos.add(item.setor.trim());
+        }
+      });
+      listaSetores = Array.from(setoresUnicos);
     }
 
-    const setoresUnicos = new Set();
-    itens.forEach((item) => {
-      const itemUnidadeNorm = normalizarParaComparacao(item.unidade || "");
-      const unidadeSelecionadaNorm = normalizarParaComparacao(unidade);
-      if (itemUnidadeNorm.includes(unidadeSelecionadaNorm) && item.setor && item.setor.trim() !== "") {
-        setoresUnicos.add(item.setor.trim());
-      }
-    });
-
-    const listaFallback = Array.from(setoresUnicos).sort();
-    return listaFallback.length > 0 ? listaFallback : null;
+    listaSetores.sort();
+    return listaSetores.length > 0 ? listaSetores : null;
   };
 
   const carregarLaudosPendentes = async () => {
@@ -190,21 +177,26 @@ export const useLaudos = () => {
 
   const carregarDados = async (e) => {
     if (e) e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setHasSearched(true);
 
     try {
-      const q = query(collection(db, "ativos"), limit(1000));
-      const querySnapshot = await getDocs(q);
-
-      const dados = querySnapshot.docs.map((doc) => ({
+      const querySnapshot = await getDocs(collection(db, "ativos"));
+      const todosOsDados = querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
       
-      setItens(dados);
+      setItens(todosOsDados);
+
+      if (todosOsDados.length > 0) {
+        toast.success(`${todosOsDados.length} itens encontrados.`);
+      } else {
+        toast.info("Nenhum item encontrado no banco.");
+      }
     } catch (error) {
-      console.error(error);
+      console.error("Erro ao carregar:", error);
       toast.error("Erro ao consultar equipamentos.");
     } finally {
       setLoading(false);
@@ -213,8 +205,8 @@ export const useLaudos = () => {
 
   const handleLimparBusca = () => {
     setBuscaPatrimonio("");
-    setBuscaSetor("");
-    setUnidadeSelecionada("");
+    setBuscaSetor("Todos");
+    setUnidadeSelecionada("Todas");
     setItens([]);
     setHasSearched(false);
   };
@@ -229,35 +221,31 @@ export const useLaudos = () => {
     const statusBloqueados = ["inutilizados", "baixado", "descartado", "baixados", "inutilizado"];
     if (statusBloqueados.includes(statusItemLower)) return false;
 
-    const termo = buscaPatrimonio.trim();
-    const patrimonioItemNorm = normalizarParaComparacao(item.patrimonio || "");
-    const nomeItemNorm = normalizarParaComparacao(item.nome || "");
-    const termoNorm = normalizarParaComparacao(termo);
+    const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
+    const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
+    const matchUnidade =
+      unidadeSelecionada === "Todas" ||
+      unidadeItemNorm.includes(unidadeSelecionadaNorm);
 
-    const eBuscaExataPatrimonio = termoNorm && patrimonioItemNorm.includes(termoNorm);
+    const setorItemNorm = normalizarParaComparacao(item.setor || "");
+    const setorSelecionadoNorm = normalizarParaComparacao(buscaSetor);
+    const matchSetor =
+      buscaSetor === "Todos" ||
+      buscaSetor === "Todos Os Setores..." ||
+      buscaSetor.trim() === "" ||
+      setorItemNorm === setorSelecionadoNorm ||
+      setorItemNorm.includes(setorSelecionadoNorm);
 
-    // Se o usuário digitou um patrimônio e ele bate exatamente, ignoramos as travas de unidade/setor (igual ao inventário)
-    if (!eBuscaExataPatrimonio) {
-      if (unidadeSelecionada && unidadeSelecionada.trim() !== "" && unidadeSelecionada !== "Todas") {
-        const unidadeItemNorm = normalizarParaComparacao(item.unidade || "");
-        const unidadeSelecionadaNorm = normalizarParaComparacao(unidadeSelecionada);
-        if (!unidadeItemNorm.includes(unidadeSelecionadaNorm) && !unidadeSelecionadaNorm.includes(unidadeItemNorm)) {
-          return false;
-        }
-      }
-
-      if (buscaSetor && buscaSetor.trim() !== "" && buscaSetor !== "Todos" && buscaSetor !== "Todos Os Setores...") {
-        const setorItemNorm = normalizarParaComparacao(item.setor || "");
-        const setorBuscaNorm = normalizarParaComparacao(buscaSetor);
-        if (!setorItemNorm.includes(setorBuscaNorm) && !setorBuscaNorm.includes(setorItemNorm)) {
-          return false;
-        }
-      }
+    let matchBusca = true;
+    if (buscaPatrimonio.trim() !== "") {
+      const termoNorm = normalizarParaComparacao(buscaPatrimonio);
+      const patItemNorm = normalizarParaComparacao(item.patrimonio || "");
+      const nomeItemNorm = normalizarParaComparacao(item.nome || "");
+      matchBusca =
+        patItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
     }
 
-    if (!termoNorm) return true;
-
-    return patrimonioItemNorm.includes(termoNorm) || nomeItemNorm.includes(termoNorm);
+    return matchUnidade && matchSetor && matchBusca;
   });
 
   return {
