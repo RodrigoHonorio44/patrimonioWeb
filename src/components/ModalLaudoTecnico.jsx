@@ -270,12 +270,12 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
 
           <div className="w-full flex flex-col justify-between flex-1 corpo-documento-print">
             <div>
-              {/* CABEÇALHO COM LOGOS CORRIGIDO */}
-              <div className="grid grid-cols-4 items-center justify-items-center gap-2 mb-4 pb-3 border-b border-slate-200 w-full px-2">
-                <img src="/Imagem1.png" alt="Logo 1" className="max-h-12 w-auto object-contain mx-auto" />
-                <img src="/Imagem2.png" alt="Logo 2" className="max-h-12 w-auto object-contain mx-auto" />
-                <img src="/Imagem3.png" alt="Logo 3" className="max-h-12 w-auto object-contain mx-auto" />
-                <img src="/Imagem4.png" alt="Logo 4" className="max-h-12 w-auto object-contain mx-auto" />
+              {/* CABEÇALHO DAS LOGOS COM PROPORÇÃO E MARGEM CORRETAS */}
+              <div className="grid grid-cols-4 items-center justify-items-center gap-3 mb-4 pb-3 border-b border-slate-200 w-full px-2">
+                <img src="/Imagem1.png" alt="Logo 1" className="max-h-12 w-auto object-contain" />
+                <img src="/Imagem2.png" alt="Logo 2" className="max-h-12 w-auto object-contain" />
+                <img src="/Imagem3.png" alt="Logo 3" className="max-h-12 w-auto object-contain" />
+                <img src="/Imagem4.png" alt="Logo 4" className="max-h-12 w-auto object-contain" />
               </div>
 
               <div className="text-center space-y-1 border-b-2 border-slate-800 pb-3 mb-4 font-sans">
@@ -368,66 +368,45 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
         </div>
       )}
 
-      {/* ESTILOS ESPECÍFICOS DE IMPRESSÃO AJUSTADOS */}
+      {/* ESTILOS DE IMPRESSÃO CORRIGIDOS E SEGURbuffer */}
       <style>{`
         @media print {
-          body, html, .print-container {
-            background-color: #ffffff !important;
-            background: #ffffff !important;
-            position: static !important;
-            overflow: visible !important;
-            height: auto !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
+          /* Define o tamanho da folha A4 e as margens padrão da impressora */
+          @page {
+            size: A4 portrait;
+            margin: 15mm 15mm 15mm 15mm;
           }
 
-          body > *:not(.print-container),
-          .print-container > *:not(#secao-laudo-oficial),
-          .barra-botoes-preview,
-          button,
-          nav,
-          header,
-          aside {
-            display: none !important;
+          /* Oculta apenas os elementos que não devem ir para o papel */
+          body * {
             visibility: hidden !important;
-            height: 0 !important;
-            width: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            opacity: 0 !important;
           }
 
-          #secao-laudo-oficial {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            max-height: none !important;
-            height: auto !important;
-            box-shadow: none !important;
-            border: none !important;
-            padding: 10mm 0 0 0 !important; /* Espaçamento interno superior seguro */
-            margin: 0 !important;
-            background: #ffffff !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
-            overflow: visible !important;
-          }
-
-          .corpo-documento-print,
-          .corpo-documento-print * {
+          /* Revela EXCLUSIVAMENTE a folha do laudo e seus filhos */
+          #secao-laudo-oficial,
+          #secao-laudo-oficial * {
             visibility: visible !important;
           }
 
-          #secao-laudo-oficial .flex { display: flex !important; }
-          #secao-laudo-oficial .grid { display: grid !important; }
+          /* Posiciona o laudo no topo exato da página impressa */
+          #secao-laudo-oficial {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: #ffffff !important;
+          }
 
-          @page {
-            size: A4 portrait;
-            margin: 15mm 20mm; /* Aumenta as margens da folha para não cortar as bordas laterais e topo */
+          /* Esconde os botões do modal no papel */
+          .barra-botoes-preview {
+            display: none !important;
           }
         }
       `}</style>
