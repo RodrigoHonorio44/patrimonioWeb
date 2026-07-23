@@ -270,11 +270,12 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
 
           <div className="w-full flex flex-col justify-between flex-1 corpo-documento-print">
             <div>
-              <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-200 w-full">
-                <img src="/Imagem1.png" alt="Logo 1" className="h-10 sm:h-12 w-auto max-w-[22%] object-contain" />
-                <img src="/Imagem2.png" alt="Logo 2" className="h-10 sm:h-12 w-auto max-w-[22%] object-contain" />
-                <img src="/Imagem3.png" alt="Logo 3" className="h-10 sm:h-12 w-auto max-w-[22%] object-contain" />
-                <img src="/Imagem4.png" alt="Logo 4" className="h-10 sm:h-12 w-auto max-w-[22%] object-contain" />
+              {/* CABEÇALHO COM LOGOS CORRIGIDO */}
+              <div className="grid grid-cols-4 items-center justify-items-center gap-2 mb-4 pb-3 border-b border-slate-200 w-full px-2">
+                <img src="/Imagem1.png" alt="Logo 1" className="max-h-12 w-auto object-contain mx-auto" />
+                <img src="/Imagem2.png" alt="Logo 2" className="max-h-12 w-auto object-contain mx-auto" />
+                <img src="/Imagem3.png" alt="Logo 3" className="max-h-12 w-auto object-contain mx-auto" />
+                <img src="/Imagem4.png" alt="Logo 4" className="max-h-12 w-auto object-contain mx-auto" />
               </div>
 
               <div className="text-center space-y-1 border-b-2 border-slate-800 pb-3 mb-4 font-sans">
@@ -367,9 +368,9 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
         </div>
       )}
 
+      {/* ESTILOS ESPECÍFICOS DE IMPRESSÃO AJUSTADOS */}
       <style>{`
         @media print {
-          /* Reseta o fundo da página inteira para branco limpo */
           body, html, .print-container {
             background-color: #ffffff !important;
             background: #ffffff !important;
@@ -381,7 +382,6 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
             padding: 0 !important;
           }
 
-          /* Oculta absolutamente tudo fora do modal/laudo */
           body > *:not(.print-container),
           .print-container > *:not(#secao-laudo-oficial),
           .barra-botoes-preview,
@@ -398,7 +398,6 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
             opacity: 0 !important;
           }
 
-          /* Destrava e expande o laudo para ocupar exatamente a folha de papel */
           #secao-laudo-oficial {
             position: absolute !important;
             top: 0 !important;
@@ -409,7 +408,7 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
             height: auto !important;
             box-shadow: none !important;
             border: none !important;
-            padding: 0 !important;
+            padding: 10mm 0 0 0 !important; /* Espaçamento interno superior seguro */
             margin: 0 !important;
             background: #ffffff !important;
             display: flex !important;
@@ -427,8 +426,8 @@ const ModalLaudoTecnico = ({ equipamento, isOpen, onClose, onAtualizar }) => {
           #secao-laudo-oficial .grid { display: grid !important; }
 
           @page {
-            size: portrait;
-            margin: 10mm 15mm 10mm 15mm;
+            size: A4 portrait;
+            margin: 15mm 20mm; /* Aumenta as margens da folha para não cortar as bordas laterais e topo */
           }
         }
       `}</style>
