@@ -22,7 +22,7 @@ export const useLaudos = () => {
 
   useEffect(() => {
     const inicializarPainel = async () => {
-      await carregarUnidades();
+      await carregarUnidadesEAtivosIniciais();
       await carregarLaudosPendentes();
     };
     inicializarPainel();
@@ -40,6 +40,8 @@ export const useLaudos = () => {
   };
 
   const obterSetoresDaUnidade = (unidade) => {
+    if (!unidade || unidade === "Todas") return null;
+
     const deParaUnidades = {
       "Hospital Conde": "Hospital Conde",
       "Santa Rita": "Upa Santa Rita",
@@ -65,15 +67,26 @@ export const useLaudos = () => {
       listaSetores = [...MAPA_SETORES_POR_UNIDADE[chaveUnidade]];
     } else {
       const setoresUnicos = new Set();
+      const unidadeNorm = normalizarParaComparacao(unidade);
+
       itens.forEach((item) => {
-        if (item.setor && item.setor.trim() !== "") {
+        const itemUnidadeNorm = normalizarParaComparacao(item.unidade || "");
+        if (itemUnidadeNorm.includes(unidadeNorm) && item.setor && item.setor.trim() !== "") {
           setoresUnicos.add(item.setor.trim());
         }
       });
       listaSetores = Array.from(setoresUnicos);
     }
 
-    listaSetores.sort();
+    listaSetores.sort((a, b) => a.localeCompare(b, "pt", { sensitivity: "base" }));
+
+    if (buscaSetor !== "Todos" && buscaSetor.trim() !== "") {
+      const termoNorm = normalizarParaComparacao(buscaSetor);
+      return listaSetores.filter(setor => 
+        normalizarParaComparacao(setor).includes(termoNorm)
+      );
+    }
+
     return listaSetores.length > 0 ? listaSetores : null;
   };
 
@@ -155,11 +168,14 @@ export const useLaudos = () => {
     }
   };
 
-  const carregarUnidades = async () => {
+  const carregarUnidadesEAtivosIniciais = async () => {
     try {
-      const q = query(collection(db, "ativos"), limit(500));
+      const q = query(collection(db, "ativos"), limit(1000));
       const querySnapshot = await getDocs(q);
-      const dados = querySnapshot.docs.map((doc) => doc.data());
+      const dados = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
       const listaUnidades = Array.from(
         new Set(
@@ -170,8 +186,9 @@ export const useLaudos = () => {
       ).sort((a, b) => a.localeCompare(b, "pt", { sensitivity: "base" }));
 
       setUnidadesDisponiveis(listaUnidades);
+      setItens(dados);
     } catch (error) {
-      console.error("Erro ao pré-carregar unidades:", error);
+      console.error("Erro ao carregar unidades iniciais:", error);
     }
   };
 
@@ -207,7 +224,6 @@ export const useLaudos = () => {
     setBuscaPatrimonio("");
     setBuscaSetor("Todos");
     setUnidadeSelecionada("Todas");
-    setItens([]);
     setHasSearched(false);
   };
 
@@ -233,8 +249,7 @@ export const useLaudos = () => {
       buscaSetor === "Todos" ||
       buscaSetor === "Todos Os Setores..." ||
       buscaSetor.trim() === "" ||
-      setorItemNorm === setorSelecionadoNorm ||
-      setorItemNorm.includes(setorSelecionadoNorm);
+      setorItemNorm === setorSelecionadoNorm;
 
     let matchBusca = true;
     if (buscaPatrimonio.trim() !== "") {
